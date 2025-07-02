@@ -63,14 +63,14 @@ This command instantly creates a public DNS endpoint (e.g., `https://abc123.flee
 
 
 
-### ✅ Use Case: Developer Using EDF to Test a Webhook
+### ✅ Use Case: Developer Using FDF to Test a Webhook
 
 ```mermaid
 sequenceDiagram
   autonumber
   participant Dev as Developer (CLI)
-  participant API as EDF API
-  participant CA as EDF CA & Auth
+  participant API as FDF API
+  participant CA as FDF CA & Auth
   participant Hub as Tunnel Gateway
   participant Edge as HTTPS Endpoint
   participant Webhook as Webhook Provider (e.g., Stripe)
@@ -117,8 +117,8 @@ sequenceDiagram
 sequenceDiagram
   autonumber
   participant Dev as Developer (CLI)
-  participant API as EDF API
-  participant CA as EDF CA
+  participant API as FDF API
+  participant CA as FDF CA
   participant Hub as Tunnel Gateway
   participant Edge as HTTPS Endpoint
   participant Browser as Browser (User/Dev)
@@ -160,8 +160,8 @@ sequenceDiagram
 sequenceDiagram
   autonumber
   participant Dev as Developer (CLI)
-  participant API as EDF API
-  participant CA as EDF CA
+  participant API as FDF API
+  participant CA as FDF CA
   participant Hub as Tunnel Gateway
   participant Edge as HTTPS Endpoint
   participant Browser as QA/User

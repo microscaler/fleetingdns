@@ -2,9 +2,9 @@
 
 ## 🧭 Overview
 
-This document describes the **Security and Hardening Plan** for Ephemeral DNS Forwarder (EDF), covering all attack surfaces across API, DNS, tunnel transport, certificate handling, endpoint lifecycle, and user auth. It ensures that tunnels and ephemeral domains cannot be abused for persistent access, resource exhaustion, or attack redirection.
+This document describes the **Security and Hardening Plan** for Ephemeral DNS Forwarder (FDF), covering all attack surfaces across API, DNS, tunnel transport, certificate handling, endpoint lifecycle, and user auth. It ensures that tunnels and ephemeral domains cannot be abused for persistent access, resource exhaustion, or attack redirection.
 
-EDF adheres to zero-trust, ephemeral-first, identity-bound session design. All long-lived secrets are user-scoped, and all exposed resources (tunnels, DNS entries, certs) have enforced TTLs and cryptographic validation.
+FDF adheres to zero-trust, ephemeral-first, identity-bound session design. All long-lived secrets are user-scoped, and all exposed resources (tunnels, DNS entries, certs) have enforced TTLs and cryptographic validation.
 
 ---
 
@@ -22,7 +22,7 @@ EDF adheres to zero-trust, ephemeral-first, identity-bound session design. All l
 | Layer        | Security Mechanism                                          |
 | ------------ | ----------------------------------------------------------- |
 | CLI → API    | HTTPS with JWT access tokens (GitHub/OIDC bound)            |
-| CLI → Hub    | TLS-wrapped SSH with ephemeral client cert signed by EDF CA |
+| CLI → Hub    | TLS-wrapped SSH with ephemeral client cert signed by FDF CA |
 | Edge → Hub   | Authenticated HTTP2 stream per slot ID, no shared sockets   |
 | DNS records  | Short TTL, etcd key expiry, no wildcard routing fallback    |
 | Tunnel user  | Non-login system user, isolated reverse-only port           |
@@ -35,7 +35,7 @@ EDF adheres to zero-trust, ephemeral-first, identity-bound session design. All l
 ### Ephemeral Client Cert Flow
 
 * Each `edf forward` session receives a signed ephemeral TLS certificate with a 30–60 min expiry
-* Signed by EDF-owned internal CA (X.509 root pinned in hub/edge components)
+* Signed by FDF-owned internal CA (X.509 root pinned in hub/edge components)
 * Private key generated in CLI, stored in memory only
 * Certificate + public key stored in etcd and cached in hub for validation
 

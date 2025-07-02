@@ -10,7 +10,7 @@ The tunnel allows ephemeral subdomains (e.g. `abc123.edf.run`) to route back to 
 
 ## 🎯 Objectives
 
-* Create secure, ephemeral reverse tunnels from user machine to EDF hub
+* Create secure, ephemeral reverse tunnels from user machine to FDF hub
 * TLS-wrap SSH sessions for strong encryption and ingress defense
 * Support SSH-level compression to reduce cloud traffic
 * Enforce client identity verification via GitHub authentication

@@ -2,13 +2,13 @@
 
 ## 🧭 Overview
 
-This document details the implementation and behavior of the official **GitHub Action for Ephemeral DNS Forwarder** (`epdns-action`) that allows automated test pipelines to create ephemeral DNS endpoints using the EDF CLI. This ensures full lifecycle automation and guaranteed teardown of reverse tunnels when the CI job exits.
+This document details the implementation and behavior of the official **GitHub Action for Ephemeral DNS Forwarder** (`epdns-action`) that allows automated test pipelines to create ephemeral DNS endpoints using the FDF CLI. This ensures full lifecycle automation and guaranteed teardown of reverse tunnels when the CI job exits.
 
 ---
 
 ## 🎯 Objectives
 
-* Seamlessly integrate EDF into CI workflows (GitHub Actions first)
+* Seamlessly integrate FDF into CI workflows (GitHub Actions first)
 * Provision and teardown ephemeral DNS + tunnel endpoints during a job
 * Ensure teardown occurs on success or failure
 * Support JSON output for further automated use (e.g., test scripts)
@@ -33,7 +33,7 @@ sequenceDiagram
   participant Runner as GitHub Runner
   participant Action as epdns-action
   participant CLI as edf CLI
-  participant API as EDF Control API
+  participant API as FDF Control API
   participant Edge as edf-edge
 
   Runner->>Action: starts job step
@@ -116,7 +116,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Setup EDF Tunnel
+      - name: Setup FDF Tunnel
         uses: epdns/epdns-action@v1
         with:
           port: 3000

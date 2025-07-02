@@ -2,7 +2,7 @@
 
 ## 🧭 Overview
 
-This design document defines the behavior and implementation of optional **Basic Authentication**, **HTTP Redirect Mode**, **HMAC Signature Verification**, and **OIDC-based token validation** for Ephemeral DNS Forwarder (EDF) endpoints. These features enable fine-grained control over who can access ephemeral endpoints and how the identity of callers is verified.
+This design document defines the behavior and implementation of optional **Basic Authentication**, **HTTP Redirect Mode**, **HMAC Signature Verification**, and **OIDC-based token validation** for Ephemeral DNS Forwarder (FDF) endpoints. These features enable fine-grained control over who can access ephemeral endpoints and how the identity of callers is verified.
 
 ---
 
@@ -60,7 +60,7 @@ See original E4. Still supports Basic Auth on redirect endpoints. Authentication
 
 ### Use Case
 
-Some webhook providers (e.g., GitHub, Stripe) sign webhook requests using a shared secret and HMAC. We allow EDF users to define a `shared_secret` and an expected header name.
+Some webhook providers (e.g., GitHub, Stripe) sign webhook requests using a shared secret and HMAC. We allow FDF users to define a `shared_secret` and an expected header name.
 
 ### Behavior
 
