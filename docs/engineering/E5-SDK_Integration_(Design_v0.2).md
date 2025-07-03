@@ -2,7 +2,7 @@
 
 ## 🧭 Overview
 
-This document outlines the design of **language-specific SDKs** to make Ephemeral DNS Forwarder (FDF) trivially accessible from developer tools, test harnesses, and other programmatic contexts. These SDKs wrap the CLI binary (`edf`) or expose native bindings where appropriate, enabling endpoint creation and teardown via Python, JavaScript/TypeScript, and Go.
+This document outlines the design of **language-specific SDKs** to make (Ephemeral) Fleeting DNS Forwarder (FDF) trivially accessible from developer tools, test harnesses, and other programmatic contexts. These SDKs wrap the CLI binary (`edf`) or expose native bindings where appropriate, enabling endpoint creation and teardown via Python, JavaScript/TypeScript, and Go.
 
 ---
 
@@ -110,4 +110,4 @@ defer client.Delete(endpoint.ID)
 
 ---
 
-© 2025 Ephemeral DNS Forwarder
+© 2025 (Ephemeral) Fleeting DNS Forwarder

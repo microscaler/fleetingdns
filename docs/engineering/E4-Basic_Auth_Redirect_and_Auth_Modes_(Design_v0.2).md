@@ -2,7 +2,7 @@
 
 ## 🧭 Overview
 
-This design document defines the behavior and implementation of optional **Basic Authentication**, **HTTP Redirect Mode**, **HMAC Signature Verification**, and **OIDC-based token validation** for Ephemeral DNS Forwarder (FDF) endpoints. These features enable fine-grained control over who can access ephemeral endpoints and how the identity of callers is verified.
+This design document defines the behavior and implementation of optional **Basic Authentication**, **HTTP Redirect Mode**, **HMAC Signature Verification**, and **OIDC-based token validation** for (Ephemeral) Fleeting DNS Forwarder (FDF) endpoints. These features enable fine-grained control over who can access ephemeral endpoints and how the identity of callers is verified.
 
 ---
 
@@ -158,4 +158,4 @@ sequenceDiagram
 
 ---
 
-© 2025 Ephemeral DNS Forwarder
+© 2025 (Ephemeral) Fleeting DNS Forwarder

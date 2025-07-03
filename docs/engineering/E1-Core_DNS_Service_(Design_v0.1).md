@@ -2,7 +2,7 @@
 
 ## 🧭 Overview
 
-This document details the design of the **Core DNS Service** component for Ephemeral DNS Forwarder. It defines how DNS records are provisioned dynamically for short-lived endpoints via CoreDNS and `etcd`. This is the authoritative DNS zone backing the `*.edf.run` domain.
+This document details the design of the **Core DNS Service** component for (Ephemeral) Fleeting DNS Forwarder. It defines how DNS records are provisioned dynamically for short-lived endpoints via CoreDNS and `etcd`. This is the authoritative DNS zone backing the `*.edf.run` domain.
 
 FDF uses CoreDNS + `etcd` as the authoritative resolver for ephemeral endpoint domains. Endpoints are created via the control API, stored in `etcd`, and served in real-time without requiring DNS server restarts. Each endpoint lives for a fixed TTL and is auto-cleaned.
 
@@ -121,4 +121,4 @@ We configure CoreDNS to serve from `/dns` prefix. A-side TTL is handled by the A
 
 ---
 
-© 2025 Ephemeral DNS Forwarder
+© 2025 (Ephemeral) Fleeting DNS Forwarder

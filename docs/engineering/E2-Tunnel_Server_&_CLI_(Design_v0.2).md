@@ -2,7 +2,7 @@
 
 ## 🧭 Overview
 
-This document defines the design of the **Tunnel Server and CLI** for Ephemeral DNS Forwarder. It establishes the secure reverse tunnel layer between the developer’s local machine or CI job and the cloud edge infrastructure, using **TLS-wrapped SSH with compression**, entirely implemented in **Rust** using `russh`, `tokio`, and `rustls`.
+This document defines the design of the **Tunnel Server and CLI** for (Ephemeral) Fleeting DNS Forwarder. It establishes the secure reverse tunnel layer between the developer’s local machine or CI job and the cloud edge infrastructure, using **TLS-wrapped SSH with compression**, entirely implemented in **Rust** using `russh`, `tokio`, and `rustls`.
 
 The tunnel allows ephemeral subdomains (e.g. `abc123.edf.run`) to route back to a developer’s local port, for integration testing of external webhooks, OAuth, or multi-tenant logic.
 
@@ -167,4 +167,4 @@ struct TunnelSession {
 
 ---
 
-© 2025 Ephemeral DNS Forwarder
+© 2025 (Ephemeral) Fleeting DNS Forwarder

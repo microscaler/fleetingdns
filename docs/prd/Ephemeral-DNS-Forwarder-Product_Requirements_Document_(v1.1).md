@@ -1,4 +1,4 @@
-# Ephemeral DNS Forwarder – **Product Requirements Document (v1.1)**
+# (Ephemeral) Fleeting DNS Forwarder – **Product Requirements Document (v1.1)**
 
 *Last updated: 2025‑07‑02*
 
@@ -8,7 +8,7 @@
 
 ## 1Vision & Purpose
 
-Ephemeral DNS Forwarder (FDF) turns any developer workstation or CI job into a publicly addressable host **in one command** while remaining **temporary, secure, and zero‑config**.  It eliminates the friction of testing webhooks, OAuth callbacks, ACME flows, or multi‑tenant host‑based routing by creating a *30‑minute* DNS entry and a reverse tunnel that streams traffic back to the local service.  After TTL expiry or tunnel drop, all artefacts self‑destruct, leaving zero footprint.
+(Ephemeral) Fleeting DNS Forwarder (FDF) turns any developer workstation or CI job into a publicly addressable host **in one command** while remaining **temporary, secure, and zero‑config**.  It eliminates the friction of testing webhooks, OAuth callbacks, ACME flows, or multi‑tenant host‑based routing by creating a *30‑minute* DNS entry and a reverse tunnel that streams traffic back to the local service.  After TTL expiry or tunnel drop, all artefacts self‑destruct, leaving zero footprint.
 
 FDF is expressly **DX‑first** and **Rust‑native**.
 

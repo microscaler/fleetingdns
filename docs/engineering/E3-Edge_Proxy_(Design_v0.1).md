@@ -150,4 +150,4 @@ struct ResolvedEndpoint {
 
 ---
 
-© 2025 Ephemeral DNS Forwarder
+© 2025 (Ephemeral) Fleeting DNS Forwarder

@@ -2,7 +2,7 @@
 
 ## 🧭 Overview
 
-This document describes the **Security and Hardening Plan** for Ephemeral DNS Forwarder (FDF), covering all attack surfaces across API, DNS, tunnel transport, certificate handling, endpoint lifecycle, and user auth. It ensures that tunnels and ephemeral domains cannot be abused for persistent access, resource exhaustion, or attack redirection.
+This document describes the **Security and Hardening Plan** for (Ephemeral) Fleeting DNS Forwarder (FDF), covering all attack surfaces across API, DNS, tunnel transport, certificate handling, endpoint lifecycle, and user auth. It ensures that tunnels and ephemeral domains cannot be abused for persistent access, resource exhaustion, or attack redirection.
 
 FDF adheres to zero-trust, ephemeral-first, identity-bound session design. All long-lived secrets are user-scoped, and all exposed resources (tunnels, DNS entries, certs) have enforced TTLs and cryptographic validation.
 
@@ -145,4 +145,4 @@ FDF adheres to zero-trust, ephemeral-first, identity-bound session design. All l
 
 ---
 
-© 2025 Ephemeral DNS Forwarder
+© 2025 (Ephemeral) Fleeting DNS Forwarder

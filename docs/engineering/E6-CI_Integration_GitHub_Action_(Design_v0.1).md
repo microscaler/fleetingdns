@@ -2,7 +2,7 @@
 
 ## 🧭 Overview
 
-This document details the implementation and behavior of the official **GitHub Action for Ephemeral DNS Forwarder** (`epdns-action`) that allows automated test pipelines to create ephemeral DNS endpoints using the FDF CLI. This ensures full lifecycle automation and guaranteed teardown of reverse tunnels when the CI job exits.
+This document details the implementation and behavior of the official **GitHub Action for (Ephemeral) Fleeting DNS Forwarder** (`epdns-action`) that allows automated test pipelines to create ephemeral DNS endpoints using the FDF CLI. This ensures full lifecycle automation and guaranteed teardown of reverse tunnels when the CI job exits.
 
 ---
 
@@ -148,4 +148,4 @@ jobs:
 
 ---
 
-© 2025 Ephemeral DNS Forwarder
+© 2025 (Ephemeral) Fleeting DNS Forwarder

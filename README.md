@@ -4,9 +4,9 @@
 
 ---
 
-## 🚀 What is Ephemeral DNS Forwarder?
+## 🚀 What is (Ephemeral) Fleeting DNS Forwarder?
 
-Ephemeral DNS Forwarder is a secure, easy-to-use service that provides temporary, publicly accessible DNS endpoints, instantly forwarding traffic to your local machine or continuous integration (CI) environment. Built specifically for developers and CI pipelines, it solves common problems faced during testing, including external integrations such as webhooks, OAuth callbacks, and multi-tenant application routing.
+(Ephemeral) Fleeting DNS Forwarder is a secure, easy-to-use service that provides temporary, publicly accessible DNS endpoints, instantly forwarding traffic to your local machine or continuous integration (CI) environment. Built specifically for developers and CI pipelines, it solves common problems faced during testing, including external integrations such as webhooks, OAuth callbacks, and multi-tenant application routing.
 
 ---
 
@@ -257,4 +257,4 @@ Transform your development and testing workflow today!
 
 ---
 
-© 2025 Ephemeral DNS Forwarder
+© 2025 (Ephemeral) Fleeting DNS Forwarder

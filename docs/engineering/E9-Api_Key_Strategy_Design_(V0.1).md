@@ -2,7 +2,7 @@
 
 ## 🧭 Overview
 
-This document defines the strategy and architecture for **API key issuance and management** in the Ephemeral DNS Forwarder (FDF) platform. It establishes how scoped, rate-limited, and expirable API tokens will be created, authenticated, and used to access both control-plane and operational endpoints.
+This document defines the strategy and architecture for **API key issuance and management** in the (Ephemeral) Fleeting DNS Forwarder (FDF) platform. It establishes how scoped, rate-limited, and expirable API tokens will be created, authenticated, and used to access both control-plane and operational endpoints.
 
 ---
 
@@ -136,4 +136,4 @@ edf token revoke <id>
 
 ---
 
-© 2025 Ephemeral DNS Forwarder
+© 2025 (Ephemeral) Fleeting DNS Forwarder
