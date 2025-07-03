@@ -1,5 +1,9 @@
 # 📘 E1 – Core DNS Service (Design v0.1)
 
+Status: **Superseded** 
+
+See: E1b_DNS_Architecture_(Stateless_+_Redis)_Design_(v0.1).md
+
 ## 🧭 Overview
 
 This document details the design of the **Core DNS Service** component for (Ephemeral) Fleeting DNS Forwarder. It defines how DNS records are provisioned dynamically for short-lived endpoints via CoreDNS and `etcd`. This is the authoritative DNS zone backing the `*.edf.run` domain.

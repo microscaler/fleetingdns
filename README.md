@@ -21,7 +21,61 @@ Developers frequently face challenges when testing systems that require external
 
 Using localhost or editing local DNS entries (`/etc/hosts`) is cumbersome and doesn't replicate real-world scenarios accurately.
 
+---
+
 FDF resolves these pain points by creating secure, ephemeral, and publicly resolvable DNS endpoints that seamlessly route traffic back to your local development or CI environment.
+
+* a developer is on a **hotel Wi-Fi behind NAT + firewall**,
+* a **GitHub Actions** job provisions an EDF endpoint, and
+* **Stripe** fires real web-hooks at that endpoint.
+
+```mermaid
+flowchart TD
+    %% Actors
+    subgraph Hotel_Network["Hotel Wi-Fi / NAT 🔒"]
+        DevLaptop["🖥️ Developer laptop<br/>`edf forward --port 3000`"]
+    end
+
+    subgraph GitHub_Cloud["GitHub Actions"]
+        GHRunner["CI Runner<br/>`epdns-action`"]
+    end
+
+    subgraph EDF_Cloud["Ephemeral DNS Forwarder (multi-PoP)"]
+        API["EDF API + CA<br/>(issue short-lived cert)"]
+        Redis[(🔗 Redis slot+meta cache)]
+        EdgeHub["Edge + Hub<br/>(rustls mTLS, Trust-DNS)"]
+        DNSAuth["Stateless / Redis DNS"]
+    end
+
+    Stripe["🌐 Stripe Webhook Service"]
+
+    %% Provisioning / control plane
+    GHRunner -- "1️⃣ REST ➜ create endpoint\n(return FQDN + cert)" --> API
+    DevLaptop -- "2️⃣ Outbound mTLS tunnel\n(cert from API)" --> EdgeHub
+    EdgeHub -- "3️⃣ SET slot→tcp in Redis" --> Redis
+    API -- "3b️⃣ DNS label (stateless)\nTTL 30 s" --> DNSAuth
+
+    %% Web-hook data plane
+    Stripe -- "4️⃣ POST https://<label>.edf.run/\n(webhook payload)" --> DNSAuth
+    DNSAuth -- "A-record lookup" --> EdgeHub
+    Stripe ---> EdgeHub
+    EdgeHub -- "5️⃣ forward over tunnel" --> DevLaptop
+    DevLaptop -- "6️⃣ 200 OK" --> EdgeHub
+    EdgeHub --> Stripe
+
+    %% Return path for CI logs
+    DevLaptop -- "Test assertions / logs" --> GHRunner
+```
+
+### Flow summary
+
+1. **CI runner** calls the EDF API to create an endpoint; API signs a 30-minute client certificate and returns the generated FQDN.
+2. **Developer laptop** (inside hotel NAT) opens an **outbound mutual-TLS tunnel** to the nearest EDF Edge + Hub node.
+3. The hub stores the new *slot → TCP stream* mapping in **Redis**; the API has already made the stateless DNS label live.
+4. **Stripe** resolves the FQDN, gets the hub anycast IP, and sends the webhook.
+5. The hub validates the label, looks up the slot, and pipes the HTTP request through the encrypted tunnel to the developer’s localhost.
+6. The laptop’s app returns `200 OK`; the response propagates back to Stripe, and the CI job can read test results.
+
 
 ---
 
