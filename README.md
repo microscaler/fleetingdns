@@ -33,11 +33,11 @@ FDF resolves these pain points by creating secure, ephemeral, and publicly resol
 flowchart TD
     %% Actors
     subgraph Hotel_Network["Hotel Wi-Fi / NAT 🔒"]
-        DevLaptop["🖥️ Developer laptop<br/>`edf forward --port 3000`"]
+        DevLaptop["🖥️ Developer laptop <br/> edf forward --port 3000"]
     end
 
     subgraph GitHub_Cloud["GitHub Actions"]
-        GHRunner["CI Runner<br/>`epdns-action`"]
+        GHRunner["CI Runner<br/>epdns-action"]
     end
 
     subgraph EDF_Cloud["Ephemeral DNS Forwarder (multi-PoP)"]
@@ -50,13 +50,13 @@ flowchart TD
     Stripe["🌐 Stripe Webhook Service"]
 
     %% Provisioning / control plane
-    GHRunner -- "1️⃣ REST ➜ create endpoint\n(return FQDN + cert)" --> API
-    DevLaptop -- "2️⃣ Outbound mTLS tunnel\n(cert from API)" --> EdgeHub
+    GHRunner -- "1️⃣ REST ➜ create endpoint<br/>(return FQDN + cert)" --> API
+    DevLaptop -- "2️⃣ Outbound mTLS tunnel<br/>(cert from API)" --> EdgeHub
     EdgeHub -- "3️⃣ SET slot→tcp in Redis" --> Redis
-    API -- "3b️⃣ DNS label (stateless)\nTTL 30 s" --> DNSAuth
+    API -- "3b️⃣ DNS label (stateless)<br/>TTL 30 s" --> DNSAuth
 
     %% Web-hook data plane
-    Stripe -- "4️⃣ POST https://<label>.edf.run/\n(webhook payload)" --> DNSAuth
+    Stripe -- "4️⃣ POST https://<label>.edf.run/<br/>(webhook payload)" --> DNSAuth
     DNSAuth -- "A-record lookup" --> EdgeHub
     Stripe ---> EdgeHub
     EdgeHub -- "5️⃣ forward over tunnel" --> DevLaptop
