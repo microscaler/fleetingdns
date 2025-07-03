@@ -1,4 +1,4 @@
-# 🌐 Fleeting DNS Forwarder (FTF)
+# 🌐 Fleeting DNS Forwarder (FDF)
 
 **Instant, Secure, and Temporary DNS Endpoints for Development & Testing**
 
@@ -10,7 +10,7 @@ Ephemeral DNS Forwarder is a secure, easy-to-use service that provides temporary
 
 ---
 
-## 🛠️ Why Do Developers Need FTF?
+## 🛠️ Why Do Developers Need FDF?
 
 Developers frequently face challenges when testing systems that require external services:
 
@@ -21,7 +21,7 @@ Developers frequently face challenges when testing systems that require external
 
 Using localhost or editing local DNS entries (`/etc/hosts`) is cumbersome and doesn't replicate real-world scenarios accurately.
 
-FTF resolves these pain points by creating secure, ephemeral, and publicly resolvable DNS endpoints that seamlessly route traffic back to your local development or CI environment.
+FDF resolves these pain points by creating secure, ephemeral, and publicly resolvable DNS endpoints that seamlessly route traffic back to your local development or CI environment.
 
 ---
 
@@ -37,7 +37,7 @@ FTF resolves these pain points by creating secure, ephemeral, and publicly resol
 
 ---
 
-## 🔍 When Should You Use FTF?
+## 🔍 When Should You Use FDF?
 
 * Testing **OAuth and OpenID Connect flows** locally or in CI.
 * Validating external **webhook integrations** (Stripe, GitHub, Twilio).
@@ -51,13 +51,13 @@ FTF resolves these pain points by creating secure, ephemeral, and publicly resol
 
 Traditional testing requires exposing a local port publicly or deploying test instances, both tedious and insecure.
 
-With FTF:
+With FDF:
 
 ```bash
 fleetingdns forward --port 3000 --ttl 1800
 ```
 
-This command instantly creates a public DNS endpoint (e.g., `https://abc123.fleetingdns.run`) that Stripe can use to send webhook events directly to your locally running test server. FTF handles the routing securely, and after 30 minutes, the endpoint and tunnel close automatically.
+This command instantly creates a public DNS endpoint (e.g., `https://abc123.fleetingdns.run`) that Stripe can use to send webhook events directly to your locally running test server. FDF handles the routing securely, and after 30 minutes, the endpoint and tunnel close automatically.
 
 ---
 
