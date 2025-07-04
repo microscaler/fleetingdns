@@ -85,7 +85,7 @@ impl PrivateAuthority {
 | Threat                                                          | Mitigation                                                                          |
 | --------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | Split‑horizon confusion (resolver accidentally queries 8.8.8.8) | Corporation sets `DNSSEC=on`, public path has no DS so validation fails => NXDOMAIN |
-| Data exfil via private zone label                               | Logs & audit per zone; rate limits (E1h) apply                                      |
+| Data exfil via private zone label                               | Logs & audit per zone;rate limits (E1h) apply                                      |
 | Spoofing private NS                                             | WG enforces mutual PSK/mTLS; source IP ACL                                          |
 
 ---

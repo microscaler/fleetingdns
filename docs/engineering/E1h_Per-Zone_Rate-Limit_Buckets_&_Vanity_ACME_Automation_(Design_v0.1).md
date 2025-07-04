@@ -46,13 +46,13 @@ Both live entirely in Rust micro‑services, leaning on existing Redis + Trust�
 * 429 / TC responses include `RateLimit-Remaining-zone` header.
 * Default limits derived from plan tier; overridable via admin panel.
 
-### 2.2 Vanity ACME automation — **deep-dive**
+### 2.2 Vanity ACME automation— **deep-dive**
 
 > **Goal:** Customer points `dev.example.com` at EDF once, clicks "Enable HTTPS", and within 60 seconds a valid wildcard certificate `*.dev.example.com` is live across **all edge nodes** — no further action required.
 >
 > **ACME flavor:** Let’s Encrypt v2 (production) with optional staging toggle (`?dry-run`). Fallback CA: ZeroSSL for rate‑limit mitigation.
 
-#### 2.2.1 Workflow in detail
+#### 2.2.1Workflow in detail
 
 1. **ACME Account per zone**
 
@@ -64,27 +64,27 @@ Both live entirely in Rust micro‑services, leaning on existing Redis + Trust�
     * ACME replies with `authorization` objects containing **DNS‑01** token `t`.
 3. **Challenge provisioning**
 
-    * Internal Trust‑DNS adds TXT `_acme-challenge.ZONE` → `<base64(t)>`, TTL = 30 s.
+    * Internal Trust‑DNS adds TXT `_acme-challenge.ZONE` → `<base64(t)>`, TTL=30 s.
     * Authority uses **zone‑specific ZSK** so signature is valid.
-4. **Self‑validate before notify CA**  (avoid Err ‘unauthorized’ RTT):
-   \* `dig TXT +dnssec` via 8.8.8.8 from same pod until record resolvable *and* RRSIG verifies.
+4. **Self‑validate before notify CA** (avoid Err‘unauthorized’ RTT):
+   \*`dig TXT +dnssec` via 8.8.8.8 from same pod until record resolvable *and* RRSIG verifies.
 5. **Finalize**
 
     * `POST finalize` with CSR (wildcard + SAN zone apex).
 6. **Cert storage & distribution**
 
     * Store PEM chain + RSA private key in `cert:{zone_id}` Redis hash.
-    * Edge Pods subscribe to Redis keyspace events; on change they pull cert and **insert into rustls Resolver**.
+    * EdgePods subscribe to Redis keyspace events; on change they pull cert and **insert into rustlsResolver**.
 7. **Renewal scheduler**
 
-    * Cron every 12 h scans keys expiring < 45 days.
+    * Cron every 12h scans keys expiring < 45days.
     * Each run is staggered via `redis.lock("acme:renew:{zone_id}")` to prevent thundering‑herd.
 8. **Planet‑scale propagation**
 
-    * New cert TTL 30 days in edge LRU.
-    * Old cert kept until 24 h after new deployment to handle client session resumption.
+    * New cert TTL 30days in edge LRU.
+    * Old cert kept until 24h after new deployment to handle client session resumption.
 
-#### 2.2.2 Sequence diagram (issuance)
+#### 2.2.2Sequence diagram (issuance)
 
 ```mermaid
 sequenceDiagram
@@ -111,29 +111,29 @@ sequenceDiagram
   Edge->>Edge: rustls.insert(cert)
 ```
 
-#### 2.2.3 Error handling matrix
+#### 2.2.3Error handling matrix
 
 | Phase         | ACME error code | EDF response                                               | Retried?                    |
 | ------------- | --------------- | ---------------------------------------------------------- | --------------------------- |
-| newOrder      | `rateLimited`   | Switch to ZeroSSL endpoint                                 | ✅ exponential backoff × 6 h |
+| newOrder      | `rateLimited`   | Switch to ZeroSSL endpoint                                 | ✅ exponential backoff ×6 h |
 | dns‑01 verify | `unauthorized`  | Check TXT present; if yes open SRE alert (likely firewall) | ⚠️ manual                   |
 | finalize      | `badCSR`        | Re‑generate CSR with RSA‑4096 fallback                     | once                        |
 | cert download | network timeout | Retry with jitter 5–30 s                                   | 5×                          |
 
-#### 2.2.4 Security notes
+#### 2.2.4Securitynotes
 
 * Private key never leaves renewer pod; stored **encrypted in Redis** (AES‑GCM using zone‑derived KEK).
 * Edge pods request key via mutual mTLS over cluster network.
 * In worst‑case Redis breach, key is ciphertext; attacker still needs KEK.
 
-#### 2.2.5 Rust crate choices
+#### 2.2.5Rustcrate choices
 
 * ACME client: `acme-client` (latest, pure Rust)
 * JWK/JWS: `josekit`
 * CSR build: `rcgen`
 * DNS self‑resolve: use `trust-dns-resolver` with `ResolverConfig::google()`
 
-#### 2.2.6 Prometheus metrics
+#### 2.2.6Prometheus metrics
 
 | Metric                     | Labels             | Purpose                  |
 | -------------------------- | ------------------ | ------------------------ |
@@ -141,13 +141,13 @@ sequenceDiagram
 | `edf_acme_fail_total`      | zone, phase, error | Alert on high error rate |
 | `edf_tls_cert_expiry_days` | zone               | Alert at 30, 7, 1 days   |
 
-#### 2.2.7 Deliverables checklist
+#### 2.2.7Deliverables checklist
 
 * [ ] ACME renewer micro‑service (`edf-acme`) with deterministic account keys.
 * [ ] Redis key schema + encryption helpers.
 * [ ] Edge rustls dynamic resolver hooking.
 * [ ] Dashboard status card (green/yellow/red) per zone.
-* [ ] End‑to‑end integration test using Let’s Encrypt staging.
+* [ ] End‑to‑end integration test using Let’sEncrypt staging.
 
 ---
 
@@ -254,7 +254,7 @@ Caching in-memory for 10 min per zone.
 | --------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | DNS‑01 TXT might not propagate (<10s) before validation   | Add 5‑retry backoff × 5s; provisioning UI shows spinner                            |
 | Customer misconfigures firewall blocking 443 to LE        | Provide alt CA (ZeroSSL) toggle                                                    |
-| RL buckets cause false positives on bursty but legit load | Burst factor = 50 % + Prometheus alerts for near‑limit; customers can request bump |
+| RL buckets cause false positives on bursty but legit load | Burst factor = 50% + Prometheus alerts for near‑limit; customers can request bump |
 
 ---
 

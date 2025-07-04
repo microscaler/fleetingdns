@@ -18,8 +18,8 @@ Success metric: *zero* successful TLS MITM in red‑team test; disconnection rat
 
 ## 2 ▪ WHAT (requirements)
 
-1. Publish **SPKI fingerprints** (base64 SHA‑256) for each private NS (`pns*.edf.run`) via HTTPS API & dashboard.
-2. Provide **resolver config snippets** for: BIND 9.18+, Unbound, CoreDNS, Windows Server 2022 AD.
+1. Publish **SPKI fingerprints** (base64SHA‑256) for each private NS (`pns*.edf.run`) via HTTPS API & dashboard.
+2. Provide **resolver config snippets** for: BIND9.18+, Unbound, CoreDNS, WindowsServer2022 AD.
 3. Automate pin rollover when EDF rotates ACME wildcard cert (E1h) — notifying customers N‑days prior.
 4. Optional: **mTLS** mode where corporate resolver presents client cert signed by customer CA.
 
@@ -56,7 +56,7 @@ forward-zone:
   forward-addr: 10.192.10.3@853#pns2.edf.run,4af0c99d5e...
 ```
 
-**BIND 9.18+ (with `tls pin-sha256`):**
+**BIND9.18+ (with `tls pin-sha256`):**
 
 ```bind
 server 10.192.10.2 tls "pns1" {
@@ -68,7 +68,7 @@ server 10.192.10.2 tls "pns1" {
 
 * 30 days before cert expiry, `acme-renewer` issues new cert (E1h) but **keeps old SPKI** by re‑using RSA keypair (ACME allows certificate reuse  – only signature updated).
 * If key compromise detected → generate new keypair → new SPKI; publish **`pins.next`** field plus `Valid‑From` date.
-* Grace period: 7 days where both pins accepted. Unbound & BIND allow multiple pins.
+* Grace period:7days where both pins accepted. Unbound & BIND allow multiple pins.
 
 ### 3.4 Pin distribution
 
