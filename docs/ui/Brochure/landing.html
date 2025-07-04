@@ -1,0 +1,1027 @@
+<html><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script> window.FontAwesomeConfig = { autoReplaceSvg: 'nest'};</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/particles.js@2.0.0/particles.min.js"></script>
+    <style>::-webkit-scrollbar { display: none;}</style>
+    <script>tailwind.config = {
+        "theme": {
+            "extend": {
+                "colors": {
+                    "electricblue": "#017bff",
+                    "charcoal": "#222222",
+                    "mint": "#a3f7bf"
+                },
+                "fontFamily": {
+                    "inter": [
+                        "Inter",
+                        "sans-serif"
+                    ],
+                    "code": [
+                        "Source Code Pro",
+                        "monospace"
+                    ],
+                    "sans": [
+                        "Inter",
+                        "sans-serif"
+                    ]
+                }
+            }
+        }
+    };</script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;500;600;700;800;900&amp;display=swap"><style>
+    body {
+        font-family: 'Inter', sans-serif !important;
+    }
+
+    /* Preserve Font Awesome icons */
+    .fa, .fas, .far, .fal, .fab {
+        font-family: "Font Awesome 6 Free", "Font Awesome 6 Brands" !important;
+    }
+</style><style>
+    .highlighted-section {
+        outline: 2px solid #3F20FB;
+        background-color: rgba(63, 32, 251, 0.1);
+    }
+
+    .edit-button {
+        position: absolute;
+        z-index: 1000;
+    }
+
+    ::-webkit-scrollbar {
+        display: none;
+    }
+
+    html, body {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+</style></head>
+<body class="font-inter text-charcoal bg-gray-50">
+<!-- Header -->
+<header id="header" class="bg-white shadow-sm fixed w-full z-50">
+    <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center">
+                <span class="text-2xl font-bold text-electricblue flex items-center cursor-pointer">
+                    <i class="fa-solid fa-bolt-lightning mr-2"></i>
+                    <span>EDF</span>
+                </span>
+        </div>
+        <nav class="hidden md:flex items-center space-x-8">
+            <span class="text-charcoal hover:text-electricblue font-medium cursor-pointer">Docs</span>
+            <span class="text-charcoal hover:text-electricblue font-medium cursor-pointer">
+                    <i class="fa-brands fa-github mr-1"></i> GitHub
+                </span>
+            <span class="text-charcoal hover:text-electricblue font-medium cursor-pointer">Pricing</span>
+            <span class="text-charcoal hover:text-electricblue font-medium cursor-pointer">Blog</span>
+        </nav>
+        <div class="flex items-center">
+            <span class="text-charcoal hover:text-electricblue font-medium mr-4 cursor-pointer">Sign In</span>
+            <span class="bg-electricblue text-white px-4 py-2 rounded-md font-medium hover:bg-blue-600 transition cursor-pointer">Start Free</span>
+        </div>
+    </div>
+</header>
+
+<!-- Hero Section -->
+<section id="hero" class="pt-24 pb-16 h-[600px] relative overflow-hidden bg-gradient-to-b from-gray-50 to-white">
+    <div id="particles-js" class="absolute inset-0 z-0"></div>
+    <div class="container mx-auto px-4 relative z-10">
+        <div class="flex flex-col md:flex-row items-center">
+            <div class="md:w-1/2 mb-8 md:mb-0">
+                <h1 class="text-4xl md:text-4xl lg:text-5xl font-bold text-charcoal leading-tight mb-4">
+                    Secure showcase endpoints in <span class="text-electricblue">&lt;2s</span>.<br>
+                </h1>
+                <p class="text-lg text-gray-600 mb-8">
+                    Secure, open, self-hostable alternative to SaaS tunnels.
+                    Combines ngrok's developer UX with Tailscale-grade security, minus the lock-in.
+                </p>
+                <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+                        <span class="bg-electricblue text-white px-8 py-3 rounded-md font-medium hover:bg-blue-600 transition text-center cursor-pointer">
+                            Start Free
+                        </span>
+                    <span class="border border-charcoal text-charcoal px-8 py-3 rounded-md font-medium hover:bg-gray-100 transition text-center cursor-pointer">
+                            See Docs
+                        </span>
+                </div>
+                </div>
+                <div class="md:w-1/2 flex justify-center">
+                    <div class="relative w-full max-w-md h-80 animate-float">
+                        <img class="absolute inset-0 rounded-lg shadow-lg" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/02f2d33385-94b5f3a48088b73ef5b4.png" alt="animated flow diagram showing code to globe connection with secure tunnel visualization, tech illustration in blue">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-gray-100 to-transparent"></div>
+    </section>
+
+<!-- Problem Section -->
+<section id="problem" class="py-16 bg-white">
+    <div class="container mx-auto px-4">
+        <div class="text-center mb-12">
+            <h2 class="text-3xl font-bold mb-4">Current Solutions Fall Short</h2>
+            <p class="text-xl text-gray-600 max-w-3xl mx-auto">Developers are wasting time and compromising security with existing options</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+            <div class="bg-gray-50 p-6 rounded-lg">
+                <div class="flex items-center mb-4">
+                    <i class="fa-solid fa-hourglass-half text-red-500 text-2xl mr-3"></i>
+                    <h3 class="text-xl font-semibold">Slow DNS Propagation</h3>
+                </div>
+                <p class="text-gray-600">Developers wait for 30+ seconds for DNS changes to propagate, killing productivity.</p>
+            </div>
+            <div class="bg-gray-50 p-6 rounded-lg">
+                <div class="flex items-center mb-4">
+                    <i class="fa-solid fa-ban text-red-500 text-2xl mr-3"></i>
+                    <h3 class="text-xl font-semibold">Limited Tunnels</h3>
+                </div>
+                <p class="text-gray-600">Traditional tunneling solutions impose severe limitations on concurrent connections and usage.</p>
+            </div>
+            <div class="bg-gray-50 p-6 rounded-lg">
+                <div class="flex items-center mb-4">
+                    <i class="fa-solid fa-layer-group text-red-500 text-2xl mr-3"></i>
+                    <h3 class="text-xl font-semibold">Complex Setup</h3>
+                </div>
+                <p class="text-gray-600">Tailscale and similar solutions require extra proxy configuration and complex setup.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Solution Section -->
+<section id="solution" class="py-16 bg-gray-50">
+    <div class="container mx-auto px-4">
+        <div class="text-center mb-12">
+            <h2 class="text-3xl font-bold mb-4">Our Solution</h2>
+            <p class="text-xl text-gray-600 max-w-3xl mx-auto">Stateless DNS + mTLS tunnel that works even when you're behind NAT</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <div class="mb-6">
+                    <img class="w-full h-40 object-cover rounded-md" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/f4ae79938b-4d1f14b1949d47b7ccd9.png" alt="developer using laptop in hotel wifi with secure tunnel visualization, tech illustration">
+                </div>
+                <h3 class="text-xl font-semibold mb-2">Hotel Wi-Fi? No Problem</h3>
+                <p class="text-gray-600">Securely expose your local development server from anywhere, even behind restrictive corporate or hotel firewalls.</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <div class="mb-6">
+                    <img class="w-full h-40 object-cover rounded-md" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/3d810e5cb7-ce043848ce90b0332746.png" alt="CI runner with automated testing pipeline visualization, tech illustration">
+                </div>
+                <h3 class="text-xl font-semibold mb-2">CI Runner Integration</h3>
+                <p class="text-gray-600">Seamlessly integrate with your CI/CD pipeline for automated testing and webhook validation.</p>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <div class="mb-6">
+                    <img class="w-full h-40 object-cover rounded-md" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/c43589ec1d-dbf185727a00550f05fa.png" alt="stripe payment webhook testing with secure tunnel, tech illustration">
+                </div>
+                <h3 class="text-xl font-semibold mb-2">Stripe Webhook Testing</h3>
+                <p class="text-gray-600">Test payment webhooks locally with secure, authenticated endpoints that Stripe can reach.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Feature Grid -->
+<section id="features" class="py-16 bg-white">
+    <div class="container mx-auto px-4">
+        <div class="text-center mb-12">
+            <h2 class="text-3xl font-bold mb-4">Key Features</h2>
+            <p class="text-xl text-gray-600 max-w-3xl mx-auto">Built for developers who value speed, security, and control</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <div class="p-6 border border-gray-200 rounded-lg hover:border-electricblue transition-colors">
+                <div class="text-electricblue text-4xl mb-4">
+                    <i class="fa-solid fa-bolt"></i>
+                </div>
+                <h3 class="text-xl font-semibold mb-2">⚡ Speed</h3>
+                <p class="text-gray-600 mb-4">URL live in under 2 seconds with our stateless DNS technology.</p>
+                <span class="text-electricblue font-medium hover:underline cursor-pointer">Learn more →</span>
+            </div>
+            <div class="p-6 border border-gray-200 rounded-lg hover:border-electricblue transition-colors">
+                <div class="text-electricblue text-4xl mb-4">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <h3 class="text-xl font-semibold mb-2">🔒 Security</h3>
+                <p class="text-gray-600 mb-4">mTLS, DNSSEC-signed, and 30-minute certificates for maximum protection.</p>
+                <span class="text-electricblue font-medium hover:underline cursor-pointer">Learn more →</span>
+            </div>
+            <div class="p-6 border border-gray-200 rounded-lg hover:border-electricblue transition-colors">
+                <div class="text-electricblue text-4xl mb-4">
+                    <i class="fa-solid fa-box"></i>
+                </div>
+                <h3 class="text-xl font-semibold mb-2">📦 Ownership</h3>
+                <p class="text-gray-600 mb-4">100% Rust, run anywhere, no black box. Full control of your infrastructure.</p>
+                <span class="text-electricblue font-medium hover:underline cursor-pointer">Learn more →</span>
+            </div>
+            <div class="p-6 border border-gray-200 rounded-lg hover:border-electricblue transition-colors">
+                <div class="text-electricblue text-4xl mb-4">
+                    <i class="fa-solid fa-chart-line"></i>
+                </div>
+                <h3 class="text-xl font-semibold mb-2">📈 Scale</h3>
+                <p class="text-gray-600 mb-4">Enterprise-ready with OIDC, HMAC, rate limits, and comprehensive audit logs.</p>
+                <span class="text-electricblue font-medium hover:underline cursor-pointer">Learn more →</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Competitive Table -->
+<section id="comparison" class="py-16 bg-gray-50">
+    <div class="container mx-auto px-4">
+        <div class="text-center mb-12">
+            <h2 class="text-3xl font-bold mb-4">Competitive Comparison</h2>
+            <p class="text-xl text-gray-600 max-w-3xl mx-auto">See how EDF compares to other solutions</p>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full bg-white border border-gray-200 rounded-lg">
+                <thead>
+                <tr class="bg-gray-50">
+                    <th class="py-4 px-6 text-left text-sm font-semibold text-charcoal">Feature</th>
+                    <th class="py-4 px-6 text-left text-sm font-semibold text-electricblue">EDF</th>
+                    <th class="py-4 px-6 text-left text-sm font-semibold text-gray-600">Ngrok</th>
+                    <th class="py-4 px-6 text-left text-sm font-semibold text-gray-600">Tailscale</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr class="border-b border-gray-200">
+                    <td class="py-4 px-6 text-sm font-medium text-charcoal">mTLS Support</td>
+                    <td class="py-4 px-6 text-sm text-gray-700">
+                        <i class="fa-solid fa-check text-green-600"></i>
+                    </td>
+                    <td class="py-4 px-6 text-sm text-gray-700">
+                        <i class="fa-solid fa-xmark text-red-500"></i>
+                    </td>
+                    <td class="py-4 px-6 text-sm text-gray-700">
+                        <i class="fa-solid fa-check text-green-600"></i>
+                    </td>
+                </tr>
+                <tr class="border-b border-gray-200">
+                    <td class="py-4 px-6 text-sm font-medium text-charcoal">DNSSEC</td>
+                    <td class="py-4 px-6 text-sm text-gray-700">
+                        <i class="fa-solid fa-check text-green-600"></i>
+                    </td>
+                    <td class="py-4 px-6 text-sm text-gray-700">
+                        <i class="fa-solid fa-xmark text-red-500"></i>
+                    </td>
+                    <td class="py-4 px-6 text-sm text-gray-700">
+                        <i class="fa-solid fa-xmark text-red-500"></i>
+                    </td>
+                </tr>
+                <tr class="border-b border-gray-200">
+                    <td class="py-4 px-6 text-sm font-medium text-charcoal">Open Source</td>
+                    <td class="py-4 px-6 text-sm text-gray-700">
+                        <i class="fa-solid fa-check text-green-600"></i>
+                    </td>
+                    <td class="py-4 px-6 text-sm text-gray-700">
+                        <i class="fa-solid fa-xmark text-red-500"></i>
+                    </td>
+                    <td class="py-4 px-6 text-sm text-gray-700">
+                        <i class="fa-solid fa-check text-green-600"></i>
+                    </td>
+                </tr>
+                <tr class="border-b border-gray-200">
+                    <td class="py-4 px-6 text-sm font-medium text-charcoal">URL Active in &lt;2s</td>
+                    <td class="py-4 px-6 text-sm text-gray-700">
+                        <i class="fa-solid fa-check text-green-600"></i>
+                    </td>
+                    <td class="py-4 px-6 text-sm text-gray-700">
+                        <i class="fa-solid fa-check text-green-600"></i>
+                    </td>
+                    <td class="py-4 px-6 text-sm text-gray-700">
+                        <i class="fa-solid fa-xmark text-red-500"></i>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="py-4 px-6 text-sm font-medium text-charcoal">Self-Hostable</td>
+                    <td class="py-4 px-6 text-sm text-gray-700">
+                        <i class="fa-solid fa-check text-green-600"></i>
+                    </td>
+                    <td class="py-4 px-6 text-sm text-gray-700">
+                        <i class="fa-solid fa-xmark text-red-500"></i>
+                    </td>
+                    <td class="py-4 px-6 text-sm text-gray-700">
+                        <i class="fa-solid fa-check text-green-600"></i>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-8 text-center">
+            <div class="inline-block bg-gray-100 rounded-lg p-4 max-w-3xl">
+                <p class="text-gray-700"><strong>Ngrok is great for demos; EDF is built for pipelines.</strong> No 429s at 50k req/min.</p>
+                <p class="text-gray-700 mt-2"><strong>Tailscale secures internal traffic; EDF makes your <em>public</em> callbacks safe.</strong> No extra reverse-proxy, no WireGuard config.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Pricing Section -->
+<section id="pricing" class="py-16 bg-white">
+    <div class="container mx-auto px-4">
+        <div class="text-center mb-12">
+            <h2 class="text-3xl font-bold mb-4">Simple, Transparent Pricing</h2>
+            <p class="text-xl text-gray-600 max-w-3xl mx-auto">Choose the plan that works for your needs</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <div class="border border-gray-200 rounded-lg p-8 hover:shadow-lg transition-shadow">
+                <h3 class="text-2xl font-bold mb-2">Free</h3>
+                <p class="text-gray-600 mb-6">Perfect for individual developers</p>
+                <div class="text-4xl font-bold mb-6">€0<span class="text-lg font-normal text-gray-500">/month</span></div>
+                <ul class="space-y-3 mb-8">
+                    <li class="flex items-start">
+                        <i class="fa-solid fa-check text-green-500 mt-1 mr-2"></i>
+                        <span>1 concurrent tunnel</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fa-solid fa-check text-green-500 mt-1 mr-2"></i>
+                        <span>25 calls/day</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fa-solid fa-check text-green-500 mt-1 mr-2"></i>
+                        <span>30 min TTL max</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fa-solid fa-check text-green-500 mt-1 mr-2"></i>
+                        <span>Basic &amp; HMAC auth</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fa-solid fa-check text-green-500 mt-1 mr-2"></i>
+                        <span>Community support</span>
+                    </li>
+                </ul>
+                <button class="w-full bg-electricblue text-white py-3 rounded-md font-medium hover:bg-blue-600 transition">Get Started</button>
+            </div>
+            <div class="border border-gray-200 rounded-lg p-8 hover:shadow-lg transition-shadow">
+                <h3 class="text-2xl font-bold mb-2">Starter</h3>
+                <p class="text-gray-600 mb-6">For active developers and small projects</p>
+                <div class="text-4xl font-bold mb-6">€9.98<span class="text-lg font-normal text-gray-500">/month</span></div>
+                <ul class="space-y-3 mb-8">
+                    <li class="flex items-start">
+                        <i class="fa-solid fa-check text-green-500 mt-1 mr-2"></i>
+                        <span>4 concurrent tunnels</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fa-solid fa-check text-green-500 mt-1 mr-2"></i>
+                        <span>100 calls/day</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fa-solid fa-check text-green-500 mt-1 mr-2"></i>
+                        <span>1 hour TTL max</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fa-solid fa-check text-green-500 mt-1 mr-2"></i>
+                        <span>Basic &amp; HMAC auth</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fa-solid fa-check text-green-500 mt-1 mr-2"></i>
+                        <span>Email support</span>
+                    </li>
+                </ul>
+                <button class="w-full bg-electricblue text-white py-3 rounded-md font-medium hover:bg-blue-600 transition">Start Trial</button>
+            </div>
+            <div class="border-2 border-electricblue rounded-lg p-8 hover:shadow-lg transition-shadow relative">
+                <div class="absolute top-0 right-0 bg-electricblue text-white px-4 py-1 text-sm font-medium rounded-bl-lg rounded-tr-lg">POPULAR</div>
+                <h3 class="text-2xl font-bold mb-2">Team</h3>
+                <p class="text-gray-600 mb-6">For growing development teams</p>
+                <div class="text-4xl font-bold mb-6">€49<span class="text-lg font-normal text-gray-500">/month</span></div>
+                <ul class="space-y-3 mb-8">
+                    <li class="flex items-start">
+                        <i class="fa-solid fa-check text-green-500 mt-1 mr-2"></i>
+                        <span>10 concurrent tunnels</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fa-solid fa-check text-green-500 mt-1 mr-2"></i>
+                        <span>250 calls/day</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fa-solid fa-check text-green-500 mt-1 mr-2"></i>
+                        <span>2 hour TTL max</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fa-solid fa-check text-green-500 mt-1 mr-2"></i>
+                        <span>Basic, OIDC, HMAC auth</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fa-solid fa-check text-green-500 mt-1 mr-2"></i>
+                        <span>8×5 email support</span>
+                    </li>
+                </ul>
+                <button class="w-full bg-electricblue text-white py-3 rounded-md font-medium hover:bg-blue-600 transition">Start 14-Day Trial</button>
+            </div>
+            <div class="border border-gray-200 rounded-lg p-8 hover:shadow-lg transition-shadow">
+                <h3 class="text-2xl font-bold mb-2">Org</h3>
+                <p class="text-gray-600 mb-6">For organizations with multiple teams</p>
+                <div class="text-4xl font-bold mb-6">€199<span class="text-lg font-normal text-gray-500">/month</span></div>
+                <ul class="space-y-3 mb-8">
+                    <li class="flex items-start">
+                        <i class="fa-solid fa-check text-green-500 mt-1 mr-2"></i>
+                        <span>50 concurrent tunnels</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fa-solid fa-check text-green-500 mt-1 mr-2"></i>
+                        <span>1000 calls/day</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fa-solid fa-check text-green-500 mt-1 mr-2"></i>
+                        <span>12 hour TTL max</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fa-solid fa-check text-green-500 mt-1 mr-2"></i>
+                        <span>Basic, OIDC, IP allow, HMAC</span>
+                    </li>
+                    <li class="flex items-start">
+                        <i class="fa-solid fa-check text-green-500 mt-1 mr-2"></i>
+                        <span>24×5 priority support</span>
+                    </li>
+                </ul>
+                <button class="w-full bg-electricblue text-white py-3 rounded-md font-medium hover:bg-blue-600 transition">Contact Sales</button>
+            </div>
+        </div>
+        <div class="mt-12 text-center">
+            <span class="text-electricblue font-semibold text-lg hover:underline cursor-pointer">See All Plans →</span>
+        </div>
+        <div class="mt-8 p-6 bg-gray-50 rounded-lg max-w-3xl mx-auto">
+            <h3 class="text-xl font-semibold mb-2">Enterprise On-prem</h3>
+            <p class="text-gray-600 mb-4">Self-hosting is available only under an Enterprise contract. Managed cloud plans run on EDF's PoPs with global SLA.</p>
+            <button class="bg-charcoal text-white px-6 py-2 rounded-md font-medium hover:bg-gray-800 transition">Contact Us</button>
+        </div>
+    </div>
+</section>
+
+<!-- Social Proof -->
+<section id="social-proof" class="py-16 bg-gray-50">
+    <div class="container mx-auto px-4">
+        <div class="text-center mb-12">
+            <h2 class="text-3xl font-bold mb-4">Success Stories</h2>
+            <p class="text-xl text-gray-600">See how teams are transforming their development workflow with EDF</p>
+        </div>
+
+        <!-- Testimonials Carousel -->
+        <div class="relative max-w-4xl mx-auto">
+            <div class="overflow-hidden">
+                <div id="testimonials-container" class="flex transition-transform duration-500 ease-in-out">
+                    <!-- Testimonial 1 -->
+                    <div class="w-full flex-shrink-0">
+                        <div class="bg-white rounded-lg shadow-md p-8">
+                            <div class="flex flex-col md:flex-row items-center">
+                                <div class="md:w-1/3 mb-6 md:mb-0 flex justify-center">
+                                    <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/default-placeholder.png" alt="FiscalPOS Logo" class="h-24">
+                                </div>
+                                <div class="md:w-2/3 md:pl-8">
+                                    <div class="text-4xl text-electricblue mb-4">"</div>
+                                    <p class="text-xl text-gray-700 mb-4">Switching to EDF reduced our outages by 90%. Our retail POS systems now have reliable connections to our backend services, even in stores with poor connectivity.</p>
+                                    <div class="flex items-center">
+                                        <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-3.jpg" alt="Customer Avatar" class="w-12 h-12 rounded-full mr-4">
+                                        <div>
+                                            <p class="font-semibold">John Retailer</p>
+                                            <p class="text-gray-600">CTO, FiscalPOS</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Testimonial 2 -->
+                    <div class="w-full flex-shrink-0">
+                        <div class="bg-white rounded-lg shadow-md p-8">
+                            <div class="flex flex-col md:flex-row items-center">
+                                <div class="md:w-1/3 mb-6 md:mb-0 flex justify-center">
+                                    <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/default-placeholder.png" alt="DevCorp Logo" class="h-24">
+                                </div>
+                                <div class="md:w-2/3 md:pl-8">
+                                    <div class="text-4xl text-electricblue mb-4">"</div>
+                                    <p class="text-xl text-gray-700 mb-4">EDF's mTLS security gave us confidence to expose our staging environments for client demos. No more VPN complications or security concerns.</p>
+                                    <div class="flex items-center">
+                                        <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-5.jpg" alt="Customer Avatar" class="w-12 h-12 rounded-full mr-4">
+                                        <div>
+                                            <p class="font-semibold">Sarah Chen</p>
+                                            <p class="text-gray-600">Lead Developer, DevCorp</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Testimonial 3 -->
+                    <div class="w-full flex-shrink-0">
+                        <div class="bg-white rounded-lg shadow-md p-8">
+                            <div class="flex flex-col md:flex-row items-center">
+                                <div class="md:w-1/3 mb-6 md:mb-0 flex justify-center">
+                                    <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/default-placeholder.png" alt="CloudTech Logo" class="h-24">
+                                </div>
+                                <div class="md:w-2/3 md:pl-8">
+                                    <div class="text-4xl text-electricblue mb-4">"</div>
+                                    <p class="text-xl text-gray-700 mb-4">Our CI/CD pipeline is 3x faster now. EDF's instant DNS resolution eliminated the 30-second wait times that were killing our deployment velocity.</p>
+                                    <div class="flex items-center">
+                                        <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-8.jpg" alt="Customer Avatar" class="w-12 h-12 rounded-full mr-4">
+                                        <div>
+                                            <p class="font-semibold">Marcus Johnson</p>
+                                            <p class="text-gray-600">DevOps Engineer, CloudTech</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Testimonial 4 -->
+                    <div class="w-full flex-shrink-0">
+                        <div class="bg-white rounded-lg shadow-md p-8">
+                            <div class="flex flex-col md:flex-row items-center">
+                                <div class="md:w-1/3 mb-6 md:mb-0 flex justify-center">
+                                    <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/default-placeholder.png" alt="SecureApp Logo" class="h-24">
+                                </div>
+                                <div class="md:w-2/3 md:pl-8">
+                                    <div class="text-4xl text-electricblue mb-4">"</div>
+                                    <p class="text-xl text-gray-700 mb-4">Testing Stripe webhooks locally became trivial with EDF. Our development team saves 2 hours per day on payment integration testing.</p>
+                                    <div class="flex items-center">
+                                        <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-6.jpg" alt="Customer Avatar" class="w-12 h-12 rounded-full mr-4">
+                                        <div>
+                                            <p class="font-semibold">Lisa Rodriguez</p>
+                                            <p class="text-gray-600">Engineering Manager, SecureApp</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Buttons -->
+            <button id="prev-btn" class="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white hover:bg-gray-50 border border-gray-300 rounded-full p-3 shadow-md transition-colors">
+                <i class="fa-solid fa-chevron-left text-gray-600"></i>
+            </button>
+            <button id="next-btn" class="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white hover:bg-gray-50 border border-gray-300 rounded-full p-3 shadow-md transition-colors">
+                <i class="fa-solid fa-chevron-right text-gray-600"></i>
+            </button>
+
+            <!-- Dots Indicator -->
+            <div class="flex justify-center mt-6 space-x-2">
+                <button class="testimonial-dot w-3 h-3 rounded-full bg-electricblue"></button>
+                <button class="testimonial-dot w-3 h-3 rounded-full bg-gray-300"></button>
+                <button class="testimonial-dot w-3 h-3 rounded-full bg-gray-300"></button>
+                <button class="testimonial-dot w-3 h-3 rounded-full bg-gray-300"></button>
+            </div>
+        </div>
+
+<!--        &lt;!&ndash; Customer Carousel &ndash;&gt;-->
+<!--        <div class="mt-16">-->
+<!--            <h3 class="text-2xl font-bold text-center mb-8">Trusted by innovative teams worldwide</h3>-->
+<!--            <div class="relative overflow-hidden">-->
+<!--                <div class="flex animate-flow space-x-12 w-[200%]">-->
+<!--                    &lt;!&ndash; First set of logos &ndash;&gt;-->
+<!--                    <div class="flex items-center space-x-12 min-w-full">-->
+<!--                        <div class="flex flex-col items-center">-->
+<!--                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/default-placeholder.png" alt="TechCorp" class="h-12 grayscale hover:grayscale-0 transition-all">-->
+<!--                            <span class="text-sm text-gray-600 mt-2">TechCorp</span>-->
+<!--                        </div>-->
+<!--                        <div class="flex flex-col items-center">-->
+<!--                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/default-placeholder.png" alt="DevTools Inc" class="h-12 grayscale hover:grayscale-0 transition-all">-->
+<!--                            <span class="text-sm text-gray-600 mt-2">DevTools Inc</span>-->
+<!--                        </div>-->
+<!--                        <div class="flex flex-col items-center">-->
+<!--                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/default-placeholder.png" alt="CloudSync" class="h-12 grayscale hover:grayscale-0 transition-all">-->
+<!--                            <span class="text-sm text-gray-600 mt-2">CloudSync</span>-->
+<!--                        </div>-->
+<!--                        <div class="flex flex-col items-center">-->
+<!--                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/default-placeholder.png" alt="SecureNet" class="h-12 grayscale hover:grayscale-0 transition-all">-->
+<!--                            <span class="text-sm text-gray-600 mt-2">SecureNet</span>-->
+<!--                        </div>-->
+<!--                        <div class="flex flex-col items-center">-->
+<!--                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/default-placeholder.png" alt="DataFlow" class="h-12 grayscale hover:grayscale-0 transition-all">-->
+<!--                            <span class="text-sm text-gray-600 mt-2">DataFlow</span>-->
+<!--                        </div>-->
+<!--                        <div class="flex flex-col items-center">-->
+<!--                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/default-placeholder.png" alt="EdgeTech" class="h-12 grayscale hover:grayscale-0 transition-all">-->
+<!--                            <span class="text-sm text-gray-600 mt-2">EdgeTech</span>-->
+<!--                        </div>-->
+<!--                        <div class="flex flex-col items-center">-->
+<!--                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/default-placeholder.png" alt="NextGen Systems" class="h-12 grayscale hover:grayscale-0 transition-all">-->
+<!--                            <span class="text-sm text-gray-600 mt-2">NextGen Systems</span>-->
+<!--                        </div>-->
+<!--                        <div class="flex flex-col items-center">-->
+<!--                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/default-placeholder.png" alt="InnovateLabs" class="h-12 grayscale hover:grayscale-0 transition-all">-->
+<!--                            <span class="text-sm text-gray-600 mt-2">InnovateLabs</span>-->
+<!--                        </div>-->
+<!--                    </div>-->
+<!--                    &lt;!&ndash; Duplicate set for seamless loop &ndash;&gt;-->
+<!--                    <div class="flex items-center space-x-12 min-w-full">-->
+<!--                        <div class="flex flex-col items-center">-->
+<!--                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/default-placeholder.png" alt="TechCorp" class="h-12 grayscale hover:grayscale-0 transition-all">-->
+<!--                            <span class="text-sm text-gray-600 mt-2">TechCorp</span>-->
+<!--                        </div>-->
+<!--                        <div class="flex flex-col items-center">-->
+<!--                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/default-placeholder.png" alt="DevTools Inc" class="h-12 grayscale hover:grayscale-0 transition-all">-->
+<!--                            <span class="text-sm text-gray-600 mt-2">DevTools Inc</span>-->
+<!--                        </div>-->
+<!--                        <div class="flex flex-col items-center">-->
+<!--                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/default-placeholder.png" alt="CloudSync" class="h-12 grayscale hover:grayscale-0 transition-all">-->
+<!--                            <span class="text-sm text-gray-600 mt-2">CloudSync</span>-->
+<!--                        </div>-->
+<!--                        <div class="flex flex-col items-center">-->
+<!--                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/default-placeholder.png" alt="SecureNet" class="h-12 grayscale hover:grayscale-0 transition-all">-->
+<!--                            <span class="text-sm text-gray-600 mt-2">SecureNet</span>-->
+<!--                        </div>-->
+<!--                        <div class="flex flex-col items-center">-->
+<!--                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/default-placeholder.png" alt="DataFlow" class="h-12 grayscale hover:grayscale-0 transition-all">-->
+<!--                            <span class="text-sm text-gray-600 mt-2">DataFlow</span>-->
+<!--                        </div>-->
+<!--                        <div class="flex flex-col items-center">-->
+<!--                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/default-placeholder.png" alt="EdgeTech" class="h-12 grayscale hover:grayscale-0 transition-all">-->
+<!--                            <span class="text-sm text-gray-600 mt-2">EdgeTech</span>-->
+<!--                        </div>-->
+<!--                        <div class="flex flex-col items-center">-->
+<!--                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/default-placeholder.png" alt="NextGen Systems" class="h-12 grayscale hover:grayscale-0 transition-all">-->
+<!--                            <span class="text-sm text-gray-600 mt-2">NextGen Systems</span>-->
+<!--                        </div>-->
+<!--                        <div class="flex flex-col items-center">-->
+<!--                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/default-placeholder.png" alt="InnovateLabs" class="h-12 grayscale hover:grayscale-0 transition-all">-->
+<!--                            <span class="text-sm text-gray-600 mt-2">InnovateLabs</span>-->
+<!--                        </div>-->
+<!--                    </div>-->
+<!--                </div>-->
+<!--            </div>-->
+<!--        </div>-->
+<!--    </div>-->
+<!--</section>-->
+
+
+<!-- Blog Section -->
+<section id="blog" class="py-16 bg-white">
+    <div class="container mx-auto px-4">
+        <div class="max-w-4xl mx-auto">
+            <div class="text-center mb-10">
+                <h2 class="text-3xl font-bold mb-4">EDF Engineering Blog</h2>
+                <p class="text-xl text-gray-600 mb-8">Deep technical insights, security best practices, and the future of zero-trust tunneling</p>
+                <div class="flex flex-wrap justify-center gap-4">
+                    <button class="bg-electricblue text-white px-4 py-2 rounded-md font-medium hover:bg-blue-600">All Posts</button>
+                    <button class="border border-gray-300 text-gray-700 px-4 py-2 rounded-md font-medium hover:bg-gray-50">Engineering</button>
+                    <button class="border border-gray-300 text-gray-700 px-4 py-2 rounded-md font-medium hover:bg-gray-50">Security</button>
+                    <button class="border border-gray-300 text-gray-700 px-4 py-2 rounded-md font-medium hover:bg-gray-50">Integrations</button>
+                    <button class="border border-gray-300 text-gray-700 px-4 py-2 rounded-md font-medium hover:bg-gray-50">Dev Experience</button>
+                </div>
+            </div>
+
+            <!-- Featured Article -->
+            <section id="featured-article" class="py-16 bg-white">
+                <div class="container mx-auto px-4">
+                    <div class="max-w-6xl mx-auto">
+                        <div class="bg-gradient-to-r from-electricblue to-mint rounded-lg p-1">
+                            <div class="bg-white rounded-lg p-8">
+                                <div class="flex items-center mb-4">
+                                    <span class="bg-electricblue text-white px-3 py-1 rounded-full text-sm font-medium">Featured</span>
+                                    <span class="ml-4 text-gray-500">5 min read</span>
+                                </div>
+                                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                                    <div>
+                                        <h2 class="text-3xl font-bold mb-4">How we built zero-copy DNS in Rust (1M QPS on one core)</h2>
+                                        <p class="text-gray-600 mb-6">Deep dive into EDF's stateless DNS architecture that achieves sub-2-second URL activation and handles massive query loads with minimal resource usage.</p>
+                                        <div class="flex items-center mb-4">
+                                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-8.jpg" alt="Author" class="w-10 h-10 rounded-full mr-3">
+                                            <div>
+                                                <p class="font-medium">Alex Chen</p>
+                                                <p class="text-gray-500 text-sm">Lead Systems Engineer</p>
+                                            </div>
+                                        </div>
+                                        <button class="bg-electricblue text-white px-6 py-3 rounded-md font-medium hover:bg-blue-600">Read Full Article</button>
+                                    </div>
+                                    <div>
+                                        <img class="w-full h-64 object-cover rounded-lg shadow-md" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/rust-dns-architecture-diagram-with-performance-metrics-tech-illustration.png" alt="rust dns architecture diagram with performance metrics, tech illustration">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Blog Grid -->
+            <section id="blog-grid" class="py-16 bg-gray-50">
+                <div class="container mx-auto px-4">
+                    <div class="max-w-6xl mx-auto">
+                        <h2 class="text-3xl font-bold mb-12 text-center">Latest Articles</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+
+                            <!-- Article 1 -->
+                            <div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+                                <img class="w-full h-48 object-cover" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/mtls-security-certificate-chain-visualization-tech-illustration.png" alt="mtls security certificate chain visualization, tech illustration">
+                                <div class="p-6">
+                                    <div class="flex items-center mb-3">
+                                        <span class="bg-red-100 text-red-800 px-2 py-1 rounded text-sm font-medium">Security</span>
+                                        <span class="ml-auto text-gray-500 text-sm">4 min read</span>
+                                    </div>
+                                    <h3 class="text-xl font-semibold mb-2">Why short-lived certs beat revocation lists</h3>
+                                    <p class="text-gray-600 mb-4">Traditional PKI relies on CRLs and OCSP for revocation. We explain why 30-minute certificates provide better security with less complexity.</p>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-5.jpg" alt="Author" class="w-8 h-8 rounded-full mr-2">
+                                            <span class="text-sm text-gray-700">Sarah Kim</span>
+                                        </div>
+                                        <span class="text-electricblue font-medium text-sm hover:underline cursor-pointer">Read more →</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Article 2 -->
+                            <div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+                                <img class="w-full h-48 object-cover" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/stripe-webhook-testing-github-actions-pipeline-tech-illustration.png" alt="stripe webhook testing github actions pipeline, tech illustration">
+                                <div class="p-6">
+                                    <div class="flex items-center mb-3">
+                                        <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-sm font-medium">Integrations</span>
+                                        <span class="ml-auto text-gray-500 text-sm">6 min read</span>
+                                    </div>
+                                    <h3 class="text-xl font-semibold mb-2">Stripe webhook testing in CI with EDF + GitHub Actions</h3>
+                                    <p class="text-gray-600 mb-4">Complete guide to testing payment webhooks in your CI pipeline using EDF's secure tunnels and GitHub Actions.</p>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-3.jpg" alt="Author" class="w-8 h-8 rounded-full mr-2">
+                                            <span class="text-sm text-gray-700">Mike Johnson</span>
+                                        </div>
+                                        <span class="text-electricblue font-medium text-sm hover:underline cursor-pointer">Read more →</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Article 3 -->
+                            <div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+                                <img class="w-full h-48 object-cover" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/retail-pos-system-network-architecture-tech-illustration.png" alt="retail pos system network architecture, tech illustration">
+                                <div class="p-6">
+                                    <div class="flex items-center mb-3">
+                                        <span class="bg-purple-100 text-purple-800 px-2 py-1 rounded text-sm font-medium">Case Study</span>
+                                        <span class="ml-auto text-gray-500 text-sm">8 min read</span>
+                                    </div>
+                                    <h3 class="text-xl font-semibold mb-2">From 300 stores to 1 button: FiscalPOS success story</h3>
+                                    <p class="text-gray-600 mb-4">How FiscalPOS replaced complex DIY SSH tunnels with EDF to achieve 90% fewer outages across 300 retail locations.</p>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-7.jpg" alt="Author" class="w-8 h-8 rounded-full mr-2">
+                                            <span class="text-sm text-gray-700">Emma Davis</span>
+                                        </div>
+                                        <span class="text-electricblue font-medium text-sm hover:underline cursor-pointer">Read more →</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Article 4 -->
+                            <div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+                                <img class="w-full h-48 object-cover" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/performance-comparison-chart-latency-benchmarks-tech-illustration.png" alt="performance comparison chart latency benchmarks, tech illustration">
+                                <div class="p-6">
+                                    <div class="flex items-center mb-3">
+                                        <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm font-medium">Dev Experience</span>
+                                        <span class="ml-auto text-gray-500 text-sm">7 min read</span>
+                                    </div>
+                                    <h3 class="text-xl font-semibold mb-2">Ngrok vs Tailscale vs EDF: hands-on latency results</h3>
+                                    <p class="text-gray-600 mb-4">Comprehensive benchmarking of popular tunneling solutions with real-world performance metrics and use case recommendations.</p>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-9.jpg" alt="Author" class="w-8 h-8 rounded-full mr-2">
+                                            <span class="text-sm text-gray-700">David Park</span>
+                                        </div>
+                                        <span class="text-electricblue font-medium text-sm hover:underline cursor-pointer">Read more →</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Article 5 -->
+                            <div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+                                <img class="w-full h-48 object-cover" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/rust-memory-safety-performance-optimization-tech-illustration.png" alt="rust memory safety performance optimization, tech illustration">
+                                <div class="p-6">
+                                    <div class="flex items-center mb-3">
+                                        <span class="bg-orange-100 text-orange-800 px-2 py-1 rounded text-sm font-medium">Engineering</span>
+                                        <span class="ml-auto text-gray-500 text-sm">5 min read</span>
+                                    </div>
+                                    <h3 class="text-xl font-semibold mb-2">Building production-ready Rust: lessons from EDF</h3>
+                                    <p class="text-gray-600 mb-4">Our journey from prototype to production-grade Rust codebase handling millions of requests per day.</p>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-2.jpg" alt="Author" class="w-8 h-8 rounded-full mr-2">
+                                            <span class="text-sm text-gray-700">Ryan Liu</span>
+                                        </div>
+                                        <span class="text-electricblue font-medium text-sm hover:underline cursor-pointer">Read more →</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Article 6 -->
+                            <div class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
+                                <img class="w-full h-48 object-cover" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/retail-pos-system-network-architecture-tech-illustration.png" alt="retail pos system network architecture, tech illustration">
+                                <div class="p-6">
+                                    <div class="flex items-center mb-3">
+                                        <span class="bg-purple-100 text-purple-800 px-2 py-1 rounded text-sm font-medium">Case Study</span>
+                                        <span class="ml-auto text-gray-500 text-sm">8 min read</span>
+                                    </div>
+                                    <h3 class="text-xl font-semibold mb-2">From 300 stores to 1 button: FiscalPOS success story</h3>
+                                    <p class="text-gray-600 mb-4">How FiscalPOS replaced complex DIY SSH tunnels with EDF to achieve 90% fewer outages across 300 retail locations.</p>
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-7.jpg" alt="Author" class="w-8 h-8 rounded-full mr-2">
+                                            <span class="text-sm text-gray-700">Emma Davis</span>
+                                        </div>
+                                        <span class="text-electricblue font-medium text-sm hover:underline cursor-pointer">Read more →</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</section>
+<!-- CTA Section -->
+<section id="cta" class="py-16 bg-charcoal text-white">
+    <div class="container mx-auto px-4">
+        <div class="max-w-4xl mx-auto">
+            <div class="text-center mb-10">
+                <h2 class="text-3xl font-bold mb-4">Get Started in Seconds</h2>
+                <p class="text-xl text-gray-300">Install EDF with a single command</p>
+            </div>
+            <div class="bg-gray-800 rounded-lg p-4 font-sourcecode mb-8 relative">
+                <pre class="text-mint overflow-x-auto whitespace-pre-wrap"><code>curl -sSL https://get.edf.dev | sh</code></pre>
+                <button class="absolute top-3 right-3 bg-electricblue text-white px-3 py-1 rounded text-sm" onclick="copyToClipboard('curl -sSL https://get.edf.dev | sh')">Copy</button>
+            </div>
+            <div class="flex justify-center">
+                <div class="bg-gray-800 rounded-lg px-4 py-2 flex items-center">
+                    <i class="fa-brands fa-github text-white mr-2"></i>
+                    <span class="mr-2">GitHub Stars:</span>
+                    <span class="bg-electricblue text-white px-2 py-1 rounded text-sm">5.2k</span>
+                </div>
+            </div>
+            <div class="mt-12 flex flex-col sm:flex-row justify-center gap-4">
+                <button class="bg-electricblue text-white px-8 py-3 rounded-md font-semibold text-lg hover:bg-blue-600 transition">
+                    Start Free
+                </button>
+                <button class="border border-gray-500 text-white px-8 py-3 rounded-md font-semibold text-lg hover:bg-gray-700 transition">
+                    Read the Docs
+                </button>
+            </div>
+        </div>
+    </div>
+</section>
+<!-- Footer -->
+<footer id="footer" class="bg-gray-900 text-white py-12">
+    <div class="container mx-auto px-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div>
+                <div class="flex items-center mb-4">
+                    <div class="w-10 h-10 bg-gradient-to-r from-electricblue to-mint rounded-full flex items-center justify-center">
+                        <span class="text-white font-bold">EDF</span>
+                    </div>
+                    <span class="ml-2 text-white font-bold text-xl">EDF</span>
+                </div>
+                <p class="text-gray-400">Instant, Zero-Trust Tunnels for Modern Dev &amp; Edge Workloads.</p>
+                <div class="flex space-x-4 mt-4">
+                    <span class="text-gray-400 hover:text-white cursor-pointer"><i class="fa-brands fa-github"></i></span>
+                    <span class="text-gray-400 hover:text-white cursor-pointer"><i class="fa-brands fa-twitter"></i></span>
+                    <span class="text-gray-400 hover:text-white cursor-pointer"><i class="fa-brands fa-linkedin"></i></span>
+                </div>
+            </div>
+            <div>
+                <h3 class="text-lg font-semibold mb-4">Product</h3>
+                <ul class="space-y-2">
+                    <li><span class="text-gray-400 hover:text-white cursor-pointer">Features</span></li>
+                    <li><span class="text-gray-400 hover:text-white cursor-pointer">Pricing</span></li>
+                    <li><span class="text-gray-400 hover:text-white cursor-pointer">Security</span></li>
+                    <li><span class="text-gray-400 hover:text-white cursor-pointer">Enterprise</span></li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="text-lg font-semibold mb-4">Resources</h3>
+                <ul class="space-y-2">
+                    <li><span class="text-gray-400 hover:text-white cursor-pointer">Documentation</span></li>
+                    <li><span class="text-gray-400 hover:text-white cursor-pointer">API Reference</span></li>
+                    <li><span class="text-gray-400 hover:text-white cursor-pointer">Blog</span></li>
+                    <li><span class="text-gray-400 hover:text-white cursor-pointer">Changelog</span></li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="font-bold text-lg mb-4">Company</h3>
+                <ul class="space-y-2">
+                    <li><span class="text-gray-400 hover:text-white cursor-pointer">About Us</span></li>
+                    <li><span class="text-gray-400 hover:text-white cursor-pointer">Careers</span></li>
+                    <li><span class="text-gray-400 hover:text-white cursor-pointer">Contact</span></li>
+                    <li><span class="text-gray-400 hover:text-white cursor-pointer">Legal</span></li>
+                </ul>
+            </div>
+        </div>
+        <div class="border-t border-gray-800 mt-10 pt-6 flex flex-col md:flex-row justify-between items-center">
+            <p class="text-gray-400">© 2023 EDF. All rights reserved.</p>
+            <div class="flex space-x-6 mt-4 md:mt-0">
+                <span class="text-gray-400 hover:text-white cursor-pointer">Privacy Policy</span>
+                <span class="text-gray-400 hover:text-white cursor-pointer">Terms of Service</span>
+                <span class="text-gray-400 hover:text-white cursor-pointer">Cookie Policy</span>
+            </div>
+        </div>
+    </div>
+</footer>
+
+<script>
+    // Initialize particles.js
+    document.addEventListener('DOMContentLoaded', function() {
+        particlesJS('particles-js', {
+            "particles": {
+                "number": {
+                    "value": 80,
+                    "density": {
+                        "enable": true,
+                        "value_area": 800
+                    }
+                },
+                "color": {
+                    "value": "#017bff"
+                },
+                "shape": {
+                    "type": "circle"
+                },
+                "opacity": {
+                    "value": 0.2,
+                    "random": false
+                },
+                "size": {
+                    "value": 3,
+                    "random": true
+                },
+                "line_linked": {
+                    "enable": true,
+                    "distance": 150,
+                    "color": "#017bff",
+                    "opacity": 0.2,
+                    "width": 1
+                },
+                "move": {
+                    "enable": true,
+                    "speed": 2,
+                    "direction": "none",
+                    "random": false,
+                    "straight": false,
+                    "out_mode": "out",
+                    "bounce": false
+                }
+            },
+            "interactivity": {
+                "detect_on": "canvas",
+                "events": {
+                    "onhover": {
+                        "enable": true,
+                        "mode": "grab"
+                    },
+                    "onclick": {
+                        "enable": false
+                    },
+                    "resize": true
+                }
+            },
+            "retina_detect": true
+        });
+    });
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text);
+        alert('Command copied to clipboard!');
+    }
+
+    // Testimonials carousel functionality
+    let currentTestimonial = 0;
+    const testimonials = document.querySelectorAll('#testimonials-container > div');
+    const totalTestimonials = testimonials.length;
+    const container = document.getElementById('testimonials-container');
+    const dots = document.querySelectorAll('.testimonial-dot');
+
+    function updateTestimonial() {
+        container.style.transform = `translateX(-${currentTestimonial * 100}%)`;
+        dots.forEach((dot, index) => {
+            dot.classList.toggle('bg-electricblue', index === currentTestimonial);
+            dot.classList.toggle('bg-gray-300', index !== currentTestimonial);
+        });
+    }
+
+    document.getElementById('next-btn').addEventListener('click', () => {
+        currentTestimonial = (currentTestimonial + 1) % totalTestimonials;
+        updateTestimonial();
+    });
+
+    document.getElementById('prev-btn').addEventListener('click', () => {
+        currentTestimonial = (currentTestimonial - 1 + totalTestimonials) % totalTestimonials;
+        updateTestimonial();
+    });
+    dots.forEach((dot, index) => {
+        dot.addEventListener('click', () => {
+            currentTestimonial = index;
+            updateTestimonial();
+        });
+    });
+
+    // Auto-advance testimonials every 5 seconds
+    setInterval(() => {
+        currentTestimonial = (currentTestimonial + 1) % totalTestimonials;
+        updateTestimonial();
+    }, 5000);
+</script>
+
+</body></html>
