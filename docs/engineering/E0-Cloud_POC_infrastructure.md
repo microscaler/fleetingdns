@@ -148,18 +148,24 @@ flowchart TD
   subgraph GlobalLB["Global TCP LB (anycast)"]
   end
 
-  subgraph EU["GKEeurope‑west1"]
-    EdgeEU[EdgeHub pods]
+subgraph Regions["Regional GKE Clusters"]
+    subgraph GKE_Infra["StandardGKE – infra e2‑micro"]
+      Crossplane[Crossplane Controller+provider_gcp]
+    end
+    subgraph EU["GKEeurope‑west1"]
+      EdgeEU[EdgeHub pods]
+    end
+    subgraph US["GKEus‑central1"]
+      EdgeUS[EdgeHub pods]
+    end
+    subgraph APAC["GKEasia‑southeast1"]
+      EdgeAP[EdgeHub pods]
+    end
+    GlobalLB --> EdgeEU & EdgeUS & EdgeAP
+    classDef edge fill:#79c,stroke:#333,color:#fff;
+    class EdgeEU,EdgeUS,EdgeAP edge;
   end
-  subgraph US["GKEus‑central1"]
-    EdgeUS[EdgeHub pods]
-  end
-  subgraph APAC["GKEasia‑southeast1"]
-    EdgeAP[EdgeHub pods]
-  end
-  GlobalLB --> EdgeEU & EdgeUS & EdgeAP
-  classDef edge fill:#79c,stroke:#333,color:#fff;
-  class EdgeEU,EdgeUS,EdgeAP edge;
+
 
   subgraph ManagedGcp["Shared GCP services"]
     RedisG[(MemoryStore
