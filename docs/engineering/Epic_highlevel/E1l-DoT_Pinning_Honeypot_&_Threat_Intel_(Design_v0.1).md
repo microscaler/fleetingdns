@@ -12,7 +12,7 @@
 | Corporate IR/SOC teams want actionable intel on who’s probing internal namespaces.                                         | No native telemetry today.                                                                          | Pin‑violation reports include source IP & resolver ID ➜ feed into SIEM.                                                                   |
 | Security research / marketing: publish quarterly “DNS tunnel threat” report.                                               | Not possible.                                                                                       | Position EDF as security‑first tunnel vendor.                                                                                             |
 
-Success criterion: <1 % false positives; ability to attribute scanners within 30 min of first touch.
+Success criterion: <1 % false positives; ability to attribute scanners within 30min of first touch.
 
 ---
 
@@ -129,4 +129,4 @@ Customers can stream topic to Splunk/Elastic; EDF keeps long-term aggregate for 
 
 ---
 
-© 2025 Ephemeral DNS Forwarder — DoT Pin Honeypot
+©2025 Ephemeral DNS Forwarder — DoT Pin Honeypot

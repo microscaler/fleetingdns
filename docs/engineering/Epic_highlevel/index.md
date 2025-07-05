@@ -33,7 +33,7 @@ participant TC as TunnelClient (on dev box/CI)
 participant APP as LocalService (127.0.0.1:8080)
 
     %% 1Allocate
-    TR->>SDK: allocate(target="http://127.0.0.1:8080", ttl=300 s)
+    TR->>SDK: allocate(target="http://127.0.0.1:8080", ttl=300s)
     SDK->>+API: POST /v1/endpoint
     API->>+ETCD: PUT /dns/<uuid> {A→Edge‑IP, meta}
     ETCD-->>-API: 200 OK

@@ -1,4 +1,4 @@
-# 📘 **E1g – Hosted Sub‑Domain NS for Customers (Design v0.1)**
+# 📘 **E1g – Hosted Sub‑Domain NS for Customers (Designv0.1)**
 
 > *Epic‑level spec enabling customers to delegate `dev.<mydomain>` (or any sub‑zone) to EDF’s authoritative Trust‑DNS edge, gaining the same **ephemeral, signed, sub‑second labels** under their own brand.*
 >
@@ -14,7 +14,7 @@
 | Users must manually CNAME each tunnel name to vendor                  | Operational toil; stale records accumulate       | One‑time NS delegation; EDF mints labels on demand                      |
 | Security scanners flag unknown third‑party domains                    | False positives & risk assessments               | Brand‑consistent FQDN; DNSSEC chain of trust retained                   |
 
-**Metrics of success**: <5 min self‑serve onboarding; <1 s TTL propagation; zero manual CNAMEs going forward.
+**Metrics of success**: <5min self‑serve onboarding; <1s TTL propagation; zero manual CNAMEs going forward.
 
 ---
 
@@ -184,4 +184,4 @@ Hot‑swaps Signer and Authority without dropping in‑flight UDP queries.
 
 ---
 
-© 2025 Ephemeral DNS Forwarder – Customer Hosted Sub‑Domain NS
+©2025 EphemeralDNSForwarder – Customer Hosted Sub‑Domain NS

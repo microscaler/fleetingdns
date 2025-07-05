@@ -1,6 +1,6 @@
 # 📘 **E1k – DNS‑over‑TLS Certificate Pinning (Design v0.1)**
 
-> Part of the private delegated zones initiative (E1i). We secure DNS‑over‑TLS (DoT, RFC 7858) sessions between **corporate resolvers** and EDF’s private name servers by **pinning the server’s SPKI fingerprint**, protecting against on‑path TLS MITM and rogue CAs.
+> Part of the private delegated zones initiative (E1i). We secure DNS‑over‑TLS (DoT, RFC7858) sessions between **corporate resolvers** and EDF’s private name servers by **pinning the server’s SPKI fingerprint**, protecting against on‑path TLS MITM and rogue CAs.
 
 ---
 
@@ -10,7 +10,7 @@
 | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | Compromised public CA issues rogue cert for `pns1.edf.run`, attacker hijacks DoT | Corporate resolver trusts fake NS → answers poisoned, dev traffic exfiltrated | Resolver validates **expected SHA‑256 SPKI**, rogue cert rejected regardless of CA chain |
 | Internal proxy re‑signs TLS to inspect traffic                                   | Breaks DNS privacy goals                                                      | Pinning forces true E2E encryption; inspection attempts fail & alert ops                 |
-| Downgrade to plaintext port 53                                                   | Attack intercepts queries                                                     | Resolver locked to DoT + pin ⇒ plaintext refused                                         |
+| Downgrade to plaintext port53                                                   | Attack intercepts queries                                                     | Resolver locked to DoT + pin ⇒ plaintext refused                                         |
 
 Success metric: *zero* successful TLS MITM in red‑team test; disconnection rather than silent downgrade.
 

@@ -1,0 +1,223 @@
+### VictoriaMetrics vs Grafana Mimir (self-hosted, one instance per billing-account / region)
+
+| Dimension                                                    | **VictoriaMetrics Cluster**                                                                                                                                                  | **Grafana Mimir**                                                                                                                                                                         |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Up-stream pedigree & licence**                             | Single-vendor OSS (Apache 2.0). Core ≈35 regular contributors.                                                                                                               | CNCF *incubating* (fork of Cortex); larger community; AGPL v3.                                                                                                                            |
+| **Logical architecture**                                     | 3 processes: **vminsert → vmstorage → vmselect** (can run all-in-one). State kept on `vmstorage` (local or network PVC).                                                     | 8–10 micro-services (distributor, ingester, querier, store-gateway, ruler, alertmanager, compactor…). All rely on **object storage** (GCS/S3) for chunks. ([docs.victoriametrics.com][1]) |
+| **Resource footprint (benchmark, 10 M active series)**       | \~35 % less CPU & 40 % less RAM than Mimir on identical hardware. Read latency \~30 % lower in Victoriametrics’ public test. ([victoriametrics.com][2], [slideshare.net][3]) | Higher CPU/ RAM but scales linearly with shards; object storage off-loads local disks.                                                                                                    |
+| **Operational complexity**                                   | Fewer pods (3 – 9). **StatefulSet** for `vmstorage` makes scale-down trickier; need WAL backups.                                                                             | More helm charts to wire, but all stateless; scaling knobs well documented; easy to add/retire ingesters.                                                                                 |
+| **Multi-tenancy / RBAC**                                     | Native *tenantID* label; per-tenant retention via relabel; Grafana datasource plugin supports per-token isolation. ([grafana.com][4])                                        | Built-in multi-tenant auth header + per-tenant object-storage buckets; mature token/tenant CLI.                                                                                           |
+| **Data locality & regulator fit**                            | Keep one cluster *per billing project* → data never leaves region; replicate via vminsert if you still want global dashboards.                                               | Same pattern—each project hosts its own Mimir stack writing to regional GCS bucket.                                                                                                       |
+| **Grafana dashboarding**                                     | Official **VictoriaMetrics datasource** with automatic query hints.                                                                                                          | Uses standard Prometheus datasource (Grafana authors Mimir).                                                                                                                              |
+| **Long-term retention cost**                                 | SSD / regional-PD if hot queries → higher €/GB; can tier to GCS via remote-storage exporter.                                                                                 | Designed for **object-storage first**; cheapest €/GB for >90-day retention.                                                                                                               |
+| **High-cardinality label handling** (`tenant_id`, `slot_id`) | Index in memory; practical soft limit ≈150 M series per cluster before RAM pressure.                                                                                         | Index in Bigtable-style KV inside object store; can handle 500 M+ series with compactor.                                                                                                  |
+| **Alerting & ruling**                                        | Integrated `vmalert` + `vmalertmanager`.                                                                                                                                     | Compatible with Prometheus Alertmanager; separate `ruler` micro-service.                                                                                                                  |
+| **Egress / remote-write**                                    | Accepts Prom RW & OpenTelemetry metrics; automatic relabel pipeline.                                                                                                         | Same; plus exemplar & metadata support identical to Prom.                                                                                                                                 |
+| **Learning curve / docs**                                    | Simpler, single set of docs; fewer CRDs.                                                                                                                                     | Heavier doc set but lots of Grafana Labs blogs, reference k8s jsonnet mixins.                                                                                                             |
+| **Notable adopters (2024-25)**                               | Prezi, Cloudflare Workers Observability, several EU banks. ([engineering.prezi.com][5])                                                                                      | Unity (migrated from Thanos), GitLab SaaS metrics, many CNCF end-users. ([youtube.com][6])                                                                                                |
+
+---
+
+### What matters for *per-region*, per-tenant dashboards & billing
+
+| Need                                                              | Which tool excels                                                                                                   | Rationale |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------- |
+| **Lowest infra bill for 3 × small regional clusters**             | **VictoriaMetrics** — fewer pods, can run `single-binary vmcluster` on e2-small + SSD; no object-store until scale. |           |
+| **Built-in long-retention & virtually unlimited tenant count**    | **Mimir** — shard-everything design, object-store keeps cost linear; compactor dedups.                              |           |
+| **Quick start & minimal ops head-count**                          | VictoriaMetrics (Helm chart ≈5 pods).                                                                               |           |
+| **Strict isolation between EU/US/APAC teams plus SSO dashboards** | Tie — both integrate with Grafana org folders & datasource-per-tenant.                                              |           |
+| **Future OLAP / SQL billing queries**                             | Either, **but** exporting **remote-write → BigQuery** is trivial for both; you’ll do this anyway for Stripe usage.  |           |
+
+---
+
+### Footprint estimate (single region, 30-day hot retention, 20 M active series)
+
+|                 | Pods                                                                 | vCPU      | RAM      | Storage                          |
+| --------------- | -------------------------------------------------------------------- | --------- | -------- | -------------------------------- |
+| VictoriaMetrics | vmselect×2, vmstorage×3, vminsert×2                                  | \~6 vCPU  | \~16 GiB | 150 GiB SSD                      |
+| Mimir           | ingest×3, distributor×2, querier×2, store-gw×2, compactor×1, ruler×1 | \~10 vCPU | \~24 GiB | 150 GiB GCS + 20 GiB local cache |
+
+*(numbers from vendor test + field reports) ([slideshare.net][3], [cecg.io][7])*
+
+---
+
+### Recommendation for FleetingDNS
+
+| Stage                                           | Choice                                                                                                                                          | Why |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --- |
+| **MVP & ≤50 M series per region**               | **VictoriaMetrics** cluster per workload project — cheapest, fastest to run on e2-standard-4 nodes; integrate Grafana plugin, 30-day retention. |     |
+| **Scale-up (>200 M series or retention >90 d)** | **Re-evaluate Mimir**; may migrate per region by replaying WAL to object-store.                                                                 |     |
+| **Billing / per-tenant aggregation**            | Ship nightly **Otel ⇢ Pub/Sub ⇢ BigQuery** regardless of TSDB; Stripe usage job queries BQ (matches E6P-S6).                                    |     |
+
+If regulatory rules tighten, either solution deployed **inside each billing-account project** keeps the metric data local; remote dashboards pull via Grafana proxy respecting IAM.
+
+---
+
+**Next steps**
+
+1. Choose MVP store (VM vs Mimir) → create **E7b Observability Data Lake** sub-epic with stories for deployment & BigQuery export.
+2. Add TSDB Helm charts under `deploy/observability/`.
+3. Update Otel Collector `prometheusremotewrite` exporter addresses per region.
+
+Happy to draft E7b once you pick the store!
+
+[1]: https://docs.victoriametrics.com/faq/?utm_source=chatgpt.com "FAQ - VictoriaMetrics"
+[2]: https://victoriametrics.com/blog/mimir-benchmark/?utm_source=chatgpt.com "Grafana Mimir and VictoriaMetrics: performance tests"
+[3]: https://www.slideshare.net/slideshow/grafana-mimir-and-victoriametrics-performance-testspptx/258434150?utm_source=chatgpt.com "Grafana Mimir and VictoriaMetrics_ Performance Tests.pptx"
+[4]: https://grafana.com/grafana/plugins/victoriametrics-metrics-datasource/?utm_source=chatgpt.com "VictoriaMetrics plugin for Grafana"
+[5]: https://engineering.prezi.com/how-using-availability-zones-can-eat-up-your-budget-our-journey-from-prometheus-to-be8a816f7efe?utm_source=chatgpt.com "How using Availability Zones can eat up your budget"
+[6]: https://www.youtube.com/watch?v=tsNbDdGEjoo&utm_source=chatgpt.com "Roman Khavronenko: Grafana Mimir and VictoriaMetrics - YouTube"
+[7]: https://www.cecg.io/blog/evaluating-large-scale-solutions-for-multi-tenant-metrics-system/?utm_source=chatgpt.com "Evaluating Large Scale Solutions for Multi Tenant Metrics System"
+
+
+---
+
+**Short answer:** *You can, but you probably don’t need a **separate** Autopilot cluster for the metrics stack in each billing project.*
+The usual pattern is:
+
+| Option                                                        | What it looks like                                                                                       | Pros                                                                                                                   | Cons                                                                                                  |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| **Co-locate TSDB in the existing workload Autopilot cluster** | Same cluster, dedicated namespace (`observability`) and its own spot node-pool (e2-standard-4)           | \* Free control-plane credit already in use<br>\* Zero extra LB / NAT cost<br>\* One set of network policies to manage | *TSDB pods share node quota with Edge pods* – risk of resource contention if you burst inserts        |
+| **Dedicated Autopilot cluster per billing project**           | Create `observability-eu`, `observability-us`, … each in same project, remote-write target on private IP | *Hard isolation* – noisy TSDB can’t impact Edge or API pods<br>*Separate HPA and maintenance windows*                  | *Another €74 / month control-plane fee after the first free credit*<br>*Duplicate flux/helm plumbing* |
+| **Standard (non-Autopilot) micro-cluster just for TSDB**      | One-node e2-medium zonal; runs VM or Mimir + Grafana                                                     | *Cheapest dedicated option (\~€40/mo) if you disable HA*                                                               | *Manual node security patches*<br>*No free credit offset*                                             |
+
+### Cost impact per billing account
+
+```
+Free Autopilot control-plane credit  …  €0.00  (already consumed by main workload)
+Second Autopilot cluster            …  ~€74.40 / month
+Dedicated zonal standard cluster    …  ~€40.00 / month  (single e2-medium + CP fee)
+Extra node-pool in existing cluster …  ~€15–25 / month  (1 × e2-standard-4 spot, 744 h)
+```
+
+### Recommended approach for MVP and early scale
+
+1. **Same Autopilot cluster** – create a “metrics” spot node-pool:
+
+   ```yaml
+   machineType: e2-standard-4
+   spot: true
+   autoscaling: {min: 0, max: 2}
+   ```
+
+   *Pod disruption budgets* on EdgeHub guarantee production traffic isn’t evicted by Victoria pods.
+
+2. **Revisit when a region exceeds \~50 M active series** or when retention >90 days drives disk I/O; at that point either:
+
+   * spin up a **dedicated Autopilot cluster** (simple but +€74/mo), or
+   * pivot TSDB to a **Standard micro-cluster** that you size solely for metrics.
+
+3. Regardless of topology, **remote-write a copy into BigQuery** for long-term, per-tenant billing—the ingestion job runs from the infra cluster and is unaffected by where the TSDB lives.
+
+That gives you the regulatory separation (data never crosses project boundaries) without paying duplicate control-plane fees until the metrics load justifies it.
+
+
+---
+### Cost simulation – **10 000 active users** per region
+
+*(one billing account / workload-project, EU pricing, EUR; June 2025 list prices)*
+
+| Layer                                | Volume assumption (10 000 users)                                     | Unit price                                    | **Monthly €**  | Notes & sources                          |
+| ------------------------------------ | -------------------------------------------------------------------- | --------------------------------------------- | -------------- | ---------------------------------------- |
+| **Workload cluster – compute**       | 1 spot node-pool `e2-standard-4` (4 vCPU/16 GB) avg 70 % utilisation | Spot €0.0087 / h (-80 %)                      | **≈ €6.3**     | turn1search1                             |
+| **Workload cluster – control-plane** | Autopilot EU                                                         | **Free** credit                               | 0.00           | credit per billing-acct covers 1 cluster |
+| **VictoriaMetrics** storage          | 100 GB PD Balanced (30-day, 10 M series)                             | €0.10 / GB·mo                                 | **€10.0**      | turn0search3                             |
+| **VictoriaMetrics** CPU /RAM         | amortised in node-pool above                                         | —                                             | —              |                                          |
+| **Remote-write ingress data**        | 300 MiB/day Otel ⇒ 9 GiB/mo                                          | Cloud Monitoring ingest €0.151 / MiB (tier-2) | **≈ €1.4**     | turn0search11                            |
+| **BigQuery storage (billing usage)** | 15 GB/mo partitioned table                                           | €0.02 / GB                                    | **€0.30**      | turn0search5                             |
+| **BigQuery queries**                 | 1 TB processed/mo nightly agg                                        | €4.80 / TB                                    | **€4.80**      | Pricing calc                             |
+| **Cloud Storage logs & SBOMs**       | 20 GB Standard                                                       | €0.020 / GB                                   | **€0.40**      | turn1search8                             |
+| **Pub/Sub export**                   | 10 GB egress/month                                                   | €0.04 / GB                                    | **€0.40**      | network pricing                          |
+| **Redis (MemoryStore)**              | upgraded to 2 GB basic                                               | €0.053 / GB·h                                 | **€38.1**      | same SKU as E0                           |
+| **Cloud SQL**                        | bump to db-f1-micro + 30 GB disk                                     | still free tier                               | 0.00           | 10 000 users ≠ heavy writes              |
+| **L4 TCP & UDP LB**                  | same 1 rule                                                          | €0.0065 / h                                   | **€4.70**      | E0 baseline                              |
+| **BigQuery-to-Stripe Cloud Run job** | 1 vCPU × 10 min/day                                                  | €0.0002/min                                   | **€0.60**      | negligible                               |
+| **Backup GCS bucket** (SQL dumps)    | 10 GB Nearline                                                       | €0.01 / GB                                    | **€0.10**      |                                          |
+| **Total OPEX / region**              | —                                                                    | —                                             | **≈ €66 / mo** | ±10 % currency wiggle                    |
+
+---
+
+#### Key take-aways
+
+* **VictoriaMetrics wins** on footprint: single spot node (~~€6) + 100 GB SSD (~~€10) for 9 GiB/month ingest.
+  *Mimir would need ≥ 2 extra pods + object-store reads → \~€20–25/mo.*
+
+* **Monitoring ingest cost is tiny** because we ship high-cardinality series to **Victoria**; Cloud-Monitoring sees only low-cardinality platform metrics.
+
+* **BigQuery billing table** is cheap (< €1/mo) until you exceed multi-TB usage exports.
+
+* With 10 000 users your per-region stack still fits comfortably **< €70/month**—Redis is now the top line item.
+
+---
+
+### What changes when you double user count?
+
+| 20 000 users  | Compute + PD grows to 2 × node; ingest 600 MiB/day → \~€85/mo                          |
+| ------------- | -------------------------------------------------------------------------------------- |
+| 50 000 users  | Add second node-pool, Redis standard 5 GB ⇒ \~€160/mo                                  |
+| 100 000 users | Consider separate observability cluster or move to Mimir object-store; cost \~€300+/mo |
+
+---
+
+### Recommendation
+
+1. **Stick with VictoriaMetrics per workload cluster** for MVP → 90-day hot retention.
+2. Keep nightly **Otel → Pub/Sub → BigQuery** export for billing accuracy and tenant dashboards.
+3. Review when ingest exceeds **\~1 GiB/day** or active series > 50 M; at that point running a micro-cluster or Mimir may be cheaper than SSD.
+
+If you’re comfortable with those numbers I can draft sub-epic **E7b – Observability Data Lake** to codify Victoria + BQ export stories.
+
+
+---
+### Cost model – **10 000 active developers**
+
+*(one workload project / billing account per region, June 2025 GCP list prices, EUR)*
+
+| Layer                                          | Unit assumption                            | EU-West (4 000 users) | US-Central (3 000) | APAC-SE (3 000) | **Total**          | Notes & price sources                      |
+| ---------------------------------------------- | ------------------------------------------ | --------------------- | ------------------ | --------------- | ------------------ | ------------------------------------------ |
+| **Workload cluster**<br>Autopilot nodes (spot) | 1 × `e2-standard-4` spot (4 vCPU / 16 GiB) | €6.3                  | €6.3               | €6.3            | **€18.9**          | €0.0087 / h spot rate                      |
+| Control-plane credit                           | 1 per billing acct                         | 0.00                  | 0.00               | 0.00            | 0.00               | Free Autopilot credit covers first cluster |
+| **VictoriaMetrics** SSD                        | 100 GB PD Balanced                         | 10.0                  | 10.0               | 10.0            | **30.0**           | €0.10 / GB·mo                              |
+| Victoria CPU/RAM                               | amortised inside node-pool                 | —                     | —                  | —               | —                  |                                            |
+| **Remote-write ingest**                        | 300 MiB / day per region                   | 1.4                   | 1.1                | 1.1             | **3.6**            | Custom metrics tier-2 €0.151 / MiB         |
+| **BigQuery storage** (usage)                   | 15 GB partitioned                          | 0.30                  | 0.23               | 0.23            | **0.76**           | €0.020 / GB                                |
+| BigQuery queries                               | 1 TB processed / mo                        | 4.80                  | 3.60               | 3.60            | **12.0**           | €4.80 / TB                                 |
+| **Cloud Storage** (logs, SBOM)                 | 20 GB Standard                             | 0.40                  | 0.30               | 0.30            | **1.00**           |                                            |
+| **Pub/Sub egress** (metrics → BQ)              | 10 GB                                      | 0.40                  | 0.30               | 0.30            | **1.00**           | €0.04 / GB                                 |
+| **MemoryStore Redis**                          | 2 GB basic tier                            | 38.1                  | 38.1               | 38.1            | **114.3**          | €0.053 / GB·h                              |
+| **Cloud SQL**                                  | db-f1-micro + 30 GB                        | 0.00                  | 0.00               | 0.00            | 0.00               | Still free tier                            |
+| **L4 TCP/UDP LB**                              | 1 rule                                     | 4.70                  | 4.70               | 4.70            | **14.1**           |                                            |
+| **BQ→Stripe usage job**                        | 1 vCPU × 10 min / day                      | 0.60                  | 0.45               | 0.45            | **1.50**           |                                            |
+| **Backup Nearline bucket**                     | 10 GB                                      | 0.10                  | 0.08               | 0.08            | **0.26**           |                                            |
+| **Subtotal per region**                        |                                            | **€76.1**             | **€64.1**          | **€64.1**       | —                  |                                            |
+| **Grand total (3 regions)**                    |                                            |                       |                    |                 | **≈ €204 / month** | ≈ €0.02 per active user                    |
+
+---
+
+#### What drives the bill
+
+* **Redis** jumps to the top (€38 / region) once the pool grows to 2 GB; scaling to 5 GB basic or standard tier would add ≈ €35 / region increments.
+* **BigQuery query costs** dominate the observability warehouse once you process > 500 GB/mo.
+* **Control-plane fee** is still €0 because each billing account’s free Autopilot credit offsets one cluster (EU, US, APAC respectively). Adding a **fourth region** would incur +€74/mo.
+
+---
+
+### Sensitivity
+
+| If…                                                              | New monthly total                     |
+| ---------------------------------------------------------------- | ------------------------------------- |
+| Retention extended from 30 to 90 days (SSD ×3)                   | +€60 → ≈ €264                         |
+| Switch VictoriaMetrics to **Mimir + GCS** (object store, no SSD) | –€18 SSD, +€6 read ops → net **–€12** |
+| Redis jumps to **5 GB standard tier**                            | +€45 / region → **+€135**             |
+| Metrics ingest doubles (600 MiB/day)                             | +€3 per region                        |
+
+---
+
+### Take-away
+
+*Even with 10 000 active users across three continents we remain well under **€250 / month** OPEX.*
+The biggest levers are Redis tier, SSD retention window, and BigQuery scan volume.
+
+If this meets expectations we can lock these numbers into the budget alert thresholds and move forward.
+
+

@@ -22,7 +22,7 @@ Goal: orchestrate WireGuard peers via a Rust control service (**wg‑controller*
 
     * Manages **WireGuard device** on each edge pod via **wgctrl** userspace API.
     * Stores peer configs in Redis (`wg:peer:{zone_id}`) with pubkey, allowed‑IPs.
-    * Handles **key rotation** every 24 h per tenant.
+    * Handles **key rotation** every 24h per tenant.
     * Emits Prom metrics: handshakes, rx/tx bytes.
 2. **gRPC watch**: Edge pods stream peer diff from controller, patch `wg set` via `nix::execvp`.
 3. **CIDR allocation**: Each private zone gets `/120` (IPv6) or `/30` (IPv4) internal subnet for tunnel addresses.
@@ -30,7 +30,7 @@ Goal: orchestrate WireGuard peers via a Rust control service (**wg‑controller*
 
     * Attach XDP program on WireGuard interface.
     * Map `zone_id → rate_limit` (BPF hash map) — fed by Redis.
-    * Count bytes per zone and enforce 1 Gbit cap (drop or ECN mark when exceeded).
+    * Count bytes per zone and enforce 1Gbit cap (drop or ECN mark when exceeded).
     * Export counters via **BPF perf events** → Prometheus exporter.
 
 ---
@@ -129,7 +129,7 @@ pub fn xdp_firewall(ctx: XdpContext) -> XdpResult {
 | ------ | ---------------------------------------------------------------------------- |
 | 1      | `wg-controller` + Redis schema; Edge watcher; unit tests                     |
 | 1      | API integration: zone create => peer add                                     |
-| 2      | eBPF prototype path; perf test 10 Gbit; fallback to iptables if kernel <5.10 |
+| 2      | eBPF prototype path; perf test 10Gbit; fallback to iptables if kernel <5.10 |
 | 2      | Prom exporter for byte counters & drops                                      |
 
 ---

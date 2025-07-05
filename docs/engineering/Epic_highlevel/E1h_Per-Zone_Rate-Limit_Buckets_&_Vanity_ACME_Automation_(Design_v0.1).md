@@ -14,7 +14,7 @@ Both live entirely in Rust micro‑services, leaning on existing Redis + Trust�
 ## 1 ▪ WHY
 
 | Need                                                                     | Pain if absent                                            | Feature payoff                                                           |
-| ------------------------------------------------------------------------ | --------------------------------------------------------- | ------------------------------------------------------------------------ |
+|--------------------------------------------------------------------------|-----------------------------------------------------------|--------------------------------------------------------------------------|
 | Tenant A’s CI loop spams 5k tunnels/min → degrades global Redis latency  | No per‑zone isolation; all users suffer (noisy‑neighbour) | **Bucketed counters** throttle only that zone, preserving SLO for others |
 | Customers want public demos on `preview.dev.acme.com` with green padlock | Must bring own cert and rotate; error‑prone               | EDF auto‑issues & renews via ACME DNS‑01; zero ops toil                  |
 | Security teams require **mTLS** between EDF and browser viewers          | Wildcard cert allows SNI‑based vhosts under customer TLD  | We can optionally issue client‑auth sub‑CA per zone later                |
@@ -48,7 +48,7 @@ Both live entirely in Rust micro‑services, leaning on existing Redis + Trust�
 
 ### 2.2 Vanity ACME automation— **deep-dive**
 
-> **Goal:** Customer points `dev.example.com` at EDF once, clicks "Enable HTTPS", and within 60 seconds a valid wildcard certificate `*.dev.example.com` is live across **all edge nodes** — no further action required.
+> **Goal:** Customer points `dev.example.com` at EDF once, clicks "Enable HTTPS", and within 60seconds a valid wildcard certificate `*.dev.example.com` is live across **all edge nodes** — no further action required.
 >
 > **ACME flavor:** Let’s Encrypt v2 (production) with optional staging toggle (`?dry-run`). Fallback CA: ZeroSSL for rate‑limit mitigation.
 
@@ -64,7 +64,7 @@ Both live entirely in Rust micro‑services, leaning on existing Redis + Trust�
     * ACME replies with `authorization` objects containing **DNS‑01** token `t`.
 3. **Challenge provisioning**
 
-    * Internal Trust‑DNS adds TXT `_acme-challenge.ZONE` → `<base64(t)>`, TTL=30 s.
+    * Internal Trust‑DNS adds TXT `_acme-challenge.ZONE` → `<base64(t)>`, TTL=30s.
     * Authority uses **zone‑specific ZSK** so signature is valid.
 4. **Self‑validate before notify CA** (avoid Err‘unauthorized’ RTT):
    \*`dig TXT +dnssec` via 8.8.8.8 from same pod until record resolvable *and* RRSIG verifies.
@@ -77,7 +77,7 @@ Both live entirely in Rust micro‑services, leaning on existing Redis + Trust�
     * EdgePods subscribe to Redis keyspace events; on change they pull cert and **insert into rustlsResolver**.
 7. **Renewal scheduler**
 
-    * Cron every 12h scans keys expiring < 45days.
+    * Cron every 12h scans keys expiring <45days.
     * Each run is staggered via `redis.lock("acme:renew:{zone_id}")` to prevent thundering‑herd.
 8. **Planet‑scale propagation**
 
@@ -115,10 +115,10 @@ sequenceDiagram
 
 | Phase         | ACME error code | EDF response                                               | Retried?                    |
 | ------------- | --------------- | ---------------------------------------------------------- | --------------------------- |
-| newOrder      | `rateLimited`   | Switch to ZeroSSL endpoint                                 | ✅ exponential backoff ×6 h |
+| newOrder      | `rateLimited`   | Switch to ZeroSSL endpoint                                 | ✅ exponential backoff ×6h |
 | dns‑01 verify | `unauthorized`  | Check TXT present; if yes open SRE alert (likely firewall) | ⚠️ manual                   |
 | finalize      | `badCSR`        | Re‑generate CSR with RSA‑4096 fallback                     | once                        |
-| cert download | network timeout | Retry with jitter 5–30 s                                   | 5×                          |
+| cert download | network timeout | Retry with jitter 5–30s                                   | 5×                          |
 
 #### 2.2.4Securitynotes
 

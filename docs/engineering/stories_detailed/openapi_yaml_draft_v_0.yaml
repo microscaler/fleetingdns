@@ -1,0 +1,201 @@
+openapi: 3.0.3
+info:
+  title: FleetingDNS Control‑Plane API
+  version: 0.1.0
+  description: |
+    Draft specification covering tunnel lifecycle and admin endpoints.
+    **NOTE**: Schemas and examples are illustrative; fill in once code stabilises.
+servers:
+  - url: https://api.fleetingdns.run
+paths:
+  /v1/tunnels:
+    post:
+      summary: Create a new tunnel
+      operationId: createTunnel
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TunnelCreateRequest'
+      responses:
+        '201':
+          description: Tunnel created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TunnelResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /v1/tunnels/{id}:
+    delete:
+      summary: Delete (revoke) a tunnel
+      operationId: deleteTunnel
+      parameters:
+        - $ref: '#/components/parameters/TunnelId'
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '204': { description: Deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/plans/{token}:
+    get:
+      summary: Lookup plan attributes by API token
+      operationId: getPlan
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Plan limits
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanResponse'
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/slots/{id}:
+    get:
+      summary: Retrieve slot metadata (EdgeHub / debug)
+      operationId: getSlot
+      parameters:
+        - $ref: '#/components/parameters/SlotId'
+      security:
+        - EdgeHubJwt: []
+      responses:
+        '200':
+          description: Slot metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlotResponse'
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/admin/tunnels:
+    get:
+      summary: Admin list active tunnels
+      operationId: adminListTunnels
+      security:
+        - AdminJwt: []
+      parameters:
+        - name: plan
+          in: query
+          required: false
+          schema: { type: string }
+        - name: cursor
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Stream of tunnel records
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/TunnelAdminRecord' }
+                  nextCursor: { type: string, nullable: true }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-EDF-Token
+    EdgeHubJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    AdminJwt:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    TunnelId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    SlotId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+  responses:
+    BadRequest:
+      description: Invalid input
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    RateLimited:
+      description: Too many requests
+      headers:
+        Retry-After: { schema: { type: integer } }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Authentication failed
+  schemas:
+    TunnelMode:
+      type: string
+      enum: [http, raw_tcp, wg]
+    TunnelCreateRequest:
+      type: object
+      required: [mode, ttl]
+      properties:
+        mode: { $ref: '#/components/schemas/TunnelMode' }
+        ttl: { type: integer, minimum: 60, maximum: 1800 }
+        redirectUrl: { type: string, format: uri, nullable: true }
+        wgAllowedIps: { type: string, nullable: true }
+    TunnelResponse:
+      type: object
+      required: [id, fqdn, expiresAt]
+      properties:
+        id: { type: string, format: uuid }
+        fqdn: { type: string }
+        expiresAt: { type: string, format: date-time }
+        certPem: { type: string }
+        privateKey: { type: string }
+        basicUser: { type: string }
+        basicPass: { type: string }
+        sharedHmacKey: { type: string }
+    PlanResponse:
+      type: object
+      required: [planName]
+      properties:
+        planName: { type: string }
+        maxTtl: { type: integer }
+        dailyQuota: { type: integer }
+        rateRps: { type: integer }
+    SlotResponse:
+      type: object
+      required: [id, clusterId, fqdn, expiresAt]
+      properties:
+        id: { type: string }
+        clusterId: { type: integer }
+        fqdn: { type: string }
+        expiresAt: { type: string, format: date-time }
+        debug: { type: object, additionalProperties: true }
+    TunnelAdminRecord:
+      allOf:
+        - $ref: '#/components/schemas/TunnelResponse'
+        - type: object
+          properties:
+            planId: { type: string }
+            ip: { type: string }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+        details: { type: string, nullable: true }

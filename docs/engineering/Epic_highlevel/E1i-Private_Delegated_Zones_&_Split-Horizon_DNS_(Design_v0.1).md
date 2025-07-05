@@ -12,7 +12,7 @@
 | Regulatory data leaks via external resolvers                           | Requires bespoke on‑prem tunnel infra | Split‑horizon keeps dev traffic on private MPLS / VPN subnets                            |
 | Latency / egress cost when corp traffic hits public anycast PoP        | Could degrade integration tests       | Internal NS endpoints run in customer VPC or EDF private peered network                  |
 
-Success metric: **<5 min** onboarding, <50 ms extra latency vs. on‑prem DNS, and zero leakage to public root servers.
+Success metric: **<5min** onboarding, <50ms extra latency vs. on‑prem DNS, and zero leakage to public root servers.
 
 ---
 
