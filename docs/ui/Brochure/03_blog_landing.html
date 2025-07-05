@@ -1,0 +1,469 @@
+<html><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script> window.FontAwesomeConfig = { autoReplaceSvg: 'nest'};</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <style>::-webkit-scrollbar { display: none;}</style>
+    <script>tailwind.config = {
+        "theme": {
+            "extend": {
+                "colors": {
+                    "primary": {
+                        "50": "#f0f9ff",
+                        "100": "#e0f2fe",
+                        "200": "#bae6fd",
+                        "300": "#7dd3fc",
+                        "400": "#38bdf8",
+                        "500": "#0ea5e9",
+                        "600": "#0284c7",
+                        "700": "#0369a1",
+                        "800": "#075985",
+                        "900": "#0c4a6e"
+                    },
+                    "secondary": {
+                        "500": "#6366f1",
+                        "600": "#4f46e5",
+                        "700": "#4338ca"
+                    },
+                    "dark": "#111827"
+                },
+                "fontFamily": {
+                    "sans": [
+                        "Inter",
+                        "sans-serif"
+                    ],
+                    "mono": [
+                        "JetBrains Mono",
+                        "monospace"
+                    ]
+                }
+            }
+        }
+    };</script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;500;600;700;800;900&amp;display=swap"><style>
+    body {
+        font-family: 'Inter', sans-serif !important;
+    }
+
+    /* Preserve Font Awesome icons */
+    .fa, .fas, .far, .fal, .fab {
+        font-family: "Font Awesome 6 Free", "Font Awesome 6 Brands" !important;
+    }
+</style><style>
+    .highlighted-section {
+        outline: 2px solid #3F20FB;
+        background-color: rgba(63, 32, 251, 0.1);
+    }
+
+    .edit-button {
+        position: absolute;
+        z-index: 1000;
+    }
+
+    ::-webkit-scrollbar {
+        display: none;
+    }
+
+    html, body {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+</style></head>
+<body class="font-sans text-gray-900 bg-gray-50">
+<header id="header" class="bg-dark text-white">
+    <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+        <div class="flex items-center">
+                <span class="text-2xl font-bold flex items-center cursor-pointer">
+                    <i class="fa-solid fa-bolt text-primary-400 mr-2"></i>
+                    <span>EDF</span>
+                </span>
+            <nav class="hidden md:flex ml-10 space-x-8">
+                <span class="text-white hover:text-primary-300 transition cursor-pointer">Features</span>
+                <span class="text-white hover:text-primary-300 transition cursor-pointer">Docs</span>
+                <span class="text-white hover:text-primary-300 transition cursor-pointer">Pricing</span>
+                <span class="text-white hover:text-primary-300 transition cursor-pointer">Enterprise</span>
+                <span class="text-primary-400 hover:text-primary-300 transition font-medium cursor-pointer">Blog</span>
+            </nav>
+        </div>
+        <div class="flex items-center space-x-4">
+            <span class="hidden md:block text-white hover:text-primary-300 transition cursor-pointer">Sign In</span>
+            <span class="bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-md transition font-medium cursor-pointer">Get Started</span>
+            <button class="md:hidden text-white">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+        </div>
+    </div>
+</header>
+
+<section id="blog-hero" class="bg-gradient-to-r from-dark to-gray-800 text-white py-16 h-[400px]">
+    <div class="container mx-auto px-4">
+        <div class="max-w-3xl mx-auto text-center">
+            <h1 class="text-4xl md:text-5xl font-bold mb-6">EDF Engineering Blog</h1>
+            <p class="text-xl text-gray-300 mb-8">Insights, tutorials, and updates from the team building secure, open tunnels for modern development</p>
+            <div class="relative max-w-xl mx-auto">
+                <input type="text" placeholder="Search articles..." class="w-full px-6 py-3 rounded-full bg-white/10 border border-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500">
+                <button class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                    <i class="fa-solid fa-search"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="featured-post" class="py-16 bg-white">
+    <div class="container mx-auto px-4">
+        <div class="flex flex-col md:flex-row gap-8 items-center">
+            <div class="w-full md:w-1/2">
+                <img class="w-full h-[400px] object-cover rounded-lg shadow-lg" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/3ec8f1bcfb-70ba2ae55feb9d77b452.png" alt="tech blog featured image with code terminal and security lock icon, modern minimalist style">
+            </div>
+            <div class="w-full md:w-1/2">
+                <div class="flex items-center mb-4">
+                    <span class="bg-primary-100 text-primary-700 text-sm font-medium px-3 py-1 rounded-full">Security</span>
+                    <span class="ml-4 text-gray-500 text-sm">June 28, 2024</span>
+                </div>
+                <h2 class="text-3xl font-bold mb-4">Why Zero-Trust Is Essential for Modern Development Tunnels</h2>
+                <p class="text-gray-600 text-lg mb-6">We deep dive into how EDF implements Tailscale-grade security with mTLS, DNSSEC-signed domains, and 30-minute certificates to ensure your development tunnels remain secure without compromising speed.</p>
+                <div class="flex items-center mb-6">
+                    <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-3.jpg" alt="Author" class="w-12 h-12 rounded-full mr-4">
+                    <div>
+                        <h4 class="font-medium">Alex Chen</h4>
+                        <p class="text-gray-500 text-sm">Lead Security Engineer</p>
+                    </div>
+                </div>
+                <span class="inline-flex items-center text-primary-600 font-medium hover:text-primary-700 cursor-pointer">
+                        Read full article
+                        <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="latest-posts" class="py-16 bg-gray-50">
+    <div class="container mx-auto px-4">
+        <h2 class="text-2xl font-bold mb-10">Latest Articles</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <!-- Row 1 -->
+            <div id="post-1" class="bg-white rounded-lg overflow-hidden shadow-md transition hover:shadow-lg">
+                <img class="w-full h-48 object-cover" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/1553d419ce-4e1755f77c1da222f4fe.png" alt="developer working with terminal and cloud diagrams, technical illustration">
+                <div class="p-6">
+                    <div class="flex items-center mb-3">
+                        <span class="bg-blue-100 text-blue-700 text-xs font-medium px-2.5 py-0.5 rounded-full">Tutorial</span>
+                        <span class="ml-3 text-gray-500 text-sm">June 15, 2024</span>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">Getting Started with EDF: URL Live in Under 2 Seconds</h3>
+                    <p class="text-gray-600 mb-4">Learn how our stateless DNS system enables instant tunnel creation and why it matters for your development workflow.</p>
+                    <div class="flex items-center">
+                        <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-2.jpg" alt="Author" class="w-8 h-8 rounded-full mr-3">
+                        <span class="text-gray-700">Michael Park</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="post-2" class="bg-white rounded-lg overflow-hidden shadow-md transition hover:shadow-lg">
+                <img class="w-full h-48 object-cover" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/e1a102fd59-3f3129f1e4dde2868ca4.png" alt="open source code repository visualization, technical illustration">
+                <div class="p-6">
+                    <div class="flex items-center mb-3">
+                        <span class="bg-green-100 text-green-700 text-xs font-medium px-2.5 py-0.5 rounded-full">Open Source</span>
+                        <span class="ml-3 text-gray-500 text-sm">June 10, 2024</span>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">100% Rust: Why We Built EDF Without Compromise</h3>
+                    <p class="text-gray-600 mb-4">Discover the technical decisions behind our 100% Rust codebase and how it enables superior performance and security.</p>
+                    <div class="flex items-center">
+                        <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-5.jpg" alt="Author" class="w-8 h-8 rounded-full mr-3">
+                        <span class="text-gray-700">Sarah Johnson</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="post-3" class="bg-white rounded-lg overflow-hidden shadow-md transition hover:shadow-lg">
+                <img class="w-full h-48 object-cover" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/204ab2df62-4093f892895a14f98e4e.png" alt="enterprise security dashboard with analytics, technical illustration">
+                <div class="p-6">
+                    <div class="flex items-center mb-3">
+                        <span class="bg-purple-100 text-purple-700 text-xs font-medium px-2.5 py-0.5 rounded-full">Enterprise</span>
+                        <span class="ml-3 text-gray-500 text-sm">June 5, 2024</span>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">Enterprise-Grade Controls: OIDC, HMAC, and Audit Trails</h3>
+                    <p class="text-gray-600 mb-4">How EDF provides the control and compliance features enterprises need without sacrificing developer experience.</p>
+                    <div class="flex items-center">
+                        <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-4.jpg" alt="Author" class="w-8 h-8 rounded-full mr-3">
+                        <span class="text-gray-700">David Wilson</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 2 -->
+            <div id="post-4" class="bg-white rounded-lg overflow-hidden shadow-md transition hover:shadow-lg">
+                <img class="w-full h-48 object-cover" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/d67add29e8-90eeac75412d429decba.png" alt="DNSSEC certificate management dashboard, technical illustration">
+                <div class="p-6">
+                    <div class="flex items-center mb-3">
+                        <span class="bg-red-100 text-red-700 text-xs font-medium px-2.5 py-0.5 rounded-full">Security</span>
+                        <span class="ml-3 text-gray-500 text-sm">May 28, 2024</span>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">DNSSEC-Signed Domains: Trust Without Compromise</h3>
+                    <p class="text-gray-600 mb-4">How EDF leverages DNSSEC to provide cryptographic proof of domain authenticity for your tunnels.</p>
+                    <div class="flex items-center">
+                        <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-3.jpg" alt="Author" class="w-8 h-8 rounded-full mr-3">
+                        <span class="text-gray-700">Alex Chen</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="post-5" class="bg-white rounded-lg overflow-hidden shadow-md transition hover:shadow-lg">
+                <img class="w-full h-48 object-cover" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/b6ae042f77-e5f78330a21adcc304a6.png" alt="self-hosting server setup with containers, technical illustration">
+                <div class="p-6">
+                    <div class="flex items-center mb-3">
+                        <span class="bg-gray-100 text-gray-700 text-xs font-medium px-2.5 py-0.5 rounded-full">Self-Hosting</span>
+                        <span class="ml-3 text-gray-500 text-sm">May 25, 2024</span>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">Self-Hosting EDF: Complete Infrastructure Guide</h3>
+                    <p class="text-gray-600 mb-4">Deploy your own EDF instance with Docker, Kubernetes, or bare metal. No vendor lock-in, full control.</p>
+                    <div class="flex items-center">
+                        <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-8.jpg" alt="Author" class="w-8 h-8 rounded-full mr-3">
+                        <span class="text-gray-700">James Rodriguez</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="post-6" class="bg-white rounded-lg overflow-hidden shadow-md transition hover:shadow-lg">
+                <img class="w-full h-48 object-cover" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/92c97c88f6-1a460adef96805e63117.png" alt="rate limiting and traffic monitoring dashboard, technical illustration">
+                <div class="p-6">
+                    <div class="flex items-center mb-3">
+                        <span class="bg-purple-100 text-purple-700 text-xs font-medium px-2.5 py-0.5 rounded-full">Enterprise</span>
+                        <span class="ml-3 text-gray-500 text-sm">May 20, 2024</span>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">Advanced Rate Limiting and Traffic Control</h3>
+                    <p class="text-gray-600 mb-4">Implement sophisticated rate limiting policies and traffic shaping for enterprise-grade tunnel management.</p>
+                    <div class="flex items-center">
+                        <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-6.jpg" alt="Author" class="w-8 h-8 rounded-full mr-3">
+                        <span class="text-gray-700">Emma Thompson</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 3 -->
+            <div id="post-7" class="bg-white rounded-lg overflow-hidden shadow-md transition hover:shadow-lg">
+                <img class="w-full h-48 object-cover" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/c81c3d4f95-3c9fa76d62e44f417aea.png" alt="30-minute certificate rotation process diagram, technical illustration">
+                <div class="p-6">
+                    <div class="flex items-center mb-3">
+                        <span class="bg-red-100 text-red-700 text-xs font-medium px-2.5 py-0.5 rounded-full">Security</span>
+                        <span class="ml-3 text-gray-500 text-sm">May 15, 2024</span>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">30-Minute Certificate Rotation: Security by Design</h3>
+                    <p class="text-gray-600 mb-4">Why short-lived certificates are crucial for tunnel security and how EDF automates the entire process.</p>
+                    <div class="flex items-center">
+                        <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-9.jpg" alt="Author" class="w-8 h-8 rounded-full mr-3">
+                        <span class="text-gray-700">Kevin Liu</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="post-8" class="bg-white rounded-lg overflow-hidden shadow-md transition hover:shadow-lg">
+                <img class="w-full h-48 object-cover" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/adf4d43301-bf09d41b8223aee412a2.png" alt="edge computing network topology diagram, technical illustration">
+                <div class="p-6">
+                    <div class="flex items-center mb-3">
+                        <span class="bg-indigo-100 text-indigo-700 text-xs font-medium px-2.5 py-0.5 rounded-full">Edge Computing</span>
+                        <span class="ml-3 text-gray-500 text-sm">May 10, 2024</span>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">Edge Workloads: Bringing Compute to the Data</h3>
+                    <p class="text-gray-600 mb-4">How EDF enables secure tunnels for edge computing scenarios with minimal latency overhead.</p>
+                    <div class="flex items-center">
+                        <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-7.jpg" alt="Author" class="w-8 h-8 rounded-full mr-3">
+                        <span class="text-gray-700">Lisa Wang</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="post-9" class="bg-white rounded-lg overflow-hidden shadow-md transition hover:shadow-lg">
+                <img class="w-full h-48 object-cover" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/cddf169ae5-aa72f705da30707644eb.png" alt="OIDC authentication flow diagram, technical illustration">
+                <div class="p-6">
+                    <div class="flex items-center mb-3">
+                        <span class="bg-yellow-100 text-yellow-700 text-xs font-medium px-2.5 py-0.5 rounded-full">Authentication</span>
+                        <span class="ml-3 text-gray-500 text-sm">May 5, 2024</span>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">OIDC Integration: Enterprise Identity Made Simple</h3>
+                    <p class="text-gray-600 mb-4">Connect EDF to your existing identity provider with OpenID Connect for seamless user management.</p>
+                    <div class="flex items-center">
+                        <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-2.jpg" alt="Author" class="w-8 h-8 rounded-full mr-3">
+                        <span class="text-gray-700">Michael Park</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Row 4 -->
+            <div id="post-10" class="bg-white rounded-lg overflow-hidden shadow-md transition hover:shadow-lg">
+                <img class="w-full h-48 object-cover" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/f1e8bd802d-b2a811ca5766aff7fa8b.png" alt="performance benchmarking charts and graphs, technical illustration">
+                <div class="p-6">
+                    <div class="flex items-center mb-3">
+                        <span class="bg-green-100 text-green-700 text-xs font-medium px-2.5 py-0.5 rounded-full">Performance</span>
+                        <span class="ml-3 text-gray-500 text-sm">April 30, 2024</span>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">Benchmarking EDF: Performance at Scale</h3>
+                    <p class="text-gray-600 mb-4">Real-world performance metrics comparing EDF against other tunnel solutions under various load conditions.</p>
+                    <div class="flex items-center">
+                        <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-4.jpg" alt="Author" class="w-8 h-8 rounded-full mr-3">
+                        <span class="text-gray-700">David Wilson</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="post-11" class="bg-white rounded-lg overflow-hidden shadow-md transition hover:shadow-lg">
+                <img class="w-full h-48 object-cover" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/25ee0a09f9-62452e103e651f169e23.png" alt="HMAC signature verification process, technical illustration">
+                <div class="p-6">
+                    <div class="flex items-center mb-3">
+                        <span class="bg-red-100 text-red-700 text-xs font-medium px-2.5 py-0.5 rounded-full">Security</span>
+                        <span class="ml-3 text-gray-500 text-sm">April 25, 2024</span>
+                    </div>
+                    <h3 class="text-xl font-bold mb-2">HMAC Signatures: Preventing Replay Attacks</h3>
+                    <p class="text-gray-600 mb-4">Understanding how EDF uses
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div></section>
+
+<section id="categories" class="py-16 bg-white">
+    <div class="container mx-auto px-4">
+        <h2 class="text-2xl font-bold mb-10">Explore Topics</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <span class="bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-lg p-6 text-center hover:shadow-lg transition cursor-pointer" id="category-1">
+                    <i class="fa-solid fa-shield-alt text-3xl mb-3"></i>
+                    <h3 class="font-bold">Security</h3>
+                    <p class="text-blue-100 text-sm">12 articles</p>
+                </span>
+            <span class="bg-gradient-to-r from-green-500 to-green-700 text-white rounded-lg p-6 text-center hover:shadow-lg transition cursor-pointer" id="category-2">
+                    <i class="fa-solid fa-code text-3xl mb-3"></i>
+                    <h3 class="font-bold">Development</h3>
+                    <p class="text-green-100 text-sm">15 articles</p>
+                </span>
+            <span class="bg-gradient-to-r from-purple-500 to-purple-700 text-white rounded-lg p-6 text-center hover:shadow-lg transition cursor-pointer" id="category-3">
+                    <i class="fa-solid fa-building text-3xl mb-3"></i>
+                    <h3 class="font-bold">Enterprise</h3>
+                    <p class="text-purple-100 text-sm">8 articles</p>
+                </span>
+            <span class="bg-gradient-to-r from-gray-700 to-gray-900 text-white rounded-lg p-6 text-center hover:shadow-lg transition cursor-pointer" id="category-4">
+                    <i class="fa-solid fa-server text-3xl mb-3"></i>
+                    <h3 class="font-bold">Self-Hosting</h3>
+                    <p class="text-gray-300 text-sm">10 articles</p>
+                </span>
+        </div>
+    </div>
+</section>
+
+<section id="tutorials" class="py-16 bg-gray-50">
+    <div class="container mx-auto px-4">
+        <div class="flex justify-between items-center mb-10">
+            <h2 class="text-2xl font-bold">Popular Tutorials</h2>
+            <span class="text-primary-600 font-medium hover:text-primary-700 flex items-center cursor-pointer">
+                    View all tutorials
+                    <i class="fa-solid fa-arrow-right ml-2"></i>
+                </span>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Tutorial 1 -->
+            <div id="tutorial-1" class="flex bg-white rounded-lg overflow-hidden shadow-md">
+                <div class="w-1/3 bg-primary-600 flex items-center justify-center p-6">
+                    <i class="fa-solid fa-terminal text-white text-4xl"></i>
+                </div>
+                <div class="w-2/3 p-6">
+                    <span class="bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded-full">Beginner</span>
+                    <h3 class="text-xl font-bold my-2">Setting Up Your First Secure Tunnel</h3>
+                    <p class="text-gray-600 mb-3">A step-by-step guide to creating your first secure tunnel with EDF CLI.</p>
+                    <span class="text-primary-600 hover:text-primary-700 font-medium cursor-pointer">Read tutorial →</span>
+                </div>
+            </div>
+
+            <!-- Tutorial 2 -->
+            <div id="tutorial-2" class="flex bg-white rounded-lg overflow-hidden shadow-md">
+                <div class="w-1/3 bg-secondary-600 flex items-center justify-center p-6">
+                    <i class="fa-solid fa-lock text-white text-4xl"></i>
+                </div>
+                <div class="w-2/3 p-6">
+                    <span class="bg-orange-100 text-orange-800 text-xs font-medium px-2.5 py-0.5 rounded-full">Intermediate</span>
+                    <h3 class="text-xl font-bold my-2">Implementing mTLS Authentication</h3>
+                    <p class="text-gray-600 mb-3">Learn how to configure mutual TLS for enhanced security in your tunnels.</p>
+                    <span class="text-primary-600 hover:text-primary-700 font-medium cursor-pointer">Read tutorial →</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="newsletter" class="py-16 bg-dark text-white">
+    <div class="container mx-auto px-4">
+        <div class="max-w-3xl mx-auto text-center">
+            <h2 class="text-3xl font-bold mb-4">Stay Updated</h2>
+            <p class="text-gray-300 mb-8">Get the latest EDF tutorials, security insights, and product updates delivered to your inbox.</p>
+            <form class="flex flex-col md:flex-row gap-4 max-w-lg mx-auto">
+                <input type="email" placeholder="Your email address" class="flex-grow px-4 py-3 rounded-md bg-gray-800 border border-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500">
+                <button type="submit" class="bg-primary-500 hover:bg-primary-600 text-white px-6 py-3 rounded-md transition font-medium">Subscribe</button>
+            </form>
+            <p class="text-gray-400 text-sm mt-4">We respect your privacy. Unsubscribe at any time.</p>
+        </div>
+    </div>
+</section>
+
+<footer id="footer" class="bg-gray-900 text-gray-400 py-12">
+    <div class="container mx-auto px-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+            <div>
+                    <span class="text-xl font-bold text-white flex items-center mb-4 cursor-pointer">
+                        <i class="fa-solid fa-bolt text-primary-400 mr-2"></i>
+                        <span>EDF</span>
+                    </span>
+                <p class="mb-4">Instant, Zero-Trust Tunnels for Modern Dev &amp; Edge Workloads.</p>
+                <div class="flex space-x-4">
+                        <span class="text-gray-400 hover:text-white transition cursor-pointer">
+                            <i class="fa-brands fa-github text-xl"></i>
+                        </span>
+                    <span class="text-gray-400 hover:text-white transition cursor-pointer">
+                            <i class="fa-brands fa-twitter text-xl"></i>
+                        </span>
+                    <span class="text-gray-400 hover:text-white transition cursor-pointer">
+                            <i class="fa-brands fa-linkedin text-xl"></i>
+                        </span>
+                    <span class="text-gray-400 hover:text-white transition cursor-pointer">
+                            <i class="fa-brands fa-discord text-xl"></i>
+                        </span>
+                </div>
+            </div>
+            <div>
+                <h3 class="text-white font-medium mb-4">Product</h3>
+                <ul class="space-y-2">
+                    <li><span class="hover:text-white transition cursor-pointer">Features</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Pricing</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Enterprise</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Self-Hosting</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Security</span></li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="text-white font-medium mb-4">Resources</h3>
+                <ul class="space-y-2">
+                    <li><span class="hover:text-white transition cursor-pointer">Documentation</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Tutorials</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Blog</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Community</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">GitHub</span></li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="text-white font-medium mb-4">Company</h3>
+                <ul class="space-y-2">
+                    <li><span class="hover:text-white transition cursor-pointer">About</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Careers</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Contact</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Privacy</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Terms</span></li>
+                </ul>
+            </div>
+        </div>
+        <div class="border-t border-gray-800 pt-8 text-sm text-center">
+            <p>© 2024 EDF. All rights reserved.</p>
+        </div>
+    </div>
+</footer>
+
+</body></html>

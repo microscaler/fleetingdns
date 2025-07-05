@@ -1,0 +1,458 @@
+<html><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script> window.FontAwesomeConfig = { autoReplaceSvg: 'nest'};</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <style>::-webkit-scrollbar { display: none;}</style>
+    <script>tailwind.config = {
+        "theme": {
+            "extend": {
+                "colors": {
+                    "primary": {
+                        "50": "#f0f9ff",
+                        "100": "#e0f2fe",
+                        "200": "#bae6fd",
+                        "300": "#7dd3fc",
+                        "400": "#38bdf8",
+                        "500": "#0ea5e9",
+                        "600": "#0284c7",
+                        "700": "#0369a1",
+                        "800": "#075985",
+                        "900": "#0c4a6e"
+                    },
+                    "secondary": {
+                        "500": "#6366f1",
+                        "600": "#4f46e5",
+                        "700": "#4338ca"
+                    },
+                    "dark": "#111827"
+                },
+                "fontFamily": {
+                    "sans": [
+                        "Inter",
+                        "sans-serif"
+                    ],
+                    "mono": [
+                        "JetBrains Mono",
+                        "monospace"
+                    ]
+                }
+            }
+        }
+    };</script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;500;600;700;800;900&amp;display=swap"><style>
+    body {
+        font-family: 'Inter', sans-serif !important;
+    }
+
+    /* Preserve Font Awesome icons */
+    .fa, .fas, .far, .fal, .fab {
+        font-family: "Font Awesome 6 Free", "Font Awesome 6 Brands" !important;
+    }
+</style><style>
+    .highlighted-section {
+        outline: 2px solid #3F20FB;
+        background-color: rgba(63, 32, 251, 0.1);
+    }
+
+    .edit-button {
+        position: absolute;
+        z-index: 1000;
+    }
+
+    ::-webkit-scrollbar {
+        display: none;
+    }
+
+    html, body {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+</style></head>
+<body class="font-sans text-gray-900 bg-gray-50">
+<header id="header" class="bg-dark text-white">
+    <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+        <div class="flex items-center">
+                <span class="text-2xl font-bold flex items-center cursor-pointer">
+                    <i class="fa-solid fa-bolt text-primary-400 mr-2"></i>
+                    <span>EDF</span>
+                </span>
+            <nav class="hidden md:flex ml-10 space-x-8">
+                <span class="text-white hover:text-primary-300 transition cursor-pointer">Features</span>
+                <span class="text-white hover:text-primary-300 transition cursor-pointer">Docs</span>
+                <span class="text-white hover:text-primary-300 transition cursor-pointer">Pricing</span>
+                <span class="text-white hover:text-primary-300 transition cursor-pointer">Enterprise</span>
+                <span class="text-primary-400 hover:text-primary-300 transition font-medium cursor-pointer">Blog</span>
+            </nav>
+        </div>
+        <div class="flex items-center space-x-4">
+            <span class="hidden md:block text-white hover:text-primary-300 transition cursor-pointer">Sign In</span>
+            <span class="bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-md transition font-medium cursor-pointer">Get Started</span>
+            <button class="md:hidden text-white">
+                <i class="fa-solid fa-bars"></i>
+            </button>
+        </div>
+    </div>
+</header>
+
+<section id="article-header" class="pt-16 pb-8 bg-gradient-to-r from-dark to-gray-800 text-white">
+    <div class="container mx-auto px-4">
+        <div class="max-w-3xl mx-auto">
+            <div class="flex items-center mb-4">
+                <span class="bg-primary-100 text-primary-700 text-sm font-medium px-3 py-1 rounded-full">Security</span>
+                <span class="ml-4 text-gray-300 text-sm">June 28, 2024</span>
+                <span class="ml-4 text-gray-300 text-sm flex items-center">
+                        <i class="fa-regular fa-clock mr-1"></i> 8 min read
+                    </span>
+            </div>
+            <h1 class="text-4xl md:text-5xl font-bold mb-6">Why Zero-Trust Is Essential for Modern Development Tunnels</h1>
+            <p class="text-xl text-gray-300 mb-8">We deep dive into how EDF implements Tailscale-grade security with mTLS, DNSSEC-signed domains, and 30-minute certificates to ensure your development tunnels remain secure without compromising speed.</p>
+            <div class="flex items-center mb-8">
+                <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-3.jpg" alt="Author" class="w-12 h-12 rounded-full mr-4">
+                <div>
+                    <h4 class="font-medium text-white">Alex Chen</h4>
+                    <p class="text-gray-300 text-sm">Lead Security Engineer</p>
+                </div>
+                <div class="ml-auto flex space-x-4">
+                        <span class="text-gray-300 hover:text-white transition cursor-pointer">
+                            <i class="fa-brands fa-twitter text-lg"></i>
+                        </span>
+                    <span class="text-gray-300 hover:text-white transition cursor-pointer">
+                            <i class="fa-brands fa-linkedin text-lg"></i>
+                        </span>
+                    <span class="text-gray-300 hover:text-white transition cursor-pointer">
+                            <i class="fa-solid fa-share-nodes text-lg"></i>
+                        </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="article-content" class="py-12 bg-white">
+    <div class="container mx-auto px-4">
+        <div class="flex flex-col lg:flex-row gap-8">
+            <div class="w-full lg:w-2/3">
+                <div class="mb-10">
+                    <img class="w-full h-[400px] object-cover rounded-lg shadow-lg mb-8" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/3ec8f1bcfb-70ba2ae55feb9d77b452.png" alt="tech blog featured image with code terminal and security lock icon, modern minimalist style">
+
+                    <div id="article-body" class="prose prose-lg max-w-none">
+                        <p class="text-gray-700 mb-6">In the rapidly evolving landscape of modern development, tunnels have become indispensable tools for developers working on local environments while needing to share their work externally. However, as these tunnels bridge the gap between private development environments and the public internet, they also introduce significant security considerations that cannot be overlooked.</p>
+
+                        <h2 class="text-2xl font-bold mt-8 mb-4">The Security Challenge with Development Tunnels</h2>
+                        <p class="text-gray-700 mb-6">Traditional development tunnels often prioritize convenience over security, creating potential vulnerabilities that can be exploited. When you expose your local development environment to the internet, you're essentially creating a pathway that could potentially be used to access sensitive data or systems.</p>
+
+                        <div class="bg-gray-50 border-l-4 border-primary-500 p-4 my-6">
+                            <p class="text-gray-700 italic">"Security isn't just a feature—it's the foundation upon which all reliable development tools must be built. At EDF, we've made it our mission to ensure that convenience never comes at the expense of security."</p>
+                        </div>
+
+                        <h2 class="text-2xl font-bold mt-8 mb-4">Zero-Trust: A Modern Security Paradigm</h2>
+                        <p class="text-gray-700 mb-6">Zero-Trust architecture operates on the principle of "never trust, always verify." This approach is particularly crucial for development tunnels, which create connections between trusted internal networks and untrusted external environments.</p>
+
+                        <p class="text-gray-700 mb-6">At EDF, we've implemented a comprehensive Zero-Trust framework for our tunnels that includes:</p>
+
+                        <ul class="list-disc pl-6 mb-6 space-y-2 text-gray-700">
+                            <li><strong>Mutual TLS (mTLS) Authentication:</strong> Unlike standard TLS which only authenticates the server, mTLS ensures both the client and server authenticate each other, preventing unauthorized access.</li>
+                            <li><strong>DNSSEC-Signed Domains:</strong> By implementing DNSSEC, we provide cryptographic proof of domain authenticity, preventing DNS spoofing attacks.</li>
+                            <li><strong>30-Minute Certificate Rotation:</strong> Short-lived certificates significantly reduce the window of opportunity for attackers, even if credentials are somehow compromised.</li>
+                        </ul>
+
+                        <div class="bg-gray-100 rounded-lg p-6 my-8">
+                            <h3 class="text-xl font-bold mb-4">Technical Implementation Highlight: mTLS</h3>
+                            <p class="text-gray-700 mb-4">Our mTLS implementation uses ED25519 certificates for both client and server authentication, providing high security with minimal performance impact. Here's a simplified overview of the connection flow:</p>
+
+                            <div class="bg-gray-800 text-gray-200 p-4 rounded-md font-mono text-sm overflow-x-auto">
+                                    <pre>1. Client generates ephemeral ED25519 key pair
+2. Client requests certificate from EDF authority
+3. EDF validates client identity via OIDC or API key
+4. EDF issues short-lived (30min) client certificate
+5. Client establishes TLS connection using certificate
+6. Server validates client cert against CA
+7. Client validates server cert against CA
+8. Secure bidirectional tunnel established</pre>
+                            </div>
+                        </div>
+
+                        <h2 class="text-2xl font-bold mt-8 mb-4">Security Without Sacrificing Performance</h2>
+                        <p class="text-gray-700 mb-6">A common concern with implementing robust security measures is the potential impact on performance. At EDF, we've engineered our security solutions to be lightweight and efficient, ensuring that your development workflow remains fast and responsive.</p>
+
+                        <p class="text-gray-700 mb-6">Our stateless DNS system enables tunnel URLs to go live in under 2 seconds, even with all security measures in place. This is achieved through:</p>
+
+                        <ul class="list-disc pl-6 mb-6 space-y-2 text-gray-700">
+                            <li>Optimized certificate generation and validation processes</li>
+                            <li>Efficient DNSSEC implementation with minimal lookup overhead</li>
+                            <li>100% Rust codebase for maximum performance and memory safety</li>
+                            <li>Distributed edge architecture to minimize latency</li>
+                        </ul>
+
+                        <h2 class="text-2xl font-bold mt-8 mb-4">Enterprise-Grade Controls</h2>
+                        <p class="text-gray-700 mb-6">For enterprise environments, security requirements go beyond the technical implementation to include governance and compliance considerations. EDF addresses these needs with:</p>
+
+                        <ul class="list-disc pl-6 mb-6 space-y-2 text-gray-700">
+                            <li><strong>OIDC Integration:</strong> Seamlessly connect to your existing identity provider for centralized access management</li>
+                            <li><strong>HMAC Request Signing:</strong> Prevent replay attacks and ensure request integrity</li>
+                            <li><strong>Comprehensive Audit Trails:</strong> Track all tunnel creation, access, and modification events</li>
+                            <li><strong>Granular Rate Limiting:</strong> Control resource usage and prevent abuse</li>
+                        </ul>
+
+                        <div class="bg-primary-50 border border-primary-100 rounded-lg p-6 my-8">
+                            <h3 class="text-xl font-bold text-primary-800 mb-4">Key Takeaways</h3>
+                            <ul class="space-y-2 text-gray-700">
+                                <li class="flex items-start">
+                                    <i class="fa-solid fa-check text-primary-500 mt-1 mr-2"></i>
+                                    <span>Zero-Trust architecture is essential for secure development tunnels</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <i class="fa-solid fa-check text-primary-500 mt-1 mr-2"></i>
+                                    <span>mTLS, DNSSEC, and short-lived certificates form a robust security foundation</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <i class="fa-solid fa-check text-primary-500 mt-1 mr-2"></i>
+                                    <span>Security can be implemented without sacrificing performance</span>
+                                </li>
+                                <li class="flex items-start">
+                                    <i class="fa-solid fa-check text-primary-500 mt-1 mr-2"></i>
+                                    <span>Enterprise environments require additional governance controls</span>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <h2 class="text-2xl font-bold mt-8 mb-4">Conclusion</h2>
+                        <p class="text-gray-700 mb-6">As development practices continue to evolve, the security of development tunnels must evolve alongside them. Zero-Trust principles provide a solid foundation for securing these critical pathways between private development environments and the public internet.</p>
+
+                        <p class="text-gray-700 mb-6">At EDF, we've made security a core design principle rather than an afterthought, ensuring that developers can focus on building great software without worrying about compromising their security posture. By combining Tailscale-grade security with ngrok-style developer experience, we're providing a solution that doesn't force you to choose between security and convenience.</p>
+
+                        <p class="text-gray-700">Whether you're an individual developer or part of a large enterprise, implementing Zero-Trust tunnels is an essential step in modernizing your development security practices. The threats are real, but with the right approach, they can be effectively mitigated without disrupting your workflow.</p>
+                    </div>
+
+                    <div id="article-tags" class="mt-8 flex flex-wrap gap-2">
+                        <span class="bg-gray-100 text-gray-800 text-sm font-medium px-3 py-1 rounded-full">Zero-Trust</span>
+                        <span class="bg-gray-100 text-gray-800 text-sm font-medium px-3 py-1 rounded-full">mTLS</span>
+                        <span class="bg-gray-100 text-gray-800 text-sm font-medium px-3 py-1 rounded-full">DNSSEC</span>
+                        <span class="bg-gray-100 text-gray-800 text-sm font-medium px-3 py-1 rounded-full">Security</span>
+                        <span class="bg-gray-100 text-gray-800 text-sm font-medium px-3 py-1 rounded-full">Development</span>
+                    </div>
+
+                    <div id="article-share" class="mt-8 border-t border-b border-gray-200 py-6 flex justify-between items-center">
+                        <div class="flex items-center">
+                            <span class="text-gray-700 mr-4">Share this article:</span>
+                            <div class="flex space-x-4">
+                                    <span class="text-gray-600 hover:text-primary-600 transition cursor-pointer">
+                                        <i class="fa-brands fa-twitter text-lg"></i>
+                                    </span>
+                                <span class="text-gray-600 hover:text-primary-600 transition cursor-pointer">
+                                        <i class="fa-brands fa-linkedin text-lg"></i>
+                                    </span>
+                                <span class="text-gray-600 hover:text-primary-600 transition cursor-pointer">
+                                        <i class="fa-brands fa-facebook text-lg"></i>
+                                    </span>
+                                <span class="text-gray-600 hover:text-primary-600 transition cursor-pointer">
+                                        <i class="fa-solid fa-link text-lg"></i>
+                                    </span>
+                            </div>
+                        </div>
+                        <div class="flex items-center">
+                                <span class="text-gray-600 hover:text-primary-600 transition cursor-pointer flex items-center">
+                                    <i class="fa-regular fa-bookmark mr-1"></i> Save
+                                </span>
+                        </div>
+                    </div>
+
+                    <div id="article-author" class="mt-10 bg-gray-50 rounded-lg p-6">
+                        <div class="flex items-start">
+                            <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-3.jpg" alt="Author" class="w-16 h-16 rounded-full mr-4">
+                            <div>
+                                <h4 class="font-bold text-lg">Alex Chen</h4>
+                                <p class="text-gray-600 mb-3">Lead Security Engineer at EDF</p>
+                                <p class="text-gray-700 mb-3">Alex has over 10 years of experience in cybersecurity with a focus on Zero-Trust architectures and secure development practices. He leads the security engineering team at EDF.</p>
+                                <div class="flex space-x-4">
+                                        <span class="text-gray-600 hover:text-primary-600 transition cursor-pointer">
+                                            <i class="fa-brands fa-twitter"></i>
+                                        </span>
+                                    <span class="text-gray-600 hover:text-primary-600 transition cursor-pointer">
+                                            <i class="fa-brands fa-github"></i>
+                                        </span>
+                                    <span class="text-gray-600 hover:text-primary-600 transition cursor-pointer">
+                                            <i class="fa-solid fa-globe"></i>
+                                        </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="related-articles" class="mt-12">
+                    <h3 class="text-2xl font-bold mb-6">Related Articles</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-white rounded-lg overflow-hidden shadow-md transition hover:shadow-lg">
+                            <img class="w-full h-48 object-cover" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/d67add29e8-90eeac75412d429decba.png" alt="DNSSEC certificate management dashboard, technical illustration">
+                            <div class="p-5">
+                                <div class="flex items-center mb-3">
+                                    <span class="bg-red-100 text-red-700 text-xs font-medium px-2.5 py-0.5 rounded-full">Security</span>
+                                    <span class="ml-3 text-gray-500 text-sm">May 28, 2024</span>
+                                </div>
+                                <h3 class="text-lg font-bold mb-2">DNSSEC-Signed Domains: Trust Without Compromise</h3>
+                                <p class="text-gray-600 mb-4">How EDF leverages DNSSEC to provide cryptographic proof of domain authenticity for your tunnels.</p>
+                                <span class="text-primary-600 hover:text-primary-700 font-medium cursor-pointer">Read article →</span>
+                            </div>
+                        </div>
+
+                        <div class="bg-white rounded-lg overflow-hidden shadow-md transition hover:shadow-lg">
+                            <img class="w-full h-48 object-cover" src="https://storage.googleapis.com/uxpilot-auth.appspot.com/c81c3d4f95-3c9fa76d62e44f417aea.png" alt="30-minute certificate rotation process diagram, technical illustration">
+                            <div class="p-5">
+                                <div class="flex items-center mb-3">
+                                    <span class="bg-red-100 text-red-700 text-xs font-medium px-2.5 py-0.5 rounded-full">Security</span>
+                                    <span class="ml-3 text-gray-500 text-sm">May 15, 2024</span>
+                                </div>
+                                <h3 class="text-lg font-bold mb-2">30-Minute Certificate Rotation: Security by Design</h3>
+                                <p class="text-gray-600 mb-4">Why short-lived certificates are crucial for tunnel security and how EDF automates the entire process.</p>
+                                <span class="text-primary-600 hover:text-primary-700 font-medium cursor-pointer">Read article →</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="w-full lg:w-1/3">
+                <div class="sticky top-8">
+                    <div id="table-of-contents" class="bg-white rounded-lg shadow-md p-6 mb-8">
+                        <h3 class="text-lg font-bold mb-4">Table of Contents</h3>
+                        <ul class="space-y-3">
+                            <li>
+                                <span class="text-primary-600 hover:text-primary-800 font-medium cursor-pointer">The Security Challenge with Development Tunnels</span>
+                            </li>
+                            <li>
+                                <span class="text-gray-700 hover:text-primary-600 cursor-pointer">Zero-Trust: A Modern Security Paradigm</span>
+                            </li>
+                            <li>
+                                <span class="text-gray-700 hover:text-primary-600 cursor-pointer">Technical Implementation: mTLS</span>
+                            </li>
+                            <li>
+                                <span class="text-gray-700 hover:text-primary-600 cursor-pointer">Security Without Sacrificing Performance</span>
+                            </li>
+                            <li>
+                                <span class="text-gray-700 hover:text-primary-600 cursor-pointer">Enterprise-Grade Controls</span>
+                            </li>
+                            <li>
+                                <span class="text-gray-700 hover:text-primary-600 cursor-pointer">Conclusion</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div id="newsletter-sidebar" class="bg-dark rounded-lg shadow-md p-6 mb-8 text-white">
+                        <h3 class="text-lg font-bold mb-4">Subscribe to Our Newsletter</h3>
+                        <p class="text-gray-300 mb-4">Get the latest security insights and EDF updates delivered to your inbox.</p>
+                        <form>
+                            <input type="email" placeholder="Your email address" class="w-full px-4 py-2 rounded-md bg-gray-800 border border-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 mb-3">
+                            <button type="submit" class="w-full bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-md transition font-medium">Subscribe</button>
+                        </form>
+                    </div>
+
+                    <div id="popular-articles" class="bg-white rounded-lg shadow-md p-6">
+                        <h3 class="text-lg font-bold mb-4">Popular Articles</h3>
+                        <ul class="space-y-4">
+                            <li class="flex items-start">
+                                <span class="bg-gray-200 text-gray-800 w-6 h-6 rounded-full flex items-center justify-center font-medium mr-3 flex-shrink-0">1</span>
+                                <span class="text-gray-700 hover:text-primary-600 cursor-pointer">Getting Started with EDF: URL Live in Under 2 Seconds</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="bg-gray-200 text-gray-800 w-6 h-6 rounded-full flex items-center justify-center font-medium mr-3 flex-shrink-0">2</span>
+                                <span class="text-gray-700 hover:text-primary-600 cursor-pointer">100% Rust: Why We Built EDF Without Compromise</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="bg-gray-200 text-gray-800 w-6 h-6 rounded-full flex items-center justify-center font-medium mr-3 flex-shrink-0">3</span>
+                                <span class="text-gray-700 hover:text-primary-600 cursor-pointer">Enterprise-Grade Controls: OIDC, HMAC, and Audit Trails</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="bg-gray-200 text-gray-800 w-6 h-6 rounded-full flex items-center justify-center font-medium mr-3 flex-shrink-0">4</span>
+                                <span class="text-gray-700 hover:text-primary-600 cursor-pointer">Self-Hosting EDF: Complete Infrastructure Guide</span>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="bg-gray-200 text-gray-800 w-6 h-6 rounded-full flex items-center justify-center font-medium mr-3 flex-shrink-0">5</span>
+                                <span class="text-gray-700 hover:text-primary-600 cursor-pointer">DNSSEC-Signed Domains: Trust Without Compromise</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="cta" class="py-16 bg-gradient-to-r from-primary-600 to-secondary-600 text-white">
+    <div class="container mx-auto px-4">
+        <div class="max-w-3xl mx-auto text-center">
+            <h2 class="text-3xl font-bold mb-4">Ready to Secure Your Development Tunnels?</h2>
+            <p class="text-xl text-gray-100 mb-8">Experience Tailscale-grade security with ngrok-style developer experience. No compromise needed.</p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <span class="bg-white text-primary-700 hover:bg-gray-100 px-6 py-3 rounded-md font-medium transition cursor-pointer">Get Started for Free</span>
+                <span class="bg-transparent border border-white text-white hover:bg-white/10 px-6 py-3 rounded-md font-medium transition cursor-pointer">Read Documentation</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<footer id="footer" class="bg-gray-900 text-gray-400 py-12">
+    <div class="container mx-auto px-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+            <div>
+                    <span class="text-xl font-bold text-white flex items-center mb-4 cursor-pointer">
+                        <i class="fa-solid fa-bolt text-primary-400 mr-2"></i>
+                        <span>EDF</span>
+                    </span>
+                <p class="mb-4">Instant, Zero-Trust Tunnels for Modern Dev &amp; Edge Workloads.</p>
+                <div class="flex space-x-4">
+                        <span class="text-gray-400 hover:text-white transition cursor-pointer">
+                            <i class="fa-brands fa-github text-xl"></i>
+                        </span>
+                    <span class="text-gray-400 hover:text-white transition cursor-pointer">
+                            <i class="fa-brands fa-twitter text-xl"></i>
+                        </span>
+                    <span class="text-gray-400 hover:text-white transition cursor-pointer">
+                            <i class="fa-brands fa-linkedin text-xl"></i>
+                        </span>
+                    <span class="text-gray-400 hover:text-white transition cursor-pointer">
+                            <i class="fa-brands fa-discord text-xl"></i>
+                        </span>
+                </div>
+            </div>
+            <div>
+                <h3 class="text-white font-medium mb-4">Product</h3>
+                <ul class="space-y-2">
+                    <li><span class="hover:text-white transition cursor-pointer">Features</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Pricing</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Enterprise</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Self-Hosting</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Security</span></li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="text-white font-medium mb-4">Resources</h3>
+                <ul class="space-y-2">
+                    <li><span class="hover:text-white transition cursor-pointer">Documentation</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Tutorials</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Blog</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Community</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">GitHub</span></li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="text-white font-medium mb-4">Company</h3>
+                <ul class="space-y-2">
+                    <li><span class="hover:text-white transition cursor-pointer">About</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Careers</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Contact</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Privacy</span></li>
+                    <li><span class="hover:text-white transition cursor-pointer">Terms</span></li>
+                </ul>
+            </div>
+        </div>
+        <div class="border-t border-gray-800 pt-8 text-sm text-center">
+            <p>© 2024 EDF. All rights reserved.</p>
+        </div>
+    </div>
+</footer>
+
+</body></html>

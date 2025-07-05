@@ -1,0 +1,367 @@
+<html><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script> window.FontAwesomeConfig = { autoReplaceSvg: 'nest'};</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <style>::-webkit-scrollbar { display: none;}</style>
+    <script>tailwind.config = {
+        "theme": {
+            "extend": {
+                "colors": {
+                    "primary": {
+                        "50": "#f0f9ff",
+                        "100": "#e0f2fe",
+                        "200": "#b9e6fe",
+                        "300": "#7cd4fd",
+                        "400": "#36bffa",
+                        "500": "#0ca5e9",
+                        "600": "#0284c7",
+                        "700": "#0369a1",
+                        "800": "#075985",
+                        "900": "#0c4a6e"
+                    },
+                    "secondary": {
+                        "50": "#f5f3ff",
+                        "100": "#ede9fe",
+                        "200": "#ddd6fe",
+                        "300": "#c4b5fd",
+                        "400": "#a78bfa",
+                        "500": "#8b5cf6",
+                        "600": "#7c3aed",
+                        "700": "#6d28d9",
+                        "800": "#5b21b6",
+                        "900": "#4c1d95"
+                    },
+                    "dark": {
+                        "800": "#1e293b",
+                        "900": "#0f172a"
+                    }
+                },
+                "fontFamily": {
+                    "sans": [
+                        "Inter",
+                        "sans-serif"
+                    ]
+                }
+            }
+        }
+    };</script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;500;600;700;800;900&amp;display=swap"><style>
+    body {
+        font-family: 'Inter', sans-serif !important;
+    }
+
+    /* Preserve Font Awesome icons */
+    .fa, .fas, .far, .fal, .fab {
+        font-family: "Font Awesome 6 Free", "Font Awesome 6 Brands" !important;
+    }
+</style><style>
+    .highlighted-section {
+        outline: 2px solid #3F20FB;
+        background-color: rgba(63, 32, 251, 0.1);
+    }
+
+    .edit-button {
+        position: absolute;
+        z-index: 1000;
+    }
+
+    ::-webkit-scrollbar {
+        display: none;
+    }
+
+    html, body {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+</style></head>
+<body class="font-sans bg-gray-50">
+<header id="header" class="bg-dark-900 text-white">
+    <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+        <div class="flex items-center space-x-6">
+                <span class="text-2xl font-bold flex items-center cursor-pointer">
+                    <div class="w-10 h-10 bg-primary-600 rounded-md flex items-center justify-center mr-2">
+                        <i class="fa-solid fa-bolt text-white"></i>
+                    </div>
+                    <span>EDF</span>
+                </span>
+            <nav class="hidden md:flex space-x-6">
+                <span class="hover:text-primary-400 transition-colors cursor-pointer">Features</span>
+                <span class="hover:text-primary-400 transition-colors cursor-pointer">Documentation</span>
+                <span class="hover:text-primary-400 transition-colors cursor-pointer">Enterprise</span>
+                <span class="hover:text-primary-400 transition-colors cursor-pointer">Pricing</span>
+                <span class="hover:text-primary-400 transition-colors cursor-pointer">Security</span>
+                <span class="hover:text-primary-400 transition-colors cursor-pointer">Blog</span>
+            </nav>
+        </div>
+        <div class="flex items-center space-x-4">
+            <span class="hover:text-primary-400 transition-colors cursor-pointer">Sign in</span>
+            <span class="bg-primary-600 hover:bg-primary-700 transition-colors text-white px-4 py-2 rounded-md cursor-pointer">Get Started</span>
+        </div>
+    </div>
+</header>
+
+<div id="signup-container" class="flex min-h-[800px]">
+    <!-- Left Side - Gradient Background with Info -->
+    <div class="hidden md:block md:w-1/2 bg-gradient-to-b from-dark-900 via-primary-800 to-primary-600 relative px-12 py-16">
+        <div class="max-w-md mx-auto text-white">
+            <h2 class="text-3xl font-bold mb-6">Instant, Zero‑Trust Tunnels for Modern Dev &amp; Edge Workloads</h2>
+
+            <div class="space-y-8 mt-12">
+                <div class="flex items-start">
+                    <div class="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
+                        <i class="fa-solid fa-bolt text-white"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-xl mb-1">Speed</h3>
+                        <p class="text-gray-200">URL live in under 2 seconds with stateless DNS technology</p>
+                    </div>
+                </div>
+
+                <div class="flex items-start">
+                    <div class="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
+                        <i class="fa-solid fa-shield text-white"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-xl mb-1">Security</h3>
+                        <p class="text-gray-200">mTLS, DNSSEC-signed, 30-minute certificates for maximum protection</p>
+                    </div>
+                </div>
+
+                <div class="flex items-start">
+                    <div class="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
+                        <i class="fa-solid fa-code text-white"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-xl mb-1">Ownership</h3>
+                        <p class="text-gray-200">100% Rust, run anywhere, no black box - fully self-hostable</p>
+                    </div>
+                </div>
+
+                <div class="flex items-start">
+                    <div class="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
+                        <i class="fa-solid fa-building text-white"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-xl mb-1">Enterprise Control</h3>
+                        <p class="text-gray-200">OIDC, HMAC, rate limits, comprehensive audit capabilities</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="absolute bottom-0 right-0 left-0">
+            <svg fill="#f9fafb" viewBox="0 0 1440 120" xmlns="http://www.w3.org/2000/svg">
+                <path d="M0,64L80,69.3C160,75,320,85,480,80C640,75,800,53,960,48C1120,43,1280,53,1360,58.7L1440,64L1440,120L1360,120C1280,120,1120,120,960,120C800,120,640,120,480,120C320,120,160,120,80,120L0,120Z"></path>
+            </svg>
+        </div>
+    </div>
+
+    <!-- Right Side - Signup Form -->
+    <div id="signup-form" class="w-full md:w-1/2 flex items-center justify-center px-6 py-12">
+        <div class="w-full max-w-md">
+            <!-- Logo for mobile -->
+            <div class="flex justify-center mb-8 md:hidden">
+                <div class="w-14 h-14 bg-primary-600 rounded-md flex items-center justify-center">
+                    <i class="fa-solid fa-bolt text-white text-2xl"></i>
+                </div>
+            </div>
+
+            <!-- Sign Up Text -->
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-gray-900 mb-2">Try EDF Free Tier</h1>
+                <p class="text-gray-600">Secure tunnels with no vendor lock-in</p>
+            </div>
+
+            <!-- Form -->
+            <form>
+                <!-- GitHub OAuth Button -->
+                <div class="mb-6">
+                    <button class="w-full bg-gray-900 text-white py-3 rounded-md hover:bg-gray-800 transition duration-200 flex items-center justify-center space-x-2" type="button">
+                        <i class="fa-brands fa-github text-lg"></i>
+                        <span>Continue with GitHub</span>
+                    </button>
+                </div>
+
+                <!-- Divider -->
+                <div class="flex items-center mb-6">
+                    <div class="flex-1 border-t border-gray-300"></div>
+                    <span class="px-4 text-sm text-gray-500">or sign up for enterprise</span>
+                    <div class="flex-1 border-t border-gray-300"></div>
+                </div>
+
+                <div class="space-y-4 mb-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1" for="name">Full Name</label>
+                        <input class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" id="name" placeholder="John Doe" type="text">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1" for="email">Work Email</label>
+                        <input class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" id="email" placeholder="you@company.com" type="email">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1" for="password">Password</label>
+                        <input class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" id="password" placeholder="Minimum 8 characters" type="password">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1" for="company">Company (Optional)</label>
+                        <input class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500" id="company" placeholder="Your organization" type="text">
+                    </div>
+                </div>
+
+                <div class="flex items-start mb-6">
+                    <div class="flex items-center h-5">
+                        <input id="terms" type="checkbox" class="w-4 h-4 border border-gray-300 rounded bg-gray-50 focus:ring-3 focus:ring-primary-300">
+                    </div>
+                    <label for="terms" class="ml-2 text-sm text-gray-600">
+                        I agree to the <span class="text-primary-600 hover:underline cursor-pointer">Terms of Service</span> and <span class="text-primary-600 hover:underline cursor-pointer">Privacy Policy</span>
+                    </label>
+                </div>
+
+                <button class="w-full bg-primary-600 text-white py-3 rounded-md hover:bg-primary-700 transition duration-200" type="submit">
+                    Create Free Account
+                </button>
+
+                <div class="text-center mt-6 text-sm text-gray-600">
+                    Already have an account? <span class="text-primary-600 hover:underline cursor-pointer">Sign in</span>
+                </div>
+            </form>
+
+            <div class="mt-8 border-t pt-6">
+                <div class="flex items-center justify-center space-x-4">
+                    <span class="text-sm text-gray-500">No credit card required</span>
+                    <span class="text-gray-300">|</span>
+                    <span class="text-sm text-gray-500">Self-hostable</span>
+                    <span class="text-gray-300">|</span>
+                    <span class="text-sm text-gray-500">100% Rust</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<section id="features" class="bg-white py-16">
+    <div class="container mx-auto px-4">
+        <h2 class="text-3xl font-bold text-center mb-12">Why Developers Choose EDF</h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div id="feature-1" class="bg-gray-50 p-6 rounded-lg border border-gray-100">
+                <div class="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center text-primary-600 mb-4">
+                    <i class="fa-solid fa-rocket text-xl"></i>
+                </div>
+                <h3 class="text-xl font-semibold mb-2">Lightning Fast</h3>
+                <p class="text-gray-600">URLs go live in under 2 seconds with our stateless DNS technology, getting you up and running instantly.</p>
+            </div>
+
+            <div id="feature-2" class="bg-gray-50 p-6 rounded-lg border border-gray-100">
+                <div class="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center text-primary-600 mb-4">
+                    <i class="fa-solid fa-lock text-xl"></i>
+                </div>
+                <h3 class="text-xl font-semibold mb-2">Zero-Trust Security</h3>
+                <p class="text-gray-600">Built with Tailscale-grade security including mTLS, DNSSEC-signed domains, and short-lived certificates.</p>
+            </div>
+
+            <div id="feature-3" class="bg-gray-50 p-6 rounded-lg border border-gray-100">
+                <div class="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center text-primary-600 mb-4">
+                    <i class="fa-solid fa-server text-xl"></i>
+                </div>
+                <h3 class="text-xl font-semibold mb-2">Self-Hostable</h3>
+                <p class="text-gray-600">Run it anywhere with no vendor lock-in. EDF is 100% open and gives you complete ownership of your infrastructure.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section id="cta" class="bg-gradient-to-r from-primary-700 to-secondary-700 py-16 text-white">
+    <div class="container mx-auto px-4 text-center">
+        <h2 class="text-3xl font-bold mb-4">Ready to get started?</h2>
+        <p class="text-xl mb-8 max-w-2xl mx-auto">Join thousands of developers using EDF for secure, fast, and reliable tunnels without the lock-in.</p>
+        <div class="flex flex-col sm:flex-row justify-center gap-4">
+                <span class="bg-white text-primary-700 hover:bg-gray-100 px-8 py-3 rounded-md font-medium transition-colors cursor-pointer">
+                    Create Free Account
+                </span>
+            <span class="bg-transparent border border-white hover:bg-white/10 px-8 py-3 rounded-md font-medium transition-colors cursor-pointer">
+                    Learn More
+                </span>
+        </div>
+    </div>
+</section>
+
+<footer id="footer" class="bg-dark-900 text-gray-400 py-12">
+    <div class="container mx-auto px-4">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-8">
+            <div>
+                <h3 class="text-white font-semibold mb-4">Product</h3>
+                <ul class="space-y-2">
+                    <li><span class="hover:text-primary-400 transition-colors cursor-pointer">Features</span></li>
+                    <li><span class="hover:text-primary-400 transition-colors cursor-pointer">Security</span></li>
+                    <li><span class="hover:text-primary-400 transition-colors cursor-pointer">Enterprise</span></li>
+                    <li><span class="hover:text-primary-400 transition-colors cursor-pointer">Pricing</span></li>
+                </ul>
+            </div>
+
+            <div>
+                <h3 class="text-white font-semibold mb-4">Resources</h3>
+                <ul class="space-y-2">
+                    <li><span class="hover:text-primary-400 transition-colors cursor-pointer">Documentation</span></li>
+                    <li><span class="hover:text-primary-400 transition-colors cursor-pointer">API Reference</span></li>
+                    <li><span class="hover:text-primary-400 transition-colors cursor-pointer">Blog</span></li>
+                    <li><span class="hover:text-primary-400 transition-colors cursor-pointer">Community</span></li>
+                </ul>
+            </div>
+
+            <div>
+                <h3 class="text-white font-semibold mb-4">Company</h3>
+                <ul class="space-y-2">
+                    <li><span class="hover:text-primary-400 transition-colors cursor-pointer">About</span></li>
+                    <li><span class="hover:text-primary-400 transition-colors cursor-pointer">Careers</span></li>
+                    <li><span class="hover:text-primary-400 transition-colors cursor-pointer">Contact</span></li>
+                </ul>
+            </div>
+
+            <div>
+                <h3 class="text-white font-semibold mb-4">Legal</h3>
+                <ul class="space-y-2">
+                    <li><span class="hover:text-primary-400 transition-colors cursor-pointer">Privacy Policy</span></li>
+                    <li><span class="hover:text-primary-400 transition-colors cursor-pointer">Terms of Service</span></li>
+                    <li><span class="hover:text-primary-400 transition-colors cursor-pointer">Cookie Policy</span></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="border-t border-gray-800 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center">
+            <div class="flex items-center mb-4 md:mb-0">
+                <div class="w-8 h-8 bg-primary-600 rounded-md flex items-center justify-center mr-2">
+                    <i class="fa-solid fa-bolt text-white text-sm"></i>
+                </div>
+                <span class="text-white font-semibold">EDF</span>
+            </div>
+
+            <div class="flex space-x-6">
+                    <span class="text-gray-400 hover:text-white transition-colors cursor-pointer">
+                        <i class="fa-brands fa-github"></i>
+                    </span>
+                <span class="text-gray-400 hover:text-white transition-colors cursor-pointer">
+                        <i class="fa-brands fa-twitter"></i>
+                    </span>
+                <span class="text-gray-400 hover:text-white transition-colors cursor-pointer">
+                        <i class="fa-brands fa-linkedin"></i>
+                    </span>
+                <span class="text-gray-400 hover:text-white transition-colors cursor-pointer">
+                        <i class="fa-brands fa-discord"></i>
+                    </span>
+            </div>
+
+            <div class="mt-4 md:mt-0 text-sm">
+                © 2023 EDF. All rights reserved.
+            </div>
+        </div>
+    </div>
+</footer>
+
+</body></html>

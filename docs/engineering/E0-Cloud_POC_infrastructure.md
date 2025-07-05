@@ -6,13 +6,13 @@
 
 ## 1 ▪ WHY GCP?
 
-| Factor                          | Rationale                                                                                                         |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| **Global any‑cast L4 TCP LB**   | Single public IP close to every user; no DIY BGP / Keepalived.                                                    |
+| Factor                          | Rationale                                                                                                        |
+|---------------------------------|------------------------------------------------------------------------------------------------------------------|
+| **Global any‑cast L4 TCP LB**   | Single public IP close to every user; no DIY BGP / Keepalived.                                                   |
 | **Generous free tier**          | CloudSQL `db‑f1‑micro`, GKE Autopilot free control plane, e2‑micro compute credits – perfect for MVP flush burn. |
 | **Crossplane.io provider‑gcp**  | Provision clusters, node‑pools, CloudSQL, Redis **GitOps‑style** from YAML.                                      |
-| **Rapid scale**                 | Autopilot auto‑adds nodes; can flip to committed‑use discounts or Spot pools as we grow.                          |
-| **Managed Redis (MemoryStore)** | 0‑ops instead of self‑hosted Helm chart.                                                                          |
+| **Rapid scale**                 | Autopilot auto‑adds nodes; can flip to committed‑use discounts or Spot pools as we grow.                         |
+| **Managed Redis (MemoryStore)** | 0‑ops instead of self‑hosted Helm chart.                                                                         |
 
 ---
 
@@ -25,10 +25,24 @@ flowchart TD
     end
 
     subgraph GKE_Workload["AutopilotGKE (europe‑west1)"]
-        NPsmall[Node Pool-small e2_micro API / UI pods]
-        NPlarge[Node Pool-large e2_standard_ Edge+Hub pods]
-        EdgeHub[Edge+Hub StatefulSet]
-        API[API + CA Deploy]
+        direction TB
+        classDef gkeWorkloadBg fill:#e3f2fd,stroke:#1976d2,stroke-width:2px;
+        class GKE_Workload gkeWorkloadBg;
+    
+        subgraph WorkloadNS["EDF Workload NS"]
+              classDef workloadNSBg fill:#fff3e0,stroke:#fb8c00,stroke-width:2px;
+              class WorkloadNS workloadNSBg;
+              NPsmall[Node Pool-small e2_micro API / UI pods]
+              NPlarge[Node Pool-large e2_standard_4 Edge+Hub pods]
+              EdgeHub[Edge+Hub StatefulSet]
+              API[API + CA Deploy]
+        end
+    
+        subgraph RunnerNS["CI/CD Runner NS"]
+          Runner[GitHub Actions Runner - dedicated Hetzner CX11]
+          ARC[actions-runner-controller]
+          NPlargeRunner[Node Pool-large spot e2_standard_4\n+ CI Runner pods]
+        end
     end
 
     subgraph GKE_Infra["StandardGKE – infra e2‑micro"]
@@ -47,7 +61,12 @@ flowchart TD
     subgraph Managed["ManagedGCP Services"]
     SQL[(Cloud SQL Postgres db_f1_micro)]
     Redis[(MemoryStore Redis basic_tier)]
+    ARRepo[(Artifact Registry)]
+    gcGNS[(Cloud DNS)]
+    gcSM[(Secret Manager)]
+    gcIAM[(IAM Service Accounts)]
     end
+
 
     subgraph Hetzner["Hetzner Self-hosted Runner"]
         Runner[GitHub Actions Runner - dedicated Hezner CX11]
@@ -78,7 +97,14 @@ flowchart TD
     Crossplane -.-> Runner
 ```
 
-*Crossplane runs in a **dedicated Standard GKE infra cluster** (single e2‑micro node) to keep management isolated.  Compositions then provision the **Autopilot workload cluster**, node pools, CloudSQL, and Redis.  Self‑hosted runner lives outside GCP to avoid paid minutes.*\* compositions declare **GKE cluster**, **node pools**, **redis‑instance**, **sql‑instance**; FluxCD applies them on each commit.\*
+> *`actions-runner-controller` monitors GitHub webhooks, provisions **runner Pods in spot node‑pool**; pods auto‑deregister on completion.*
+
+> *`Hetzner Self-hosted Runner` Once we go beyond 10,000CI minutes, it becomes more economical to switch to a Hetzner.*
+
+> *`Crossplane` & `FluxCD` run in a **dedicated Standard GKE infra cluster** (single e2‑micro node) to keep management isolated.  Compositions then provision the **Autopilot workload cluster**, node pools, CloudSQL, and Redis.  
+> *\* compositions declare **GKE cluster**, **node pools**, **redis‑instance**, **sql‑instance**,**artifact-registry**, **secret-manager**, **cloud-dns**,; FluxCD applies them on each commit.\*
+
+> *`Google Cloud Dns` will hold the top level SOA NS Delegations for our domains (`fleetingdns.com`, `fleetingdns.run`)*
 
 ---
 
@@ -154,6 +180,7 @@ spec:
 ```
 
 \*A `ProviderConfig` pointing to a secret with `HETZNER_API_TOKEN` lives in `infra/hetzner-provider.yaml`.\*yaml
+```yaml
 apiVersion: container.gcp.crossplane.io/v1beta2
 kind: GKECluster
 metadata: {name: edf-dev}
@@ -180,25 +207,25 @@ spec:
 
 ## 4 ▪ MVP OPEX (August2025€)
 
-| Service                          | SKU / Node            | Qty / hrs | Unit€    | Est.€/mo          | Notes                            |                |                   |       |           |           |                     |
-| -------------------------------- | --------------------- | --------- | --------- | ------------------ | -------------------------------- | -------------- | ----------------- | ----- | --------- | --------- | ------------------- |
-| **Workload cluster (Autopilot)** | control plane         | free      | —         | **0.00**           | Free tier.                       |                |                   |       |           |           |                     |
-| Autopilot compute\*              | 2 × e2‑micro          | 730h     | included  | **0.00**           | Within free 744vCPU‑sec credit. |                |                   |       |           |           |                     |
-| Spot pool (e2‑standard‑4)        | avg10h              | 0.0104/h  | **0.10**  | Load‑test only.    |                                  |                |                   |       |           |           |                     |
-| **L4 TCP LB**                    | 1 rule                | 744h     | 0.0065/h  | **4.70**           | Minor data cost extra.           |                |                   |       |           |           |                     |
-| CloudSQL Postgres               | db‑f1‑micro           | 744h     | free      | **0.00**           | 10GB disk.                      |                |                   |       |           |           |                     |
-| MemoryStore Redis                | basic1GB            | 744h     | 0.0267/h  | **19.80**          | Smallest tier.                   |                |                   |       |           |           |                     |
-| CloudLogging & Metrics          | 5GB                  | 0.50/GB   | **2.50**  | Sampled.           |                                  |                |                   |       |           |           |                     |
-| CloudNAT egress                 | 1GB                  | 0.11/GB   | **0.11**  | Webhook responses. |                                  |                |                   |       |           |           |                     |
-| **Bootstrap VM (k3s + Flux)**    | e2‑micro spot         | 12h      | 0.002€/h | **0.02**           | Auto‑deletes Day1.              |                |                   |       |           |           |                     |
-| **Infra cluster (Standard)**     | control‑plane fee     | 744h     | 0.092€/h | **68.45**          | €0.10/hr ≈ \$72/mo.              |                |                   |       |           |           |                     |
-| Infra node                       | e2‑micro pre‑emptible | 744h     | 0.004€/h | **2.98**           | Runs Crossplane <200m CPU.      | (Standard)\*\* | control‑plane fee | 744h | 0.092€/h | **68.45** | €0.10/hr ≈ \$72/mo. |
-| Infra node                       | e2‑micro pre‑emptible | 744h     | 0.004€/h | **2.98**           | Runs Crossplane <200m CPU.      |                |                   |       |           |           |                     |
-| **Hetzner CI Runner**            | CX11 dedicated        | 720h     | 49.00/mo  | **49.00**          | Unlimited private‑repo minutes.  |                |                   |       |           |           |                     |
-| **Estimated monthly OPEX**       | —                     | —         | —         | **≈€147.64**      | ≈€4.9/day.                    |                |                   |       |           |           |                     |
-
-*Autopilot bills per‑pod; e2‑micro pods fit within the free quota.*\*\* |  |  |  | **≈€27.21** | <€1/day. |
-
+| Service                                                                      | SKU / Node            | Qty / hrs | Unit€    | Est.€/mo           | Notes                           |
+|------------------------------------------------------------------------------|-----------------------|-----------|----------|--------------------|---------------------------------|
+| **Workload cluster (Autopilot)**                                             | control plane         | free      | —        | **0.00**           | Free tier.                      |
+| Autopilot compute\*                                                          | 2 × e2‑micro          | 730h      | included | **0.00**           | Within free 744vCPU‑sec credit. |
+| Spot pool (e2‑standard‑4)                                                    | avg10h                | 0.0104/h  | **0.10** | Load‑test only.    |
+| **L4 TCP LB**                                                                | 1 rule                | 744h      | 0.0065/h | **4.70**           | Minor data cost extra.          |
+| CloudSQL Postgres                                                            | db‑f1‑micro           | 744h      | free     | **0.00**           | 10GB disk.                      |
+| MemoryStore Redis                                                            | basic1GB              | 744h      | 0.0267/h | **19.80**          | Smallest tier.                  |
+| CloudLogging & Metrics                                                       | 5GB                   | 0.50/GB   | **2.50** | Sampled.           |
+| CloudNAT egress                                                              | 1GB                   | 0.11/GB   | **0.11** | Webhook responses. |
+| **Bootstrap VM (k3s + Flux)**                                                | e2‑micro spot         | 12h       | 0.002€/h | **0.02**           | Auto‑deletes Day1.              |
+| **Infra cluster (Standard)**                                                 | control‑plane fee     | 744h      | 0.092€/h | **68.45**          | €0.10/hr ≈ \$72/mo.             |
+| Infra node                                                                   | e2‑micro pre‑emptible | 744h      | 0.004€/h | **2.98**           | Runs Crossplane <200m CPU.      |
+| (Standard)\*\*                                                               | control‑plane fee     | 744h      | 0.092€/h | **68.45**          | €0.10/hr ≈ \$72/mo.             |
+| Infra node                                                                   | e2‑micro pre‑emptible | 744h      | 0.004€/h | **2.98**           | Runs Crossplane <200m CPU.      |
+| **Estimated monthly OPEX**                                                   | —                     | —         | —        | **≈€100.64**       | ≈€4.9/day.                      |
+| *Autopilot bills per‑pod; e2‑micro pods fit within the free quota.*\*\*      |                       |           |          | **≈€27.21**        | <€1/day.                        |
+| **Hetzner CI Runner** </br> It's more economical to switch beyond 10,000mins | CX11 dedicated        | 720h      | 49.00/mo | **49.00**          | Unlimited private‑repo minutes. |
+| **Total OPEX**                                                               | —                     | —         | —        | **≈€149.64**       | ≈€6.55/day.                     |
 \*Autopilot charges vCPU/Memory per‑pod; e2‑micro pods fit free quota.
 
 ---
@@ -218,12 +245,14 @@ spec:
 
 ## 6 ▪ Risks & Mitigations
 
-| Risk                                             | Mitigation                                           |
-| ------------------------------------------------ | ---------------------------------------------------- |
-| Redis basic tier caps at 1GB RAM / \~15k conns | Scale to standard‑tier when concurrent tunnels >5k. |
-| GKE free‑tier Pod quotas exhausted in heavy CI   | NodePool autoscaling to Spot restores headroom.      |
-| Global LB cold‑start 90s new back‑end health    | Pre‑warm by rolling update strategy `maxSurge=1`.    |
-
+| Risk                                           | Mitigation                                                                 |
+|------------------------------------------------|----------------------------------------------------------------------------|
+| Redis basic tier caps at 1GB RAM / \~15k conns | Scale to standard‑tier when concurrent tunnels >5k.                        |
+| GKE free‑tier Pod quotas exhausted in heavy CI | NodePool autoscaling to Spot restores headroom.                            |
+| Global LB cold‑start 90s new back‑end health   | Pre‑warm by rolling update strategy `maxSurge=1`.                          |
+| Burst of jobs waits for pod start (30‑60s)     | Pre‑warm 1 idle runner during work hours via `HorizontalRunnerAutoscaler`. |
+| GitHub PAT rotation                            | Store in Secret Manager; Flux refresh every 90d.                           |
+| Spot node eviction mid‑build                   | ARC checkpoint; or use regular e2-standard-2 pool for critical workflows.  |
 ---
 
 ## 7 ▪ Multi‑Region NEG Topology (future phase)

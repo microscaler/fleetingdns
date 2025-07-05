@@ -1,0 +1,528 @@
+<html><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script> window.FontAwesomeConfig = { autoReplaceSvg: 'nest'};</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <style>::-webkit-scrollbar { display: none;}</style>
+    <script>tailwind.config = {
+        "theme": {
+            "extend": {
+                "colors": {
+                    "primary": {
+                        "50": "#f0f9ff",
+                        "100": "#e0f2fe",
+                        "200": "#bae6fd",
+                        "300": "#7dd3fc",
+                        "400": "#38bdf8",
+                        "500": "#0ea5e9",
+                        "600": "#0284c7",
+                        "700": "#0369a1",
+                        "800": "#075985",
+                        "900": "#0c4a6e"
+                    },
+                    "secondary": {
+                        "50": "#f5f3ff",
+                        "100": "#ede9fe",
+                        "200": "#ddd6fe",
+                        "300": "#c4b5fd",
+                        "400": "#a78bfa",
+                        "500": "#8b5cf6",
+                        "600": "#7c3aed",
+                        "700": "#6d28d9",
+                        "800": "#5b21b6",
+                        "900": "#4c1d95"
+                    }
+                },
+                "fontFamily": {
+                    "sans": [
+                        "Inter",
+                        "sans-serif"
+                    ],
+                    "mono": [
+                        "JetBrains Mono",
+                        "monospace"
+                    ]
+                }
+            }
+        }
+    };</script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin=""><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;500;600;700;800;900&amp;display=swap"><style>
+    body {
+        font-family: 'Inter', sans-serif !important;
+    }
+
+    /* Preserve Font Awesome icons */
+    .fa, .fas, .far, .fal, .fab {
+        font-family: "Font Awesome 6 Free", "Font Awesome 6 Brands" !important;
+    }
+</style><style>
+    .highlighted-section {
+        outline: 2px solid #3F20FB;
+        background-color: rgba(63, 32, 251, 0.1);
+    }
+
+    .edit-button {
+        position: absolute;
+        z-index: 1000;
+    }
+
+    ::-webkit-scrollbar {
+        display: none;
+    }
+
+    html, body {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+</style></head>
+<body class="bg-gray-50 font-sans text-gray-900">
+<!-- Header -->
+<header id="header" class="bg-gray-900 text-white py-4 px-6 flex items-center justify-between border-b border-gray-800">
+    <div class="flex items-center space-x-4">
+        <div class="flex items-center">
+            <svg class="w-8 h-8 text-primary-500" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L4 6V18L12 22L20 18V6L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                <path d="M12 22V16M12 16L20 12M12 16L4 12M12 2V8M12 8L4 12M12 8L20 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+            <div class="ml-2">
+                <h1 class="text-xl font-bold">EDF</h1>
+                <h2 class="text-sm text-gray-400">Documentation</h2>
+            </div>
+        </div>
+    </div>
+    <div class="flex-1 mx-8 max-w-3xl">
+        <div class="relative">
+            <input class="w-full p-2 pl-10 pr-4 rounded bg-gray-800 text-gray-200 border border-gray-700 focus:outline-none focus:border-primary-500 focus:ring-1 focus:ring-primary-500" placeholder="Search documentation..." type="text">
+            <button class="absolute left-3 top-2.5 text-gray-400">
+                <i class="fa-solid fa-search"></i>
+            </button>
+        </div>
+    </div>
+    <div class="flex items-center space-x-4">
+        <span class="text-gray-300 hover:text-white cursor-pointer">GitHub</span>
+        <span class="text-gray-300 hover:text-white cursor-pointer">Community</span>
+        <span class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-md text-sm font-medium transition cursor-pointer">Get Started</span>
+    </div>
+</header>
+
+<div class="flex flex-row">
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-64 p-6 bg-white border-r border-gray-200 h-[calc(100vh-64px)] overflow-y-auto sticky top-16">
+        <nav class="space-y-8">
+            <div>
+                <h3 class="font-semibold mb-3 text-gray-900">
+                    Getting Started
+                </h3>
+                <ul class="space-y-2 ml-2">
+                    <li>
+                            <span class="text-primary-700 font-medium flex items-center cursor-pointer">
+                                <span class="mr-2 w-1 h-5 bg-primary-500 rounded-sm"></span>
+                                Introduction
+                            </span>
+                    </li>
+                    <li>
+                            <span class="text-gray-700 hover:text-primary-600 pl-3 cursor-pointer">
+                                Quick Start
+                            </span>
+                    </li>
+                    <li>
+                            <span class="text-gray-700 hover:text-primary-600 pl-3 cursor-pointer">
+                                Installation
+                            </span>
+                    </li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="font-semibold mb-3 text-gray-900">
+                    Core Concepts
+                </h3>
+                <ul class="space-y-2 ml-2">
+                    <li>
+                            <span class="text-gray-700 hover:text-primary-600 pl-3 cursor-pointer">
+                                Tunnels
+                            </span>
+                    </li>
+                    <li>
+                            <span class="text-gray-700 hover:text-primary-600 pl-3 cursor-pointer">
+                                Zero-Trust Architecture
+                            </span>
+                    </li>
+                    <li>
+                            <span class="text-gray-700 hover:text-primary-600 pl-3 cursor-pointer">
+                                mTLS Authentication
+                            </span>
+                    </li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="font-semibold mb-3 text-gray-900">
+                    Security
+                </h3>
+                <ul class="space-y-2 ml-2">
+                    <li>
+                            <span class="text-gray-700 hover:text-primary-600 pl-3 cursor-pointer">
+                                OIDC Integration
+                            </span>
+                    </li>
+                    <li>
+                            <span class="text-gray-700 hover:text-primary-600 pl-3 cursor-pointer">
+                                HMAC Verification
+                            </span>
+                    </li>
+                    <li>
+                            <span class="text-gray-700 hover:text-primary-600 pl-3 cursor-pointer">
+                                Audit Logging
+                            </span>
+                    </li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="font-semibold mb-3 text-gray-900">
+                    Self-Hosting
+                </h3>
+                <ul class="space-y-2 ml-2">
+                    <li>
+                            <span class="text-gray-700 hover:text-primary-600 pl-3 cursor-pointer">
+                                Docker Deployment
+                            </span>
+                    </li>
+                    <li>
+                            <span class="text-gray-700 hover:text-primary-600 pl-3 cursor-pointer">
+                                Kubernetes
+                            </span>
+                    </li>
+                    <li>
+                            <span class="text-gray-700 hover:text-primary-600 pl-3 cursor-pointer">
+                                Cloud Providers
+                            </span>
+                    </li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="font-semibold mb-3 text-gray-900">
+                    API Reference
+                </h3>
+                <ul class="space-y-2 ml-2">
+                    <li>
+                            <span class="text-gray-700 hover:text-primary-600 pl-3 cursor-pointer">
+                                REST API
+                            </span>
+                    </li>
+                    <li>
+                            <span class="text-gray-700 hover:text-primary-600 pl-3 cursor-pointer">
+                                CLI Reference
+                            </span>
+                    </li>
+                </ul>
+            </div>
+            <div>
+                <h3 class="font-semibold mb-3 text-gray-900">
+                    Resources
+                </h3>
+                <ul class="space-y-2 ml-2">
+                    <li>
+                            <span class="text-gray-700 hover:text-primary-600 pl-3 cursor-pointer">
+                                Troubleshooting
+                            </span>
+                    </li>
+                    <li>
+                            <span class="text-gray-700 hover:text-primary-600 pl-3 cursor-pointer">
+                                FAQ
+                            </span>
+                    </li>
+                    <li>
+                            <span class="text-gray-700 hover:text-primary-600 pl-3 cursor-pointer">
+                                Community Forum
+                            </span>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main id="main-content" class="flex-1 p-8 pb-16">
+        <div class="max-w-3xl mx-auto">
+            <div class="flex items-center mb-6">
+                <span class="text-gray-500 text-sm">Documentation</span>
+                <i class="fa-solid fa-chevron-right text-gray-400 mx-2 text-xs"></i>
+                <span class="text-gray-500 text-sm">Getting Started</span>
+                <i class="fa-solid fa-chevron-right text-gray-400 mx-2 text-xs"></i>
+                <span class="text-primary-600 text-sm">Introduction</span>
+            </div>
+
+            <h1 id="introduction" class="text-4xl font-bold text-gray-900 mb-6">Introduction to EDF</h1>
+
+            <div class="bg-gradient-to-r from-gray-900 to-gray-800 text-white p-6 rounded-lg mb-8">
+                <p class="text-xl font-medium mb-2">"Instant, Zero‑Trust Tunnels for Modern Dev &amp; Edge Workloads."</p>
+                <p class="text-gray-300">EDF is the <strong>secure, open, self‑hostable</strong> alternative to SaaS tunnels. It combines <strong>ngrok's developer UX</strong> with <strong>Tailscale‑grade security</strong>, minus the lock‑in.</p>
+            </div>
+
+            <section id="what-is-edf" class="mb-10">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">What is EDF?</h2>
+                <p class="text-gray-700 mb-4">
+                    EDF is a modern tunneling solution designed specifically for developers and enterprises that need secure, fast, and controllable access to their services. Built with 100% Rust, EDF provides instant tunnels with zero-trust security principles baked in from the ground up.
+                </p>
+                <p class="text-gray-700 mb-4">
+                    Unlike traditional SaaS tunneling solutions, EDF gives you complete ownership of your infrastructure while maintaining the ease-of-use developers expect and the security controls enterprises require.
+                </p>
+            </section>
+
+            <section id="key-features" class="mb-10">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">Key Features</h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div class="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                        <div class="flex items-center mb-4">
+                            <div class="bg-primary-100 p-3 rounded-full mr-4">
+                                <i class="fa-solid fa-bolt text-primary-600"></i>
+                            </div>
+                            <h3 class="text-xl font-semibold text-gray-800">Speed</h3>
+                        </div>
+                        <p class="text-gray-700">URLs live in under 2 seconds thanks to stateless DNS architecture. Get your services exposed instantly without waiting for propagation.</p>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                        <div class="flex items-center mb-4">
+                            <div class="bg-secondary-100 p-3 rounded-full mr-4">
+                                <i class="fa-solid fa-shield-halved text-secondary-600"></i>
+                            </div>
+                            <h3 class="text-xl font-semibold text-gray-800">Security</h3>
+                        </div>
+                        <p class="text-gray-700">Built with mTLS, DNSSEC-signed domains, and 30-minute certificate rotation. Zero-trust architecture ensures only authorized access.</p>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                        <div class="flex items-center mb-4">
+                            <div class="bg-green-100 p-3 rounded-full mr-4">
+                                <i class="fa-solid fa-server text-green-600"></i>
+                            </div>
+                            <h3 class="text-xl font-semibold text-gray-800">Ownership</h3>
+                        </div>
+                        <p class="text-gray-700">100% Rust codebase that you can run anywhere. No black boxes, no vendor lock-in. Complete transparency and control.</p>
+                    </div>
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                        <div class="flex items-center mb-4">
+                            <div class="bg-amber-100 p-3 rounded-full mr-4">
+                                <i class="fa-solid fa-building text-amber-600"></i>
+                            </div>
+                            <h3 class="text-xl font-semibold text-gray-800">Enterprise Control</h3>
+                        </div>
+                        <p class="text-gray-700">OIDC integration, HMAC verification, rate limiting, and comprehensive audit logging. Built for enterprise compliance.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="getting-started" class="mb-10">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">Getting Started</h2>
+                <p class="text-gray-700 mb-6">
+                    Start using EDF in minutes with our simple installation and setup process. Here's a quick example:
+                </p>
+
+                <div class="bg-gray-900 rounded-lg overflow-hidden mb-6">
+                    <div class="flex items-center justify-between px-4 py-2 bg-gray-800">
+                        <div class="flex space-x-1">
+                            <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                            <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                            <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                        </div>
+                        <span class="text-gray-400 text-sm">Terminal</span>
+                        <div></div>
+                    </div>
+                    <div class="p-4 font-mono text-sm text-gray-200 overflow-x-auto">
+                            <pre><code># Install EDF
+$ curl -sSL https://get.edf.dev | sh
+
+# Start a tunnel to your local service
+$ edf tunnel 8080
+✓ Tunnel created! Your service is available at: https://dev-ab12c.edf.dev
+✓ Secured with mTLS and DNSSEC
+</code></pre>
+                    </div>
+                </div>
+
+                <div class="flex justify-center">
+                        <span class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 rounded-md font-medium transition inline-flex items-center cursor-pointer">
+                            <span>Continue to Quick Start</span>
+                            <i class="fa-solid fa-arrow-right ml-2"></i>
+                        </span>
+                </div>
+            </section>
+
+            <section id="comparison" class="mb-10">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">How EDF Compares</h2>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full border border-gray-200 rounded-lg">
+                        <thead>
+                        <tr class="bg-gray-100">
+                            <th class="py-3 px-4 text-left text-gray-700 font-semibold border-b">Feature</th>
+                            <th class="py-3 px-4 text-left text-gray-700 font-semibold border-b">EDF</th>
+                            <th class="py-3 px-4 text-left text-gray-700 font-semibold border-b">SaaS Tunnels</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr class="border-b">
+                            <td class="py-3 px-4 text-gray-700">Self-hostable</td>
+                            <td class="py-3 px-4 text-green-600"><i class="fa-solid fa-check"></i> Yes</td>
+                            <td class="py-3 px-4 text-red-600"><i class="fa-solid fa-xmark"></i> No</td>
+                        </tr>
+                        <tr class="border-b bg-gray-50">
+                            <td class="py-3 px-4 text-gray-700">Zero-Trust Security</td>
+                            <td class="py-3 px-4 text-green-600"><i class="fa-solid fa-check"></i> Built-in</td>
+                            <td class="py-3 px-4 text-gray-600"><i class="fa-solid fa-circle-half-stroke"></i> Limited</td>
+                        </tr>
+                        <tr class="border-b">
+                            <td class="py-3 px-4 text-gray-700">Startup Time</td>
+                            <td class="py-3 px-4 text-green-600"><i class="fa-solid fa-check"></i> &lt;2 seconds</td>
+                            <td class="py-3 px-4 text-gray-600"><i class="fa-solid fa-circle-half-stroke"></i> Varies</td>
+                        </tr>
+                        <tr class="border-b bg-gray-50">
+                            <td class="py-3 px-4 text-gray-700">Source Code Access</td>
+                            <td class="py-3 px-4 text-green-600"><i class="fa-solid fa-check"></i> 100% Open</td>
+                            <td class="py-3 px-4 text-red-600"><i class="fa-solid fa-xmark"></i> Closed</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 px-4 text-gray-700">Enterprise Controls</td>
+                            <td class="py-3 px-4 text-green-600"><i class="fa-solid fa-check"></i> Comprehensive</td>
+                            <td class="py-3 px-4 text-gray-600"><i class="fa-solid fa-circle-half-stroke"></i> Limited to paid tiers</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="feedback" class="bg-gray-50 rounded-lg p-6 border border-gray-200 mb-10">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Share your feedback</h2>
+                <div class="mb-4">
+                    <p class="text-gray-700 mb-2">Was this article helpful?</p>
+                    <div class="flex space-x-2">
+                        <button class="bg-primary-600 text-white px-6 py-2 rounded hover:bg-primary-700 transition">
+                            Yes
+                        </button>
+                        <button class="border border-gray-300 text-gray-700 px-6 py-2 rounded hover:bg-gray-100 transition">
+                            No
+                        </button>
+                    </div>
+                </div>
+                <div id="feedback-form" class="hidden">
+                    <div class="mb-4">
+                        <p class="text-gray-700 mb-2">Great! Is there anything we could change to make it even more helpful?</p>
+                        <textarea class="w-full border border-gray-300 rounded p-2 text-gray-700" placeholder="Please let us know what was or wasn't helpful about this page."></textarea>
+                    </div>
+                    <div class="mb-4">
+                        <label class="flex items-start space-x-2">
+                            <input class="mt-1" type="checkbox">
+                            <span class="text-gray-700">Allow EDF to contact me about my documentation feedback.</span>
+                        </label>
+                    </div>
+                    <button class="bg-primary-600 text-white px-4 py-2 rounded hover:bg-primary-700 transition mb-4">
+                        Submit feedback
+                    </button>
+                    <p class="text-gray-600 text-sm">
+                        This form is used for documentation feedback only. For technical support, please visit our
+                        <span class="text-primary-600 hover:underline cursor-pointer">GitHub issues</span> or
+                        <span class="text-primary-600 hover:underline cursor-pointer">Community forum</span>.
+                    </p>
+                </div>
+            </section>
+
+            <div class="flex justify-between items-center pt-6 border-t border-gray-200">
+                    <span class="text-primary-600 hover:text-primary-800 flex items-center cursor-pointer">
+                        <i class="fa-solid fa-arrow-left mr-2"></i>
+                        <span>Home</span>
+                    </span>
+                <span class="text-primary-600 hover:text-primary-800 flex items-center cursor-pointer">
+                        <span>Quick Start</span>
+                        <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </span>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Footer -->
+<footer id="footer" class="bg-gray-900 text-gray-400 py-12 px-6">
+    <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div>
+            <div class="flex items-center mb-4">
+                <svg class="w-8 h-8 text-primary-500" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2L4 6V18L12 22L20 18V6L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                    <path d="M12 22V16M12 16L20 12M12 16L4 12M12 2V8M12 8L4 12M12 8L20 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
+                </svg>
+                <span class="ml-2 text-xl font-bold text-white">EDF</span>
+            </div>
+            <p class="mb-4">Instant, Zero-Trust Tunnels for Modern Dev &amp; Edge Workloads.</p>
+            <div class="flex space-x-4">
+                    <span class="text-gray-400 hover:text-white cursor-pointer">
+                        <i class="fa-brands fa-github"></i>
+                    </span>
+                <span class="text-gray-400 hover:text-white cursor-pointer">
+                        <i class="fa-brands fa-twitter"></i>
+                    </span>
+                <span class="text-gray-400 hover:text-white cursor-pointer">
+                        <i class="fa-brands fa-discord"></i>
+                    </span>
+                <span class="text-gray-400 hover:text-white cursor-pointer">
+                        <i class="fa-brands fa-linkedin"></i>
+                    </span>
+            </div>
+        </div>
+        <div>
+            <h3 class="text-white font-medium mb-4">Documentation</h3>
+            <ul class="space-y-2">
+                <li><span class="hover:text-white cursor-pointer">Getting Started</span></li>
+                <li><span class="hover:text-white cursor-pointer">Core Concepts</span></li>
+                <li><span class="hover:text-white cursor-pointer">Security</span></li>
+                <li><span class="hover:text-white cursor-pointer">Self-Hosting</span></li>
+                <li><span class="hover:text-white cursor-pointer">API Reference</span></li>
+            </ul>
+        </div>
+        <div>
+            <h3 class="text-white font-medium mb-4">Resources</h3>
+            <ul class="space-y-2">
+                <li><span class="hover:text-white cursor-pointer">Blog</span></li>
+                <li><span class="hover:text-white cursor-pointer">Case Studies</span></li>
+                <li><span class="hover:text-white cursor-pointer">Community</span></li>
+                <li><span class="hover:text-white cursor-pointer">GitHub</span></li>
+            </ul>
+        </div>
+        <div>
+            <h3 class="text-white font-medium mb-4">Company</h3>
+            <ul class="space-y-2">
+                <li><span class="hover:text-white cursor-pointer">About</span></li>
+                <li><span class="hover:text-white cursor-pointer">Careers</span></li>
+                <li><span class="hover:text-white cursor-pointer">Contact</span></li>
+                <li><span class="hover:text-white cursor-pointer">Privacy</span></li>
+                <li><span class="hover:text-white cursor-pointer">Terms</span></li>
+            </ul>
+        </div>
+    </div>
+    <div class="max-w-7xl mx-auto mt-8 pt-8 border-t border-gray-800 text-sm">
+        <p>© 2023 EDF. All rights reserved.</p>
+    </div>
+</footer>
+
+<!-- Back to Top Button -->
+<div class="fixed bottom-4 right-4">
+    <button class="bg-gray-700 hover:bg-gray-600 text-white p-3 rounded-full shadow-lg transition">
+        <i class="fa-solid fa-arrow-up"></i>
+    </button>
+</div>
+
+<script>
+    // Toggle feedback form
+    document.addEventListener('DOMContentLoaded', function() {
+        const yesButton = document.querySelector('.bg-primary-600');
+        const feedbackForm = document.getElementById('feedback-form');
+
+        yesButton.addEventListener('click', function() {
+            feedbackForm.classList.remove('hidden');
+        });
+    });
+</script>
+
+</body></html>
