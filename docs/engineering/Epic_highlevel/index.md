@@ -17,7 +17,7 @@
 
 ---
 
-###  End to end backend sequence diagram for the (Ephemeral) Fleeting DNS Forwarder (FDF) system
+###  End to end backend sequence diagram for the FleetingDNS (FDF) system
 
 ```mermaid
 sequenceDiagram

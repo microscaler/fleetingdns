@@ -1,4 +1,4 @@
-# **🚀 Hackathon Pitch: Build Ephemeral DNS Forwarder in6Weeks**
+# **🚀 Hackathon Pitch: Build FleetingDNS in 6 Weeks**
 
 *(12‑slide outline – ready for GoogleSlides / Keynote)*
 

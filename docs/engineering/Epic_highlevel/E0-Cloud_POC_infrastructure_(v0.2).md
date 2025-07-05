@@ -106,4 +106,4 @@ flowchart TD
 
 ---
 
-©2025 Ephemeral DNS Forwarder — Infrastructure Epic v0.2
+©2025 FleetingDNS — Infrastructure Epic v0.2

@@ -139,4 +139,4 @@ flowchart LR
 ---
 ---
 
-© 2025 Ephemeral DNS Forwarder – Marketing brief
+© 2025 FleetingDNS – Marketing brief

@@ -1,4 +1,4 @@
-### Ephemeral DNS Forwarder vs. Today’s Tunnelling Alternatives
+### FleetingDNS vs. Today's Tunnelling Alternatives
 
 *A positioning memo for CTOs and engineering directors evaluating secure reverse-tunnel services in 2025*
 
@@ -6,14 +6,14 @@
 
 ## 1   Executive message
 
-Most “tunnel-to-localhost” tools were built for **developer convenience** in 2015-2020.
+Most "tunnel-to-localhost" tools were built for **developer convenience** in 2015-2020.
 Modern teams now demand:
 
 * **Zero-trust tunnels** (mTLS, short-lived certs, DNSSEC)
 * **Provisioning that keeps pace with CI pipelines** (hundreds of endpoints per minute)
 * **Enterprise controls** (OIDC, per-endpoint rate-limits, on-prem or cloud-agnostic deployment)
 
-Ephemeral DNS Forwarder (EDF) is the first **pure-Rust, stateless-DNS** platform designed around those requirements. The table below contrasts EDF with the four options most buyers consider today.
+FleetingDNS (FDF) is the first **pure-Rust, stateless-DNS** platform designed around those requirements. The table below contrasts FDF with the four options most buyers consider today.
 
 ---
 
@@ -58,12 +58,12 @@ Ephemeral DNS Forwarder (EDF) is the first **pure-Rust, stateless-DNS** platform
 
 ---
 
-## 4   Why EDF wins for modern dev & edge-device teams
+## 4   Why FDF wins for modern dev & edge-device teams
 
 1. **Stateless DNS = instant URL, zero garbage.**
    – A CI job finishes? label expires. No manual cleanup, no 404 lag.
 2. **Security first: short-lived mTLS + DNSSEC signed.**
-   – Attackers can’t replay old certs or poison DNS caches.
+   – Attackers can't replay old certs or poison DNS caches.
 3. **Open & portable.**
    – Pure-Rust binary, runs in K8s, on Hetzner, or an Intel NUC under the counter. No SaaS lock-in; pricing tiers match resource usage, not seat count.
 4. **Rich auth modes.**
@@ -78,13 +78,13 @@ Ephemeral DNS Forwarder (EDF) is the first **pure-Rust, stateless-DNS** platform
 
 | Section    | Content hook                                                                                 |
 | ---------- | -------------------------------------------------------------------------------------------- |
-| *Hero*     | “Your webhook URL live in **< 2 s**, signed & secure.”                                       |
+| *Hero*     | "Your webhook URL live in **< 2 s**, signed & secure."                                       |
 | *Pain*     | Screenshot of a failed Stripe webhook; quote from retail POS team about fragile reverse-SSH. |
 | *Solution* | Diagram from the Hotel / CI / Stripe graph.                                                  |
 | *Proof*    | Table above + benchmarks (200 k QPS, 50 µs p99 lookup).                                      |
 | *CTA*      | **brew install edf** → *edf forward*; free tier includes 5 tunnels/day.                      |
 
-Use this competitive narrative to underpin landing-page copy, sales decks, and analyst briefings. It persuades buyers that EDF uniquely combines *ngrok-level DX* with *cloud-vendor-grade security* — in a package they can self-host, audit, and extend.
+Use this competitive narrative to underpin landing-page copy, sales decks, and analyst briefings. It persuades buyers that FDF uniquely combines *ngrok-level DX* with *cloud-vendor-grade security* — in a package they can self-host, audit, and extend.
 
 [1]: https://ngrok.com/pricing?utm_source=chatgpt.com "ngrok pricing | Flexible plans for production and development"
 [2]: https://tailscale.com/blog/docker-tailscale-guide?utm_source=chatgpt.com "Contain your excitement: A deep dive into using Tailscale with Docker"

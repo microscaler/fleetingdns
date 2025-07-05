@@ -45,28 +45,53 @@ flowchart TD
     MLModel -->|Historical Data| BigQuery
 ```
 
-### Solution Overview: FDNS Shield Feed
+### Detailed FDNS Shield Architecture and Workflow
 
 ```mermaid
 flowchart TD
   subgraph "Global Honeypot Network"
-    DNSHoneypots["DNS-over-TLS Honeypots"]
+    Honeypots["DNS-over-TLS Honeypots"]
   end
 
-  subgraph "Cloud Analytics Pipeline"
-    AggregationJob["Data Aggregation"]
-    MLScoringEngine["ML Scoring Engine"]
+  subgraph "Ingestion & Data Pipeline"
+    DataflowJob["GCP Dataflow Job"]
+    BigQuery["BigQuery Storage"]
+    FeatureStore["Vertex AI FeatureStore"]
   end
 
-  subgraph "Customer Security Controls"
-    Firewalls["Enterprise Firewalls"]
-    SIEM["Security Information & Event Management"]
+  subgraph "ML Scoring Engine"
+    MLModel["LightGBM ML Model"]
+    VertexAI["Vertex AI Endpoint"]
   end
 
-  DNSHoneypots -->|Telemetry| AggregationJob
-  AggregationJob -->|Aggregated Data| MLScoringEngine
-  MLScoringEngine -->|Real-time Threat Intelligence| Firewalls
-  MLScoringEngine -->|Alerts and Contextual Data| SIEM
+  subgraph "Threat Feed Service"
+    WebhookService["HTTPS Webhook"]
+    gRPCService["gRPC Streaming"]
+  end
+
+  subgraph "Customer Integration"
+    Cloudflare["Cloudflare Workers"]
+    PaloAlto["Palo Alto MineMeld"]
+    AWSWAF["AWS WAF"]
+  end
+
+  subgraph "Customer Portal & SOC Dashboard"
+    Portal["FDNS Customer Portal"]
+    Dashboard["SOC Dashboard"]
+  end
+
+  Honeypots -->|Telemetry| DataflowJob
+  DataflowJob --> BigQuery
+  DataflowJob --> FeatureStore
+  FeatureStore --> MLModel
+  MLModel --> VertexAI
+  VertexAI --> WebhookService
+  VertexAI --> gRPCService
+  WebhookService --> Cloudflare
+  gRPCService --> PaloAlto
+  WebhookService --> AWSWAF
+  gRPCService --> Portal
+  Portal --> Dashboard
 ```
 
 ### Telemetry Collection and Blocking Sequence
@@ -94,7 +119,7 @@ sequenceDiagram
 FDNS Shield vs Competitors:
 
 | Feature                    | FDNS Shield | GreyNoise | ThreatStream |
-| -------------------------- | ----------- | --------- | ------------ |
+|----------------------------|-------------|-----------|--------------|
 | Real-time Updates          | ✅           | ❌         | ✅            |
 | Machine-Learning Scoring   | ✅           | ❌         | ✅            |
 | Rich Contextual Metadata   | ✅           | ❌         | ✅            |
@@ -109,7 +134,7 @@ FDNS Shield vs Competitors:
 FDNS Shield employs a tiered SaaS subscription model:
 
 | Tier       | Monthly Pricing | Features                                                              |
-| ---------- | --------------- | --------------------------------------------------------------------- |
+|------------|-----------------|-----------------------------------------------------------------------|
 | Insight    | €500            | Limited alerts, basic analytics                                       |
 | Hunt       | €1,500          | Advanced analytics, multi-endpoint integration, ML scoring insights   |
 | Enterprise | €5,000+         | Unlimited endpoints, full ML scores, premium SLA, custom integrations |

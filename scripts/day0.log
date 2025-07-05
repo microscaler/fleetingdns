@@ -1,0 +1,118 @@
+casibbald@picolino fleetingdns % ./scripts/day0_bootstrap.sh
+==> Creating projects…
+Create in progress for [https://cloudresourcemanager.googleapis.com/v1/projects/fleetingdns-infra-aa].
+Waiting for [operations/create_project.global.5192286278699148464] to finish...done.
+Enabling service [cloudapis.googleapis.com] on project [fleetingdns-infra-aa]...
+Operation "operations/acat.p2-16260860927-994b77ec-791c-45b8-b67c-a11dcbdbc30a" finished successfully.
+Create in progress for [https://cloudresourcemanager.googleapis.com/v1/projects/fleetingdns-workload-aa].
+Waiting for [operations/create_project.global.6603388313263651665] to finish...done.
+Enabling service [cloudapis.googleapis.com] on project [fleetingdns-workload-aa]...
+Operation "operations/acat.p2-425634542858-527173d1-a23c-402a-947a-25e4408f3754" finished successfully.
+==> Linking billing…
+billingAccountName: billingAccounts/0197D9-AD23AA-0EFFBF
+billingEnabled: true
+name: projects/fleetingdns-infra-aa/billingInfo
+projectId: fleetingdns-infra-aa
+billingAccountName: billingAccounts/0197D9-AD23AA-0EFFBF
+billingEnabled: true
+name: projects/fleetingdns-workload-aa/billingInfo
+projectId: fleetingdns-workload-aa
+==> Enabling APIs (infra)…
+Operation "operations/acf.p2-16260860927-ec5f1273-3733-478c-8850-9bda73376afa" finished successfully.
+==> Enabling APIs (workload)…
+Operation "operations/acf.p2-425634542858-46841be1-ff4b-4be8-b02f-3508205ea8b8" finished successfully.
+==> Creating VPCs…
+Created [https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/global/networks/infra-vpc].
+NAME       SUBNET_MODE  BGP_ROUTING_MODE  IPV4_RANGE  GATEWAY_IPV4  INTERNAL_IPV6_RANGE
+infra-vpc  AUTO         REGIONAL
+
+Instances on this network will not be reachable until firewall rules
+are created. As an example, you can allow all internal traffic between
+instances as well as SSH, RDP, and ICMP by running:
+
+$ gcloud compute firewall-rules create <FIREWALL_NAME> --network infra-vpc --allow tcp,udp,icmp --source-ranges <IP_RANGE>
+$ gcloud compute firewall-rules create <FIREWALL_NAME> --network infra-vpc --allow tcp:22,tcp:3389,icmp
+
+Created [https://www.googleapis.com/compute/v1/projects/fleetingdns-workload-aa/global/networks/workload-vpc].
+NAME          SUBNET_MODE  BGP_ROUTING_MODE  IPV4_RANGE  GATEWAY_IPV4  INTERNAL_IPV6_RANGE
+workload-vpc  AUTO         REGIONAL
+
+Instances on this network will not be reachable until firewall rules
+are created. As an example, you can allow all internal traffic between
+instances as well as SSH, RDP, and ICMP by running:
+
+$ gcloud compute firewall-rules create <FIREWALL_NAME> --network workload-vpc --allow tcp,udp,icmp --source-ranges <IP_RANGE>
+$ gcloud compute firewall-rules create <FIREWALL_NAME> --network workload-vpc --allow tcp:22,tcp:3389,icmp
+
+==> VPC peering between projects…
+WARNING: Flag --auto-create-routes is deprecated and will be removed in a future release.
+Updated [https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/global/networks/infra-vpc].
+---
+autoCreateSubnetworks: true
+creationTimestamp: '2025-07-05T10:38:43.711-07:00'
+id: '8868461948606668236'
+kind: compute#network
+name: infra-vpc
+networkFirewallPolicyEnforcementOrder: AFTER_CLASSIC_FIREWALL
+peerings:
+- autoCreateRoutes: true
+  exchangeSubnetRoutes: true
+  exportCustomRoutes: false
+  exportSubnetRoutesWithPublicIp: true
+  importCustomRoutes: false
+  importSubnetRoutesWithPublicIp: false
+  name: infra-to-workload
+  network: https://www.googleapis.com/compute/v1/projects/fleetingdns-workload-aa/global/networks/workload-vpc
+  stackType: IPV4_ONLY
+  state: INACTIVE
+  stateDetails: '[2025-07-05T10:40:17.667-07:00]: Waiting for peer network to connect.'
+routingConfig:
+  bgpBestPathSelectionMode: LEGACY
+  routingMode: REGIONAL
+selfLink: https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/global/networks/infra-vpc
+selfLinkWithId: https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/global/networks/8868461948606668236
+subnetworks:
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/europe-north1/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/us-west3/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/europe-central2/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/northamerica-northeast2/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/us-west2/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/europe-west3/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/asia-northeast2/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/europe-west8/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/europe-west1/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/asia-east1/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/us-west1/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/us-central1/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/me-west1/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/southamerica-east1/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/europe-north2/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/europe-west9/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/asia-northeast3/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/asia-south2/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/europe-west6/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/europe-west12/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/europe-west4/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/us-south1/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/australia-southeast1/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/europe-west2/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/northamerica-south1/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/europe-west10/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/asia-southeast1/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/us-west4/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/us-east4/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/southamerica-west1/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/asia-south1/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/me-central1/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/africa-south1/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/asia-northeast1/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/europe-southwest1/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/asia-southeast2/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/northamerica-northeast1/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/australia-southeast2/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/asia-east2/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/us-east5/subnetworks/infra-vpc
+- https://www.googleapis.com/compute/v1/projects/fleetingdns-infra-aa/regions/us-east1/subnetworks/infra-vpc
+WARNING: Flag --auto-create-routes is deprecated and will be removed in a future release.
+ERROR: (gcloud.compute.networks.peerings.create) Could not fetch resource:
+ - An IP range in the peer network (10.172.0.0/20) overlaps with an IP range in the local network (10.172.0.0/20) allocated by resource (projects/fleetingdns-workload-aa/regions/europe-west6/subnetworks/workload-vpc).

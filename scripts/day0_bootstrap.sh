@@ -1,22 +1,22 @@
-#!/usr/bin/env bash
+#!/opt/homebrew/Cellar/bash/5.2.37/bin/bash
 # day0_bootstrap.sh  —  create org scaffolding for FleetingDNS
 set -euo pipefail
 
 ############### USER VARS ########################################
-export ORG_ID="123456789012"                # gcloud organizations list
-export BILLING_ACCT="0123AB-45CD67-89EF01"  # gcloud beta billing accounts list
-export region="europe-west1"
+export ORG_ID="131547940867"                # gcloud organizations list
+export BILLING_ACCT="0197D9-AD23AA-0EFFBF"  # gcloud beta billing accounts list
+export region="us-central1"
 
-export INFRA_PROJ_ID="fleetingdns-infra"          # globally unique
-export INFRA_PROJ_NAME="FleetingDNS Infra"
+export INFRA_PROJ_ID="fleetingdns-infra-aa"          # globally unique
+export INFRA_PROJ_NAME="FleetingDNS Infra-aa"  # globally unique
 
-export WORKLOAD_PROJ_ID="fleetingdns-workload"    # globally unique
-export WORKLOAD_PROJ_NAME="FleetingDNS Workload"
+export WORKLOAD_PROJ_ID="fleetingdns-workload-aa"    # globally unique
+export WORKLOAD_PROJ_NAME="FleetingDNS Workload-aa"  # globally unique
 ##################################################################
 
-echo "==> Creating projects…"
-gcloud projects create "$INFRA_PROJ_ID"   --name="$INFRA_PROJ_NAME"   --organization="$ORG_ID"
-gcloud projects create "$WORKLOAD_PROJ_ID" --name="$WORKLOAD_PROJ_NAME" --organization="$ORG_ID"
+#echo "==> Creating projects…"
+#gcloud projects create "$INFRA_PROJ_ID"   --name="$INFRA_PROJ_NAME"   --organization="$ORG_ID"
+#gcloud projects create "$WORKLOAD_PROJ_ID" --name="$WORKLOAD_PROJ_NAME" --organization="$ORG_ID"
 
 echo "==> Linking billing…"
 gcloud beta billing projects link "$INFRA_PROJ_ID"   --billing-account="$BILLING_ACCT"
@@ -34,9 +34,14 @@ gcloud services enable $APIS --project="$INFRA_PROJ_ID"
 echo "==> Enabling APIs (workload)…"
 gcloud services enable $APIS --project="$WORKLOAD_PROJ_ID"
 
-echo "==> Creating VPCs…"
-gcloud compute networks create infra-vpc    --subnet-mode=auto --project="$INFRA_PROJ_ID"
-gcloud compute networks create workload-vpc --subnet-mode=auto --project="$WORKLOAD_PROJ_ID"
+echo "==> Creating VPCs with non-overlapping CIDRs…"
+gcloud compute networks create infra-vpc --project="$INFRA_PROJ_ID" --subnet-mode=custom
+gcloud compute networks subnets create infra-subnet \
+    --network=infra-vpc --region="$region" --range="10.172.16.0/20" --project="$INFRA_PROJ_ID"
+
+gcloud compute networks create workload-vpc --project="$WORKLOAD_PROJ_ID" --subnet-mode=custom
+gcloud compute networks subnets create workload-subnet \
+    --network=workload-vpc --region="$region" --range="10.172.32.0/20" --project="$WORKLOAD_PROJ_ID"
 
 echo "==> VPC peering between projects…"
 gcloud compute networks peerings create infra-to-workload \
