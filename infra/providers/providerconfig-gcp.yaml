@@ -1,0 +1,3 @@
+# ProviderConfig binding to Workload Identity
+# Should: reference SA flux-deployer for all GCP resources
+
