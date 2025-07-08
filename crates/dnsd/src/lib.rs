@@ -1,16 +1,57 @@
-pub fn run() {}
+use std::net::SocketAddr;
 
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+use common::AppResult;
+use tokio::net::UdpSocket;
+use tracing::{info, instrument};
+
+/// Configuration for the DNS server.
+#[derive(Debug, Clone)]
+pub struct Config {
+    /// Address to bind the UDP socket to.
+    pub addr: SocketAddr,
+}
+
+/// Run the UDP server.
+///
+/// This binds a UDP socket and logs the number of bytes received for each
+/// packet. The function runs until cancelled.
+#[instrument]
+pub async fn serve(cfg: Config) -> AppResult<()> {
+    let socket = UdpSocket::bind(cfg.addr).await?;
+    info!(addr = %socket.local_addr()?, "listening");
+    let mut buf = [0u8; 512];
+    loop {
+        let (len, _peer) = socket.recv_from(&mut buf).await?;
+        info!("received {} bytes", len);
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::UdpSocket as StdUdpSocket;
+    use tokio::net::UdpSocket;
+    use tokio::time::{sleep, Duration};
+    use tracing_test::traced_test;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+    #[tokio::test]
+    #[traced_test]
+    async fn logs_received_bytes() {
+        let std_sock = StdUdpSocket::bind("127.0.0.1:0").unwrap();
+        let addr = std_sock.local_addr().unwrap();
+        drop(std_sock);
+
+        let cfg = Config { addr };
+        let handle = tokio::spawn(async move { serve(cfg).await.unwrap() });
+
+        sleep(Duration::from_millis(50)).await;
+
+        let client = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        client.send_to(&[1u8], addr).await.unwrap();
+
+        sleep(Duration::from_millis(50)).await;
+        handle.abort();
+
+        assert!(tracing_test::logs_contain("received 1 bytes"));
     }
 }
