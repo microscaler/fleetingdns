@@ -4,8 +4,8 @@ use common::AppResult;
 #[cfg(feature = "dot")]
 use rustls::ServerConfig;
 
-mod udp;
 pub mod redis_cache;
+mod udp;
 use tokio::net::UdpSocket;
 use tracing::{info, instrument};
 

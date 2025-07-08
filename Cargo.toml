@@ -19,4 +19,5 @@ tokio = { version = "1", features = ["full"] }
 bb8 = "0.9"
 redis = { version = "0.32", default-features = false, features = ["tokio-comp"] }
 parking_lot = "0.12.1"
-asm = { version = "0.11", features = ["std"] }llvm_assembly = { version = "0.11", features = ["std"] }
+asm = { version = "0.11", features = ["std"] }
+llvm_assembly = { version = "0.11", features = ["std"] }
