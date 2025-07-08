@@ -16,6 +16,11 @@
 
 ---
 
+For more details take a look at ./tasks/Rust_Codebase_Roadmap_for_FleetingDNS-FDNS_Shield.md
+
+As well as the detailed epics in the ./docs/engineering/Epic_highlevel/E1*-*.md
+
+---
 ## Implementation Phases (≈ 12 weeks total)
 
 1. **Skeleton & Common Crate (Week 1)**
