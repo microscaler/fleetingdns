@@ -32,10 +32,10 @@ pub enum AppError {
 pub fn init_tracing() {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
-    fmt()
+    let _ = fmt()
         .with_env_filter(filter)
         .pretty()
-        .init();
+        .try_init();
 
     tracing::info!("app start");
 }
