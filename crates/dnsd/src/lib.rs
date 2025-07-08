@@ -1,6 +1,8 @@
 use std::net::SocketAddr;
 
 use common::AppResult;
+
+mod udp;
 use tokio::net::UdpSocket;
 use tracing::{info, instrument};
 
@@ -21,8 +23,11 @@ pub async fn serve(cfg: Config) -> AppResult<()> {
     info!(addr = %socket.local_addr()?, "listening");
     let mut buf = [0u8; 512];
     loop {
-        let (len, _peer) = socket.recv_from(&mut buf).await?;
+        let (len, peer) = socket.recv_from(&mut buf).await?;
         info!("received {} bytes", len);
+        if let Ok(resp) = udp::handle_packet(&buf[..len]) {
+            let _ = socket.send_to(&resp, peer).await?;
+        }
     }
 }
 
@@ -47,11 +52,11 @@ mod tests {
         sleep(Duration::from_millis(50)).await;
 
         let client = UdpSocket::bind("127.0.0.1:0").await.unwrap();
-        client.send_to(&[1u8], addr).await.unwrap();
+        client.send_to(&[0u8; 12], addr).await.unwrap();
 
         sleep(Duration::from_millis(50)).await;
         handle.abort();
 
-        assert!(tracing_test::logs_contain("received 1 bytes"));
+        assert!(tracing_test::logs_contain("received 12 bytes"));
     }
 }
