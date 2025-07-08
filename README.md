@@ -337,6 +337,16 @@ docker build -f deploy/docker/Dockerfile.dnsd .
 docker run --rm -p 53:53/udp -p 53:53/tcp <image-id>
 ```
 
+### Slot Setter
+
+Populate Redis manually during development:
+
+```bash
+cargo run -p slot-setter demo 1.2.3.4 --ttl 600
+```
+
+This stores the IP `1.2.3.4` under the key `demo` with a 10 minute expiry.
+
 
 ---
 

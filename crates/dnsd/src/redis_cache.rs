@@ -47,7 +47,12 @@ pub async fn get_slot(pool: &RedisPool, slot: &str) -> Result<Ipv4Addr, CacheErr
 }
 
 /// Set the IPv4 address for a slot with a TTL in seconds.
-pub async fn set_slot(pool: &RedisPool, slot: &str, ip: Ipv4Addr, ttl: u64) -> Result<(), CacheError> {
+pub async fn set_slot(
+    pool: &RedisPool,
+    slot: &str,
+    ip: Ipv4Addr,
+    ttl: u64,
+) -> Result<(), CacheError> {
     let mut conn = pool.get().await?;
     let _: () = redis::cmd("SET")
         .arg(slot)
@@ -63,7 +68,7 @@ pub async fn set_slot(pool: &RedisPool, slot: &str, ip: Ipv4Addr, ttl: u64) -> R
 mod tests {
     use super::*;
     use tokio::process::Command;
-    use tokio::time::{sleep, Duration};
+    use tokio::time::{Duration, sleep};
 
     #[tokio::test]
     async fn set_get_respects_ttl() {
@@ -83,7 +88,9 @@ mod tests {
 
         sleep(Duration::from_millis(500)).await;
 
-        let pool = new_pool(&format!("redis://127.0.0.1:{}", port)).await.unwrap();
+        let pool = new_pool(&format!("redis://127.0.0.1:{port}"))
+            .await
+            .unwrap();
         let ip = Ipv4Addr::new(1, 2, 3, 4);
         set_slot(&pool, "slot1", ip, 1).await.unwrap();
         let got = get_slot(&pool, "slot1").await.unwrap();
