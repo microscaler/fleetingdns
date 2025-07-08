@@ -5,6 +5,7 @@ use common::AppResult;
 use rustls::ServerConfig;
 
 mod udp;
+pub mod redis_cache;
 use tokio::net::UdpSocket;
 use tracing::{info, instrument};
 
