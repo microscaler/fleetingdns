@@ -324,7 +324,6 @@ The service binds to `0.0.0.0:5353` by default and logs `dnsd listening` when re
 Spin up the proof-of-concept in three quick commands:
 
 ```bash
-./scripts/bootstrap_crates.sh
 cargo run -p dnsd-bin
 dig @127.0.0.1 -p5353 test.fdns.run +short
 ```

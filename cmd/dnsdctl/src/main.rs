@@ -9,6 +9,6 @@ use dnsd::Config;
 async fn main() -> common::AppResult<()> {
     init_tracing();
     let addr: SocketAddr = "0.0.0.0:5353".parse().unwrap();
-    info!(addr=%addr, "dnsdctl starting server");
+    info!(addr=%addr, "dnsd-bin starting server");
     dnsd::serve(Config { addr }).await
 }
