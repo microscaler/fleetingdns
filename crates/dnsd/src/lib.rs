@@ -36,7 +36,7 @@ mod tests {
     use super::*;
     use std::net::UdpSocket as StdUdpSocket;
     use tokio::net::UdpSocket;
-    use tokio::time::{sleep, Duration};
+    use tokio::time::{Duration, sleep};
     use tracing_test::traced_test;
 
     #[tokio::test]
@@ -57,6 +57,6 @@ mod tests {
         sleep(Duration::from_millis(50)).await;
         handle.abort();
 
-        assert!(tracing_test::logs_contain("received 12 bytes"));
+        assert!(logs_contain("received 12 bytes"));
     }
 }

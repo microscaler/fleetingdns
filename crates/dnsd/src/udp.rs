@@ -1,8 +1,8 @@
 use std::net::Ipv4Addr;
 
 use hickory_proto::op::{Message, MessageType, OpCode, ResponseCode};
-use hickory_proto::rr::{Name, RData, Record, RecordType};
-use hickory_proto::serialize::binary::BinEncoder;
+use hickory_proto::rr::{Name, RData, Record, RecordType, rdata};
+use hickory_proto::serialize::binary::{BinEncodable, BinEncoder};
 
 use common::{AppError, AppResult};
 
@@ -30,7 +30,7 @@ pub fn handle_packet(packet: &[u8]) -> AppResult<Vec<u8>> {
     let name = Name::from_ascii("test.fdns.run.").expect("static name");
     message.add_query(hickory_proto::op::Query::query(name.clone(), RecordType::A));
 
-    let record = Record::from_rdata(name, 60, RData::A(Ipv4Addr::new(127, 0, 0, 1)));
+    let record = Record::from_rdata(name, 60, RData::A(rdata::A(Ipv4Addr::new(127, 0, 0, 1))));
     message.add_answer(record);
 
     let mut out = Vec::with_capacity(512);
