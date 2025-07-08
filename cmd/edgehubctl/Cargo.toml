@@ -5,4 +5,4 @@ edition = "2024"
 
 
 [dependencies]
-edgehub = { path = "../../edgehub" }
+edgehub = { path = "../../crates/edgehub" }

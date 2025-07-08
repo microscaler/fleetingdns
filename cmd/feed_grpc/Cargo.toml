@@ -6,4 +6,4 @@ edition = "2024"
 
 
 [dependencies]
-feed_grpc = { path = "../../feed_grpc" }
+feed_grpc = { path = "../../crates/feed_grpc" }

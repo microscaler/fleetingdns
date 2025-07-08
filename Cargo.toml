@@ -1,21 +1,14 @@
 [workspace]
-members = [
-    "crates/backendapi",
-    "crates/auth",
-    "crates/bin/apictl",
-    "crates/bin/dnsdctl",
-    "crates/bin/edgehubctl",
-    "crates/bin/feed_grpc",
-    "crates/bin/feedctl",
-    "crates/bin/intake_collector",
-    "crates/bin/ml_scorer",
-    "crates/common",
-    "crates/dnsd_backend",
-    "crates/edgehub",
-    "crates/feature_pipe",
-    "crates/feed_grpc",
-    "crates/feed_webhook",
-    "crates/intake_collector",
-    "crates/metrics_client",
-    "crates/ml_scorer"]
 resolver = "2"
+members = [
+    "crates/*",
+    "cmd/*"
+]
+
+[workspace.dependencies]
+tracing = "0.1"
+tracing-subscriber = "0.3"
+thiserror = "1"
+metrics = "0.21"
+metrics-exporter-prometheus = "0.12"
+tokio = { version = "1", features = ["full"] }
