@@ -8,3 +8,6 @@ dnsd = { path = "../../crates/dnsd" }
 tokio = { workspace = true, features = ["full"] }
 common = { path = "../../crates/common" }
 tracing = { workspace = true }
+
+[features]
+dot = ["dnsd/dot"]

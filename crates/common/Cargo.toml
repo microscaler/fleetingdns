@@ -8,6 +8,8 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 thiserror = { workspace = true }
 metrics = { workspace = true }
+rustls = "0.23"
+rcgen = "0.14"
 
 [dev-dependencies]
 tracing-test = "0.2"
