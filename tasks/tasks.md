@@ -1,4 +1,4 @@
-# 🐳 Local‑dev Docker Compose stack (prototype v0.1)
+# 🐳 Local‑dev Docker Composestack (prototype v0.1)
 
 Directory layout:
 
@@ -246,7 +246,7 @@ docker compose up -d --build
 | **T-21** | Wire dnsd ↔ EdgeHub end-to-end demo (docs + Docker compose setup and script to test in ci job or demo. |                                                                                                      | Demo for peer review).                                                                                                                                                                                                                                                                                                                                            |
 6. **T-21** – 
 
-> **Implementation order:** T-14 → T-15 → T-16/17 → T-18 → T-19 → T-20.
+> **Implementation order:** T-14 → T-15 → T-16/17 → T-18 → T-19 → T-20 → T-21.
 
 Complete these to have a fully containerised local + CI environment wired to Prometheus/Loki/Grafana and ready for next feature iterations.
 
