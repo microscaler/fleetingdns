@@ -6,3 +6,11 @@ edition = "2024"
 
 [dependencies]
 edgehub = { path = "../../crates/edgehub" }
+tokio = { workspace = true, features = ["full"] }
+clap = { workspace = true }
+common = { path = "../../crates/common" }
+tracing = { workspace = true }
+
+
+
+

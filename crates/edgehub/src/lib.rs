@@ -1,16 +1,98 @@
-pub fn run() {}
+use std::net::SocketAddr;
+use std::sync::Arc;
 
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+use common::AppResult;
+use rand::Rng;
+use rustls::ServerConfig;
+use tokio::io::AsyncWriteExt;
+use tokio::net::TcpListener;
+use tokio_rustls::TlsAcceptor;
+use tracing::{info, instrument};
+
+/// Configuration for the EdgeHub server.
+#[derive(Debug, Clone)]
+pub struct Config {
+    /// Address to bind the TLS listener to.
+    pub addr: SocketAddr,
+    /// TLS configuration used for incoming connections.
+    pub tls_config: ServerConfig,
+}
+
+/// Start the EdgeHub server.
+///
+/// Binds a TCP socket, accepts TLS connections, and logs a placeholder
+/// mapping of the `slot` to a randomly chosen local port.
+#[instrument]
+pub async fn serve(cfg: Config) -> AppResult<()> {
+    let listener = TcpListener::bind(cfg.addr).await?;
+    info!(addr = %listener.local_addr()?, "edgehub listening");
+
+    let acceptor = TlsAcceptor::from(Arc::new(cfg.tls_config));
+
+    loop {
+        let (stream, peer) = listener.accept().await?;
+        let acceptor = acceptor.clone();
+        tokio::spawn(async move {
+            match acceptor.accept(stream).await {
+                Ok(mut tls) => {
+                    let port: u16 = rand::thread_rng().gen_range(30000..60000);
+                    let slot = "demo";
+                    info!(peer=%peer, slot, port, "tunnel mapped");
+                    let _ = tls.shutdown().await;
+                }
+                Err(e) => {
+                    info!(error=%e, peer=%peer, "tls handshake failed");
+                }
+            }
+        });
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rustls::{
+        ClientConfig, RootCertStore,
+        pki_types::{CertificateDer, ServerName},
+    };
+    use rustls_pemfile::Item;
+    use tokio::io::AsyncWriteExt;
+    use tokio::net::TcpStream;
+    use tokio_rustls::TlsConnector;
+    use tracing_test::traced_test;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+    #[tokio::test]
+    #[traced_test]
+    async fn logs_mapping_on_connect() {
+        let std_listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = std_listener.local_addr().unwrap();
+        drop(std_listener);
+
+        let (tls_config, cert_pem) = common::tls::generate_tls_config(&["ssh"]).unwrap();
+        let handle = tokio::spawn(async move {
+            serve(Config { addr, tls_config }).await.unwrap();
+        });
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        let mut roots = RootCertStore::empty();
+        let mut cursor = std::io::Cursor::new(cert_pem);
+        if let Some(Item::X509Certificate(cert)) = rustls_pemfile::read_one(&mut cursor).unwrap() {
+            roots.add(CertificateDer::from(cert)).unwrap();
+        }
+
+        let client_config = ClientConfig::builder()
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+        let connector = TlsConnector::from(Arc::new(client_config));
+        let stream = TcpStream::connect(addr).await.unwrap();
+        let name = ServerName::try_from("tls.local").unwrap();
+        let mut tls = connector.connect(name, stream).await.unwrap();
+        tls.shutdown().await.unwrap();
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        handle.abort();
+
+        assert!(logs_contain("tunnel mapped"));
     }
 }
