@@ -10,9 +10,14 @@ tracing = { workspace = true }
 hickory-proto = "0.24"
 tokio-rustls = { version = "0.26", optional = true }
 rustls = { version = "0.23", optional = true }
+bb8 = { workspace = true }
+bb8-redis = "0.24"
+redis = { workspace = true }
+thiserror = { workspace = true }
 
 [features]
 dot = ["tokio-rustls", "rustls"]
 
 [dev-dependencies]
 tracing-test = "0.2"
+mini-redis = "0.4"
