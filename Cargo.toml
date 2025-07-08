@@ -1,0 +1,21 @@
+[workspace]
+members = [
+    "crates/api",
+    "crates/auth",
+    "crates/bin/api",
+    "crates/bin/dnsd",
+    "crates/bin/edgehub",
+    "crates/bin/feed_grpc",
+    "crates/bin/feed_webhook",
+    "crates/bin/intake_collector",
+    "crates/bin/ml_scorer",
+    "crates/common",
+    "crates/dnsd",
+    "crates/edgehub",
+    "crates/feature_pipe",
+    "crates/feed_grpc",
+    "crates/feed_webhook",
+    "crates/intake_collector",
+    "crates/metrics_client",
+    "crates/ml_scorer"]
+resolver = "2"

@@ -1,0 +1,8 @@
+[package]
+name = "ml_scorerctl"
+version = "0.1.0"
+edition = "2024"
+
+
+[dependencies]
+ml_scorer = { path = "../../ml_scorer" }

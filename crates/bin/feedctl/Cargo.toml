@@ -1,0 +1,10 @@
+[package]
+name = "feedctl"
+description = "Command line tool for managing feed_webhook"
+version = "0.1.0"
+edition = "2024"
+
+
+
+[dependencies]
+feed_webhook = { path = "../../feed_webhook" }
