@@ -34,18 +34,3 @@
 
 ---
 
-## When Prototype 0.2 is green
-
-* Move EdgeHub to **TLS-wrapped OpenSSH** or `thrussh` for keyless auth.
-* Start E1 series work (DNSSEC, HMAC labels).
-* Parallel track: intake → Pub/Sub to set up scoring pipeline (E12/E13).
-
-Ping me whenever you'd like deep-dive guidance on any sub-task—or if you want fresh Codex tickets for the next feature slice. Awesome progress!
-
----
-
-For more details take a look at ./tasks/Rust_Codebase_Roadmap_for_FleetingDNS-FDNS_Shield.md
-
-As well as the detailed epics in the ./docs/engineering/Epic_highlevel/E1*-*.md
-
-
