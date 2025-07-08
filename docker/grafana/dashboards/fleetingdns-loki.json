@@ -1,0 +1,10 @@
+{
+  "uid": "fd-loki",
+  "title": "FleetingDNS Loki",
+  "tags": ["fdns"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "panels": []
+}
