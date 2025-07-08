@@ -5,4 +5,4 @@ edition = "2024"
 
 
 [dependencies]
-intake_collector = { path = "../../intake_collector" }
+intake_collector = { path = "../../crates/intake_collector" }

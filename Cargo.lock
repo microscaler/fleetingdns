@@ -3,18 +3,18 @@
 version = 4
 
 [[package]]
-name = "api"
-version = "0.1.0"
-
-[[package]]
 name = "apictl"
 version = "0.1.0"
 dependencies = [
- "api",
+ "backendapi",
 ]
 
 [[package]]
 name = "auth"
+version = "0.1.0"
+
+[[package]]
+name = "backendapi"
 version = "0.1.0"
 
 [[package]]
@@ -23,6 +23,10 @@ version = "0.1.0"
 
 [[package]]
 name = "dnsd"
+version = "0.1.0"
+
+[[package]]
+name = "dnsdbackend"
 version = "0.1.0"
 
 [[package]]
@@ -52,21 +56,21 @@ name = "feed_grpc"
 version = "0.1.0"
 
 [[package]]
-name = "feed_grpcctl"
-version = "0.1.0"
-dependencies = [
- "feed_grpc",
-]
-
-[[package]]
 name = "feed_webhook"
 version = "0.1.0"
 
 [[package]]
-name = "feed_webhookctl"
+name = "feedctl"
 version = "0.1.0"
 dependencies = [
  "feed_webhook",
+]
+
+[[package]]
+name = "grpcfeedctl"
+version = "0.1.0"
+dependencies = [
+ "feed_grpc",
 ]
 
 [[package]]
