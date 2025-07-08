@@ -319,6 +319,18 @@ cargo run -p dnsd-bin
 
 The service binds to `0.0.0.0:5353` by default and logs `dnsd listening` when ready.
 
+### Prototype 0.1
+
+Spin up the proof-of-concept in three quick commands:
+
+```bash
+./scripts/bootstrap_crates.sh
+cargo run -p dnsd-bin
+dig @127.0.0.1 -p5353 test.fdns.run +short
+```
+
+If everything is running correctly, the final command prints `127.0.0.1`. A fresh machine should be able to run through the setup in under five minutes.
+
 ### Docker Image
 Build and run the daemon without Rust:
 ```bash
