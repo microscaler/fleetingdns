@@ -5,4 +5,4 @@ edition = "2024"
 
 
 [dependencies]
-ml_scorer = { path = "../../ml_scorer" }
+ml_scorer = { path = "../../crates/ml_scorer" }

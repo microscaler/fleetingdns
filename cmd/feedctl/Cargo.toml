@@ -7,4 +7,4 @@ edition = "2024"
 
 
 [dependencies]
-feed_webhook = { path = "../../feed_webhook" }
+feed_webhook = { path = "../../crates/feed_webhook" }

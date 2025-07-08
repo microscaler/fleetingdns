@@ -1,7 +1,6 @@
 [package]
-name = "dnsdctl"
+name = "dnsd"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-dnsd = { path = "../../dnsd" }
