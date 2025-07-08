@@ -4,3 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true }
+common = { path = "../common" }
+rustls = { workspace = true }
+tokio-rustls = { workspace = true }
+rand = { workspace = true }
+
+[dev-dependencies]
+tracing-test = "0.2"
+rustls-pemfile = { workspace = true }

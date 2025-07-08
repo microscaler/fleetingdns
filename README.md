@@ -347,6 +347,16 @@ cargo run -p slot-setter demo 1.2.3.4 --ttl 600
 
 This stores the IP `1.2.3.4` under the key `demo` with a 10 minute expiry.
 
+### EdgeHub
+
+Run the TLS-wrapped SSH listener:
+
+```bash
+cargo run -p edgehubctl
+```
+
+The service binds to `0.0.0.0:2222` by default and logs `edgehub listening` on startup.
+
 
 ---
 
