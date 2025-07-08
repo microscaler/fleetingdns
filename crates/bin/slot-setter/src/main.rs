@@ -49,6 +49,17 @@ mod tests {
 
     #[tokio::test]
     async fn sets_value_in_redis() {
+        if Command::new("redis-server")
+            .arg("--version")
+            .stdout(std::process::Stdio::null())
+            .status()
+            .await
+            .is_err()
+        {
+            eprintln!("skipping test: redis-server not installed");
+            return;
+        }
+
         let port = 6381u16;
         let mut child = Command::new("redis-server")
             .arg("--port")

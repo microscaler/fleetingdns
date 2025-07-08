@@ -73,6 +73,17 @@ mod tests {
     #[tokio::test]
     async fn set_get_respects_ttl() {
         let port = 6380u16;
+        if Command::new("redis-server")
+            .arg("--version")
+            .stdout(std::process::Stdio::null())
+            .status()
+            .await
+            .is_err()
+        {
+            eprintln!("skipping test: redis-server not installed");
+            return;
+        }
+
         let mut child = Command::new("redis-server")
             .arg("--port")
             .arg(port.to_string())
