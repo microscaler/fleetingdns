@@ -333,7 +333,7 @@ If everything is running correctly, the final command prints `127.0.0.1`. A fres
 ### Docker Image
 Build and run the daemon without Rust:
 ```bash
-docker build -f deploy/docker/Dockerfile.dnsd .
+docker build -f docker/Dockerfile .
 docker run --rm -p 53:53/udp -p 53:53/tcp <image-id>
 ```
 
