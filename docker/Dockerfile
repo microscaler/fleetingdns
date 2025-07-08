@@ -1,8 +1,18 @@
-FROM rust:1.77-slim AS builder
-WORKDIR /src
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    pkg-config libssl-dev build-essential libclang-dev ca-certificates curl \
+FROM rustlang/rust:nightly-slim AS builder
+
+RUN apt-get update && apt-get install -y \
+  pkg-config \
+  libssl-dev \
+  build-essential \
+  libclang-dev \
+  curl \
+  ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+RUN rustup component add rustfmt clippy
+RUN cargo install cargo-audit
+
+WORKDIR /usr/src/app
 COPY . .
 RUN cargo build --release --bins --workspace
 

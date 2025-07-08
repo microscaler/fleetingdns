@@ -14,6 +14,13 @@ datasources:
       timeInterval: 5s
     secureJsonData: {}
 
+  - name: Jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    uid: jaeger
+    editable: true
+
   - name: Mimir
     type: prometheus
     access: proxy
@@ -29,3 +36,8 @@ datasources:
     editable: true
     jsonData:
       maxLines: 1000
+      derivedFields:
+        - datasourceUid: jaeger
+          matcherRegex: "traceID=(\\w+)"
+          name: TraceID
+          url: "$${__value.raw}"
