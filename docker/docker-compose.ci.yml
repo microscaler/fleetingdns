@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  otel-collector:
+    volumes:
+      - ./otel-collector-config.ci.yaml:/etc/otel/config.yaml:ro
+
+  grafana:
+    depends_on:
+      - prometheus
+
+  loki:
+    profiles: ["ci-omit"]
+  promtail:
+    profiles: ["ci-omit"]
+  mimir:
+    profiles: ["ci-omit"]
