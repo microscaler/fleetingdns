@@ -1,39 +1,51 @@
-### Prototype 0.1 — “Hello DNS” end-to-end spike
-
-*(goal: `dig @127.0.0.1 test.fdns.run` returns **127.0.0.1** via UDP; no Redis, no DoT yet)*
-
-Below are **8 Codex tasks** (issue-style). Drop them into your tracker and assign; completing all gives a runnable binary and CI green.
-
-Note: each task is also mirrored individually under `tasks/` for Codex agents.
-
-| #        | Title                               | Path / crate                    | Detailed description & acceptance criteria                                                                                                                                                                                                                                                                                                       |
-|----------| ----------------------------------- |---------------------------------| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **T-01** | CI job: build & smoke-test          | `.github/workflows/rust_ci.yml` | *Desc*  Matrix: stable + nightly.<br>Steps:<br>1. `cargo fmt -- --check`<br>2. `cargo clippy --all -- -D warnings`<br>3. `cargo test --workspace`<br>4. Spin up dnsd in background, run `dig` smoke test.<br><br>*AC*  PR passes first run.                                                                                                      |
-| **T-02** | Scaffold **common** crate           | `crates/common`                 | *Description*  Create `lib.rs` with:<br>• `init_tracing()` – sets up `tracing_subscriber` (env filter, pretty).<br>• `AppResult<T>` + `AppError` using `thiserror`.<br>• `metrics` macro re-export (`metrics::{counter,gauge,histogram}`).<br><br>*AC*  Calling `common::init_tracing()` from any bin prints “app start” with level-based color. |
-| **T-03** | Add workspace dev-dependencies      | root `Cargo.toml`               | *Desc*  Top-level `[workspace.dependencies]` for:<br>`tracing`, `tracing-subscriber`, `thiserror`, `metrics`, `metrics-exporter-prometheus`, `tokio` (`full`).<br><br>*AC*  `cargo check --workspace` succeeds (no warnings).                                                                                                                    |
-| **T-04** | New **dnsd** library crate skeleton | `crates/dnsd`                   | *Desc*  `lib.rs` exposes:<br>`pub fn serve(cfg: Config) -> AppResult<()>` (async).<br>`Config { addr: SocketAddr }`.<br>No real protocol yet—just binds UDP socket & logs packet count.<br><br>*AC*  Unit test starts server on `127.0.0.1:0`, sends one byte, receives none but server logs “received X bytes”.                                 |
-| **T-05** | Minimal DNS packet echo parser      | `crates/dnsd/src/udp.rs`        | *Desc*  Parse first 12-byte DNS header (ID, flags). Ignore queries but craft response with:<br>• same ID<br>• QR=1, RCODE=0<br>• QDCOUNT=ANCOUNT=1<br>• Answer record: A 127.0.0.1 (hard-code).<br>Use `hickory-proto` for encode.<br><br>*AC*  Integration test: `dig @127.0.0.1 test.fdns.run +short` outputs 127.0.0.1.                       |
-| **T-06** | **dnsd-bin** wrapper crate          | `crates/bin/dnsd`               | *Desc*  Binary depends on `dnsd`, reads `--addr` CLI (default 0.0.0.0:5353), calls `common::init_tracing()` then `dnsd::serve(...)`.<br><br>*AC*  Running `cargo run -p dnsd-bin` starts listener, logs “dnsd listening”.                                                                                                                        |
-| **T-07** | Dockerfile for dnsd                 | `deploy/docker/Dockerfile.dnsd` | *Desc*  Scratch-based alpine, build with `cargo install --path crates/bin/dnsd`, entrypoint `dnsd --addr 0.0.0.0:53`. Expose UDP/TCP 53.<br><br>*AC*  `docker build -f ...` succeeds, container responds to `dig`.                                                                                                                               |
-| **T-08** | README quick-start for spike        | `README.md`                     | *Desc*  Add “Prototype 0.1” section with commands:<br>• `./scripts/bootstrap_crates.sh`<br>• `cargo run -p dnsd-bin`<br>• `dig @127.0.0.1 -p5353 test.fdns.run +short` → 127.0.0.1.<br><br>*AC*  New developer can reproduce in <5 min.                                                                                                          |
+🎉 **Fantastic news!** A working UDP path means the plumbing—workspace, tracing, CI, and packet encode/decode—is solid. Let’s capitalise on that momentum.
 
 ---
 
-### Suggested order
+## 🚀 Next-step milestone (“Prototype 0.2” – secure + stateless)
 
-5. T-01 (CI) to lock safety net
-1. T-02 → T-02 (foundation)
-2. T-03 (library skeleton)
-3. T-04 (basic DNS encode/decode)
-4. T-05 (binary launcher)
-6. T-06 (Docker)
-7. T-08 (docs)
+| Phase                               | Goal                                       | Crate(s) touched                      | Key tasks                                                                                    |
+| ----------------------------------- |--------------------------------------------| ------------------------------------- | -------------------------------------------------------------------------------------------- |
+| **A. DoT handshake**                | Add DNS-over-TLS on port 853               | `dnsd`, `common`                      | \* rustls server config<br>\* ALPN `dot`<br>\* unit test: `kdig +tls-ca +tls-host=tls.local` |
+| **B. Stateless label → Redis slot** | Resolve `<slot>.fleetingdns.run` via Redis | `dnsd::redis_cache`                   | \* async Redis pool (`bb8 + redis`)<br>\* fallback stub if key missing (NXDOMAIN)            |
+| **C. Redis write path**             | “register tunnel” helper for later         | new tiny bin `crates/bin/slot-setter` | \* CLI: `slot-setter <slot> <ip> --ttl 1800`                                                 |
+| **D. EdgeHub skeleton**             | Accept reverse-tunnel (no eBPF yet)        | `edgehub` (lib+bin)                   | \* accept TLS-wrapped SSH on 2222<br>\* map `<slot>` to `127.0.0.1:<rand>` for now           |
+| **E. E2E smoke via `edgehub`**      | curl through tunnel → local mock web       | `intake_collector` test harness       | \* spin dnsd + edgehub + register slot + `curl https://demo.<slot>.fleetingdns.run` expects 200     |
 
-Once this spike runs, extend `dnsd` to DoT + Redis while another pair starts **edgehub** under the same crate pattern.
+> *Tip*: merge A → B quickly so other devs can use Redis look-ups while EdgeHub is under construction.
 
 ---
+
+## Suggested task tickets
+
+1. **T-09** – Add rustls DoT listener (update config, new integration test).
+2. **T-10** – Implement `redis_cache.rs` (get/set, TTL respect).
+3. **T-11** – Minimal `slot-setter` CLI for manual Redis inserts.
+4. **T-12** – EdgeHub listener scaffolding (accept connection, print debug).
+5. **T-13** – Wire dnsd ↔ EdgeHub end-to-end demo (docs + CI job).
+
+---
+
+## Development tips
+
+* **Feature flags** – gate DoT with `--features dot` initially to keep CI fast.
+* **Replayable tests** – store a PCAP of a good DoT handshake; integration test can assert bytes (good safety net).
+* **Metrics early** – export `dns_queries_total{protocol="udp|dot"}` to Prom so we watch latency regressions when switching to TLS.
+
+---
+
+## When Prototype 0.2 is green
+
+* Move EdgeHub to **TLS-wrapped OpenSSH** or `thrussh` for keyless auth.
+* Start E1 series work (DNSSEC, HMAC labels).
+* Parallel track: intake → Pub/Sub to set up scoring pipeline (E12/E13).
+
+Ping me whenever you'd like deep-dive guidance on any sub-task—or if you want fresh Codex tickets for the next feature slice. Awesome progress!
+
 ---
 
 For more details take a look at ./tasks/Rust_Codebase_Roadmap_for_FleetingDNS-FDNS_Shield.md
 
 As well as the detailed epics in the ./docs/engineering/Epic_highlevel/E1*-*.md
+
+
