@@ -1,9 +1,11 @@
+#![cfg(not(feature = "dot"))]
+
 use std::net::UdpSocket as StdUdpSocket;
 use std::process::Stdio;
 use tokio::process::Command;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
-use dnsd::{serve, Config};
+use dnsd::{Config, serve};
 
 #[tokio::test]
 async fn dig_returns_loopback() {

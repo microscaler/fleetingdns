@@ -1,6 +1,8 @@
 use std::net::SocketAddr;
 
 use common::AppResult;
+#[cfg(feature = "dot")]
+use rustls::ServerConfig;
 
 mod udp;
 use tokio::net::UdpSocket;
@@ -11,6 +13,12 @@ use tracing::{info, instrument};
 pub struct Config {
     /// Address to bind the UDP socket to.
     pub addr: SocketAddr,
+    #[cfg(feature = "dot")]
+    /// Address for DNS-over-TLS.
+    pub dot_addr: SocketAddr,
+    #[cfg(feature = "dot")]
+    /// TLS configuration for DoT.
+    pub tls_config: ServerConfig,
 }
 
 /// Run the UDP server.
@@ -19,6 +27,9 @@ pub struct Config {
 /// packet. The function runs until cancelled.
 #[instrument]
 pub async fn serve(cfg: Config) -> AppResult<()> {
+    #[cfg(feature = "dot")]
+    tokio::spawn(dot::serve(cfg.dot_addr, cfg.tls_config.clone()));
+
     let socket = UdpSocket::bind(cfg.addr).await?;
     info!(addr = %socket.local_addr()?, "listening");
     let mut buf = [0u8; 512];
@@ -44,9 +55,19 @@ mod tests {
     async fn logs_received_bytes() {
         let std_sock = StdUdpSocket::bind("127.0.0.1:0").unwrap();
         let addr = std_sock.local_addr().unwrap();
+        #[cfg(feature = "dot")]
+        let dot_addr = addr;
         drop(std_sock);
 
-        let cfg = Config { addr };
+        #[cfg(feature = "dot")]
+        let (tls_config, _) = common::tls::generate_tls_config(&["dot"]).unwrap();
+        let cfg = Config {
+            addr,
+            #[cfg(feature = "dot")]
+            dot_addr,
+            #[cfg(feature = "dot")]
+            tls_config,
+        };
         let handle = tokio::spawn(async move { serve(cfg).await.unwrap() });
 
         sleep(Duration::from_millis(50)).await;
@@ -58,5 +79,55 @@ mod tests {
         handle.abort();
 
         assert!(logs_contain("received 12 bytes"));
+    }
+}
+
+#[cfg(feature = "dot")]
+mod dot {
+    use super::udp;
+    use common::AppResult;
+    use rustls::ServerConfig;
+    use std::sync::Arc;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+    use tokio_rustls::TlsAcceptor;
+    use tracing::info;
+
+    pub async fn serve(addr: std::net::SocketAddr, cfg: ServerConfig) -> AppResult<()> {
+        let listener = TcpListener::bind(addr).await?;
+        info!(addr=%listener.local_addr()?, "dot listening");
+        let acceptor = TlsAcceptor::from(Arc::new(cfg));
+        loop {
+            let (stream, peer) = listener.accept().await?;
+            let acceptor = acceptor.clone();
+            tokio::spawn(async move {
+                if let Ok(mut tls) = acceptor.accept(stream).await {
+                    let mut len_buf = [0u8; 2];
+                    loop {
+                        if tls.read_exact(&mut len_buf).await.is_err() {
+                            break;
+                        }
+                        let len = u16::from_be_bytes(len_buf) as usize;
+                        let mut buf = vec![0u8; len];
+                        if tls.read_exact(&mut buf).await.is_err() {
+                            break;
+                        }
+                        if let Ok(resp) = udp::handle_packet(&buf) {
+                            let resp_len = (resp.len() as u16).to_be_bytes();
+                            if tls.write_all(&resp_len).await.is_err() {
+                                break;
+                            }
+                            if tls.write_all(&resp).await.is_err() {
+                                break;
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                    let _ = tls.shutdown().await;
+                }
+                let _ = peer;
+            });
+        }
     }
 }

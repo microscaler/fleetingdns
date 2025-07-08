@@ -5,6 +5,8 @@ use tracing::info;
 
 use common::{init_tracing, AppResult};
 use dnsd::{self, Config};
+#[cfg(feature = "dot")]
+use common::tls;
 
 /// DNS daemon command line arguments.
 #[derive(Parser, Debug, Clone)]
@@ -17,7 +19,16 @@ struct Args {
 async fn run(args: Args) -> AppResult<()> {
     init_tracing();
     info!(addr = %args.addr, "dnsd listening");
-    dnsd::serve(Config { addr: args.addr }).await
+    #[cfg(feature = "dot")]
+    let (tls_config, _) = tls::generate_tls_config(&["dot"])?;
+    let cfg = Config {
+        addr: args.addr,
+        #[cfg(feature = "dot")]
+        dot_addr: SocketAddr::new(args.addr.ip(), 853),
+        #[cfg(feature = "dot")]
+        tls_config,
+    };
+    dnsd::serve(cfg).await
 }
 
 #[tokio::main]
