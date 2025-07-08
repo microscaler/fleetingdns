@@ -319,6 +319,14 @@ cargo run -p dnsd-bin
 
 The service binds to `0.0.0.0:5353` by default and logs `dnsd listening` when ready.
 
+### Docker Image
+Build and run the daemon without Rust:
+```bash
+docker build -f deploy/docker/Dockerfile.dnsd .
+docker run --rm -p 53:53/udp -p 53:53/tcp <image-id>
+```
+
+
 ---
 
 © 2025 FleetingDNS
