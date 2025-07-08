@@ -309,6 +309,16 @@ curl -sSfL https://fleetingdns.sh/install | sh
 
 Transform your development and testing workflow today!
 
+## Prototype DNS Daemon
+
+This repository includes a minimal DNS daemon for local testing. Start it with:
+
+```bash
+cargo run -p dnsd-bin
+```
+
+The service binds to `0.0.0.0:5353` by default and logs `dnsd listening` when ready.
+
 ---
 
 © 2025 FleetingDNS
