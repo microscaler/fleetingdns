@@ -31,7 +31,7 @@ jobs:
         run: cargo test -p dnsd --features dot
       - name: Smoke test dnsd
         run: |
-          cargo run --bin dnsdctl &
+          cargo run --bin dnsd-bin &
           DNSD_PID=$!
           sleep 2
           dig @127.0.0.1 -p 53 example.com || true
