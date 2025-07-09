@@ -37,3 +37,12 @@ docker compose logs -f dnsd
 ```
 
 Stop everything with `docker compose down`.
+
+## Demo: register a slot
+Once the stack is running, execute `scripts/roundtrip_demo.sh`.
+This script:
+1. Inserts a demo record in Redis.
+2. Waits for `dnsd` to resolve `demo.fdns.run`.
+3. Verifies the `edgehub` TLS listener.
+4. Performs an HTTP request round-trip through the resolved IP.
+

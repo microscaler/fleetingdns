@@ -17,7 +17,8 @@ services:
   edgehub:
     <<: *rust-build
     image: fleetingdns/edgehub:dev
-    command: ["/app/edgehub-bin"]
+    command: ["/app/edgehubctl"]
+    ports: ["2222:2222"]
     depends_on: [dnsd, otel-collector]
 
   intake_collector:

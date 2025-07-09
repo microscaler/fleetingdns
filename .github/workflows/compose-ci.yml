@@ -31,6 +31,8 @@ jobs:
           done
           echo "Grafana failed health check" >&2
           exit 1
+      - name: Round-trip demo
+        run: bash scripts/roundtrip_demo.sh
       - name: Teardown
         if: always()
         run: docker compose -f docker/docker-compose.yml -f docker/docker-compose.ci.yml down
