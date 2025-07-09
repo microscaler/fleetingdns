@@ -18,10 +18,10 @@
 
 ## Suggested task tickets
 
-1. **T-09** – Add rustls DoT listener (update config, new integration test).
-2. **T-10** – Implement `redis_cache.rs` (get/set, TTL respect).
-3. **T-11** – Minimal `slot-setter` CLI for manual Redis inserts.
-4. **T-12** – EdgeHub listener scaffolding (accept connection, print debug).
+1. - [x] **T-09** – Add rustls DoT listener (update config, new integration test).
+2. - [x] **T-10** – Implement `redis_cache.rs` (get/set, TTL respect).
+3. - [x] **T-11** – Minimal `slot-setter` CLI for manual Redis inserts.
+4. - [x] **T-12** – EdgeHub listener scaffolding (accept connection, print debug).
 
 ---
 
