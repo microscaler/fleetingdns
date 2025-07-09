@@ -8,7 +8,9 @@ Quick start instructions for running the prototype compose setup.
 - On Linux, ensure your user is in the `docker` group or run commands with `sudo`
 
 ## Launch the stack
-Run the following from the repository root (the compose file lives at `./docker-compose.yml`):
+Run the following from the repository root (the compose file lives at `./docker-compose.yml`).
+Each service builds from its own Dockerfile located in `docker/`:
+`Dockerfile.dnsd`, `Dockerfile.edgehub`, and so on.
 
 ```bash
 # build images and start in the background
