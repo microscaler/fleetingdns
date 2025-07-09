@@ -1,5 +1,5 @@
 [package]
-name = "ml_scorerctl"
+name = "ml_scorer-bin"
 version = "0.1.0"
 edition = "2024"
 

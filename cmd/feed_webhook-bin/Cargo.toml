@@ -1,5 +1,5 @@
 [package]
-name = "feedctl"
+name = "feed_webhook-bin"
 description = "Command line tool for managing feed_webhook"
 version = "0.1.0"
 edition = "2024"

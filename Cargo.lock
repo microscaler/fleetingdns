@@ -113,7 +113,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "apictl"
+name = "api-bin"
 version = "0.1.0"
 dependencies = [
  "backendapi",
@@ -535,7 +535,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "edgehubctl"
+name = "edgehub-bin"
 version = "0.1.0"
 dependencies = [
  "clap 4.5.40",
@@ -582,11 +582,18 @@ name = "feed_grpc"
 version = "0.1.0"
 
 [[package]]
+name = "feed_grpc-bin"
+version = "0.1.0"
+dependencies = [
+ "feed_grpc",
+]
+
+[[package]]
 name = "feed_webhook"
 version = "0.1.0"
 
 [[package]]
-name = "feedctl"
+name = "feed_webhook-bin"
 version = "0.1.0"
 dependencies = [
  "feed_webhook",
@@ -688,13 +695,6 @@ name = "glob"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8d1add55171497b4705a648c6b583acafb01d58050a51727785f0b2c8e0a2b2"
-
-[[package]]
-name = "grpcfeedctl"
-version = "0.1.0"
-dependencies = [
- "feed_grpc",
-]
 
 [[package]]
 name = "heck"
@@ -889,7 +889,7 @@ name = "intake_collector"
 version = "0.1.0"
 
 [[package]]
-name = "intake_collectorctl"
+name = "intake_collector-bin"
 version = "0.1.0"
 dependencies = [
  "intake_collector",
@@ -1107,7 +1107,7 @@ name = "ml_scorer"
 version = "0.1.0"
 
 [[package]]
-name = "ml_scorerctl"
+name = "ml_scorer-bin"
 version = "0.1.0"
 dependencies = [
  "ml_scorer",
