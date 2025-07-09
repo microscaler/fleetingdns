@@ -1,0 +1,11 @@
+FROM rust:1.77-slim AS builder
+WORKDIR /usr/src/app
+COPY . .
+RUN cargo build --release -p intake_collector-bin
+
+FROM debian:bookworm-slim AS runtime
+RUN useradd -m app
+WORKDIR /app
+COPY --from=builder /usr/src/app/target/release/intake_collector-bin /app/
+USER app
+ENTRYPOINT ["/app/intake_collector-bin"]

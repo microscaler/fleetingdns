@@ -1,52 +1,64 @@
 version: "3.9"
 
 x-rust-build: &rust-build
-  build:
-    context: .
-    dockerfile: docker/Dockerfile
-    target: runtime
+  context: .
+  target: runtime
 
 services:
   dnsd:
-    <<: *rust-build
+    build:
+      <<: *rust-build
+      dockerfile: docker/Dockerfile.dnsd
     image: fleetingdns/dnsd:dev
     command: ["/app/dnsd-bin", "--addr", "0.0.0.0:53"]
     ports: ["5353:53/udp"]
     depends_on: [otel-collector]
 
   edgehub:
-    <<: *rust-build
+    build:
+      <<: *rust-build
+      dockerfile: docker/Dockerfile.edgehub
     image: fleetingdns/edgehub:dev
     command: ["/app/edgehub-bin"]
     ports: ["2222:2222"]
     depends_on: [dnsd, otel-collector]
 
   intake_collector:
-    <<: *rust-build
+    build:
+      <<: *rust-build
+      dockerfile: docker/Dockerfile.intake_collector
     image: fleetingdns/intake_collector:dev
     command: ["/app/intake_collector-bin"]
     depends_on: [otel-collector]
 
   ml_scorer:
-    <<: *rust-build
+    build:
+      <<: *rust-build
+      dockerfile: docker/Dockerfile.ml_scorer
     image: fleetingdns/ml_scorer:dev
     command: ["/app/ml_scorer-bin"]
     depends_on: [otel-collector]
 
   feed_grpc:
-    <<: *rust-build
+    build:
+      <<: *rust-build
+      dockerfile: docker/Dockerfile.feed_grpc
     image: fleetingdns/feed_grpc:dev
     command: ["/app/feed_grpc-bin"]
     depends_on: [otel-collector]
 
   feed_webhook:
-    <<: *rust-build
+    build:
+      <<: *rust-build
+      dockerfile: docker/Dockerfile.feed_webhook
     image: fleetingdns/feed_webhook:dev
     command: ["/app/feed_webhook-bin"]
     depends_on: [otel-collector]
 
   api:
-    <<: *rust-build
+    build:
+      <<: *rust-build
+      dockerfile: docker/Dockerfile.api
     image: fleetingdns/api:dev
     command: ["/app/api-bin"]
     depends_on: [postgres, redis, otel-collector]
