@@ -2,7 +2,7 @@ version: "3.9"
 
 x-rust-build: &rust-build
   build:
-    context: ..
+    context: .
     dockerfile: docker/Dockerfile
     target: runtime
 
@@ -66,12 +66,12 @@ services:
   mimir:
     image: grafana/mimir:2.10.2
     command: ["-config.file=/etc/mimir.yaml"]
-    volumes: ["./mimir-local.yaml:/etc/mimir.yaml:ro"]
+    volumes: ["./docker/mimir-local.yaml:/etc/mimir.yaml:ro"]
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.93.0
     volumes:
-      - ./otel-collector-config.yaml:/etc/otel/config.yaml:ro
+      - ./docker/otel-collector-config.yaml:/etc/otel/config.yaml:ro
     command: ["--config=/etc/otel/config.yaml"]
     ports:
       - "4317:4317"
@@ -80,7 +80,7 @@ services:
   prometheus:
     image: prom/prometheus:v2.52.0
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--enable-feature=memory-snapshot-on-shutdown"
@@ -90,22 +90,22 @@ services:
     image: grafana/loki:2.9.3
     command: ["-config.file=/etc/loki-config.yaml"]
     volumes:
-      - ./loki-config.yaml:/etc/loki-config.yaml:ro
+      - ./docker/loki-config.yaml:/etc/loki-config.yaml:ro
     ports: ["3100:3100"]
 
   promtail:
     image: grafana/promtail:2.9.3
     command: ["-config.file=/etc/promtail-config.yaml"]
     volumes:
-      - ./promtail-config.yaml:/etc/promtail-config.yaml:ro
+      - ./docker/promtail-config.yaml:/etc/promtail-config.yaml:ro
       - /var/log:/var/log:ro
 
   grafana:
     image: grafana/grafana:10.3.1
     volumes:
-      - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./docker/grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
     environment:
       - GF_SERVER_HTTP_PORT=3000
     ports: ["3000:3000"]

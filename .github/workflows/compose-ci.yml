@@ -12,7 +12,7 @@ jobs:
       - name: Install tools
         run: sudo apt-get update && sudo apt-get install -y dnsutils jq
       - name: Launch compose stack
-        run: docker compose -f docker/docker-compose.yml -f docker/docker-compose.ci.yml up -d --build
+        run: docker compose -f docker-compose.yml -f docker/docker-compose.ci.yml up -d --build
       - name: Wait for services
         run: |
           for i in {1..10}; do
@@ -35,4 +35,4 @@ jobs:
         run: bash scripts/roundtrip_demo.sh
       - name: Teardown
         if: always()
-        run: docker compose -f docker/docker-compose.yml -f docker/docker-compose.ci.yml down
+        run: docker compose -f docker-compose.yml -f docker/docker-compose.ci.yml down
