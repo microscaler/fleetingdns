@@ -16,6 +16,9 @@ cd docker
 docker compose up -d --build
 ```
 
+Alternatively run `bash scripts/compose_start.sh` from the repository root to
+pull the latest images and start the stack.
+
 The first run downloads images and compiles the Rust binaries, so it may take a few minutes.
 
 ## Access Grafana
