@@ -2,4 +2,4 @@
 
 | # | Title | Path / crate | Detailed description & acceptance criteria |
 |---|-------|--------------|--------------------------------------------|
-| **T-01** | CI job: build & smoke-test | `.github/workflows/rust_ci.yml` | *Desc* Matrix: stable + nightly.<br>Steps:<br>1. `cargo fmt -- --check`<br>2. `cargo clippy --all -- -D warnings`<br>3. `cargo test --workspace`<br>4. Spin up dnsd in background, run `dig` smoke test.<br><br>*AC* PR passes first run. |
+| - [x] **T-01** | CI job: build & smoke-test | `.github/workflows/rust_ci.yml` | *Desc* Matrix: stable + nightly.<br>Steps:<br>1. `cargo fmt -- --check`<br>2. `cargo clippy --all -- -D warnings`<br>3. `cargo test --workspace`<br>4. Spin up dnsd in background, run `dig` smoke test.<br><br>*AC* PR passes first run. |
