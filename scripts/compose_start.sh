@@ -4,7 +4,7 @@
 # Usage: bash scripts/compose_start.sh
 #
 # This script pulls the latest images and starts the compose stack in the
-# background. Run from the repository root.
+# background. Run from the repository root. It relies on `./docker-compose.yml`.
 
 
 set -euo pipefail
