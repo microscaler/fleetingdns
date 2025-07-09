@@ -6,9 +6,8 @@
 # This script pulls the latest images and starts the compose stack in the
 # background. Run from the repository root.
 
-set -euo pipefail
 
-cd docker
+set -euo pipefail
 
 docker compose pull
 

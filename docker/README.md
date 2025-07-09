@@ -11,7 +11,6 @@ Quick start instructions for running the prototype compose setup.
 Run the following from the repository root:
 
 ```bash
-cd docker
 # build images and start in the background
 docker compose up -d --build
 ```
