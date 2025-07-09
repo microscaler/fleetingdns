@@ -17,8 +17,9 @@ Each service builds from its own Dockerfile located in `docker/`:
 docker compose up -d --build
 ```
 
-Alternatively run `bash scripts/compose_start.sh` from the repository root to
-pull the latest images and start the stack.
+Alternatively run `bash scripts/compose_start.sh` from anywhere. The script
+automatically changes to the repository root, pulls the latest images and
+starts the stack.
 
 The first run downloads images and compiles the Rust binaries, so it may take a few minutes.
 
@@ -40,8 +41,8 @@ docker compose logs -f dnsd
 Stop everything with `docker compose down`.
 
 ## Demo: register a slot
-Once the stack is running, execute `scripts/roundtrip_demo.sh`.
-This script:
+Run `scripts/roundtrip_demo.sh` to demonstrate a full request round-trip. The
+script ensures the Docker Compose stack is up and then:
 1. Inserts a demo record in Redis.
 2. Waits for `dnsd` to resolve `demo.fdns.run`.
 3. Verifies the `edgehub` TLS listener.

@@ -4,6 +4,12 @@ set -euo pipefail
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$REPO_ROOT"
 
+# Ensure the compose stack is running
+if ! docker compose ps -q dnsd >/dev/null 2>&1; then
+    echo "Docker compose stack not detected, starting..."
+    bash "$REPO_ROOT/scripts/compose_start.sh"
+fi
+
 # Register demo slot in Redis
 cargo run -p slot-setter demo 127.0.0.1 --ttl 60
 
