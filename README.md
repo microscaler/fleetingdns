@@ -352,7 +352,7 @@ This stores the IP `1.2.3.4` under the key `demo` with a 10 minute expiry.
 Run the TLS-wrapped SSH listener:
 
 ```bash
-cargo run -p edgehubctl
+cargo run -p edgehub-bin
 ```
 
 The service binds to `0.0.0.0:2222` by default and logs `edgehub listening` on startup.

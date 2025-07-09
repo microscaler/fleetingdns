@@ -1,5 +1,5 @@
 [package]
-name = "grpcfeedctl"
+name = "feed_grpc-bin"
 description = "Command line tool for managing grpc feed"
 version = "0.1.0"
 edition = "2024"

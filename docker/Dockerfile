@@ -20,7 +20,7 @@ FROM debian:bookworm-slim AS runtime
 RUN groupadd -r app && useradd --no-log-init -r -g app app
 WORKDIR /app
 COPY --from=builder /usr/src/app/target/release/dnsd-bin /app/
-COPY --from=builder /usr/src/app/target/release/edgehubctl /app/
+COPY --from=builder /usr/src/app/target/release/edgehub-bin /app/
 COPY --from=builder /usr/src/app/target/release/slot-setter /app/
 USER app
 ENTRYPOINT ["/app/dnsd-bin"]
