@@ -218,7 +218,7 @@ datasources:
 
 ---
 
-> **CI variant** – GitHub Actions can mount `.docker/otel-collector-config.ci.yaml` (smaller pipeline) by overriding compose file: `docker compose -f docker/docker-compose.yml -f docker/docker-compose.ci.yml up -d --build`. Create the `.ci.yml` overlay later.
+> **CI variant** – GitHub Actions can mount `docker/otel-collector-config.ci.yaml` (smaller pipeline) by overriding compose file: `docker compose -f docker/docker-compose.yml -f docker/docker-compose.ci.yml up -d --build`. Create the `.ci.yml` overlay later.
 
 🎉  Commit this folder, then run:
 
