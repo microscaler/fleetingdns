@@ -94,6 +94,16 @@ mod dot {
     use tokio_rustls::TlsAcceptor;
     use tracing::info;
 
+    /// Run the DNS-over-TLS server.
+    ///
+    /// Binds a TLS listener on the provided address and accepts connections
+    /// using the given [`ServerConfig`]. Each connection expects a 16-bit
+    /// length-prefixed DNS message. Queries are processed by [`udp::handle_packet`] and
+    /// the encoded response is written back to the client.
+    ///
+    /// The server runs indefinitely until the task is cancelled. Errors are
+    /// returned if binding the listener or accepting connections fails.
+    /// Returns `Ok(())` when the server shuts down gracefully.
     pub async fn serve(addr: std::net::SocketAddr, cfg: ServerConfig) -> AppResult<()> {
         let listener = TcpListener::bind(addr).await?;
         info!(addr=%listener.local_addr()?, "dot listening");
