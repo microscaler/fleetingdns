@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: fleetingdns
+  labels:
+    app: api
+    component: core
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+        component: core
+    spec:
+      containers:
+        - name: api
+          image: fleetingdns/api:dev
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+              name: http
+            - containerPort: 8081
+              protocol: TCP
+              name: metrics
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://fdns:fdns@postgres:5432/fdns"
+            - name: REDIS_URL
+              value: "redis://redis:6379"
+            - name: RUST_LOG
+              value: "info"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
+            - name: OTEL_SERVICE_NAME
+              value: "api"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5 

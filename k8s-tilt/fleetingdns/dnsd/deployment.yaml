@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dnsd
+  namespace: fleetingdns
+  labels:
+    app: dnsd
+    component: core
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dnsd
+  template:
+    metadata:
+      labels:
+        app: dnsd
+        component: core
+    spec:
+      containers:
+        - name: dnsd
+          image: fleetingdns/dnsd:dev
+          ports:
+            - containerPort: 53
+              protocol: UDP
+              name: dns-udp
+            - containerPort: 8080
+              protocol: TCP
+              name: metrics
+          args:
+            - "--addr"
+            - "0.0.0.0:53"
+          env:
+            - name: REDIS_URL
+              value: "redis://redis:6379"
+            - name: RUST_LOG
+              value: "info"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
+            - name: OTEL_SERVICE_NAME
+              value: "dnsd"
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5 
