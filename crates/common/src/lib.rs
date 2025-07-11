@@ -1,4 +1,4 @@
-//! Common utilities shared across FleetingDNS crates.
+//! Common utilities shared across `FleetingDNS` crates.
 //!
 //! Provides application-wide tracing initialization, a basic error type,
 //! and re-exports of helpful metrics macros.
@@ -7,6 +7,7 @@ use tracing_subscriber::{EnvFilter, fmt};
 
 pub use metrics::{counter, gauge, histogram};
 
+pub mod shutdown;
 pub mod tls;
 
 use thiserror::Error;
@@ -20,6 +21,10 @@ pub enum AppError {
     /// Wrapper around [`std::io::Error`].
     #[error(transparent)]
     Io(#[from] std::io::Error),
+
+    /// Wrapper around [`serde_json::Error`].
+    #[error(transparent)]
+    SerdeJson(#[from] serde_json::Error),
 
     /// Generic error with custom message.
     #[error("{0}")]

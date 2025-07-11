@@ -1,8 +1,9 @@
 use clap::Parser;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use tracing::info;
 
-use common::{AppResult, init_tracing, tls};
+use common::{AppResult, init_tracing, shutdown::GracefulShutdown, tls};
 use edgehub::{self, Config};
 
 /// EdgeHub command line arguments.
@@ -14,21 +15,60 @@ struct Args {
     /// Redis connection URL.
     #[arg(long, default_value = "redis://127.0.0.1:6379")]
     redis: String,
+    /// Path to control socket for graceful shutdown
+    #[arg(long)]
+    control_socket: Option<PathBuf>,
+    /// Timeout for graceful shutdown in seconds
+    #[arg(long, default_value = "30")]
+    shutdown_timeout: u64,
 }
 
 async fn run(args: Args) -> AppResult<()> {
     init_tracing();
-    info!(addr=%args.addr, "edgehub listening");
+
+    // Initialize graceful shutdown framework
+    let mut shutdown = if let Some(socket_path) = args.control_socket {
+        let config = common::shutdown::ShutdownConfig {
+            control_socket_path: socket_path,
+            component_name: "edgehub".to_string(),
+            graceful_timeout: std::time::Duration::from_secs(args.shutdown_timeout),
+            ..Default::default()
+        };
+        GracefulShutdown::with_config(config)?
+    } else {
+        GracefulShutdown::new("edgehub")?
+    };
+
+    // Start shutdown framework
+    shutdown.start().await?;
+
+    info!(
+        addr = %args.addr,
+        control_socket = %shutdown.config.control_socket_path.display(),
+        "edgehub starting with graceful shutdown support"
+    );
+
     let (tls_config, _) = tls::generate_tls_config(&["ssh"])?;
     let pool = edgehub::redis::new_pool(&args.redis)
         .await
         .map_err(|e| common::AppError::Message(e.to_string()))?;
-    edgehub::serve(Config {
-        addr: args.addr,
-        tls_config,
-        redis_pool: pool,
-    })
-    .await
+
+    // Start EdgeHub server with shutdown signal
+    let shutdown_rx = shutdown.subscribe();
+    let serve_result = edgehub::serve_with_shutdown(
+        Config {
+            addr: args.addr,
+            tls_config,
+            redis_pool: pool,
+        },
+        shutdown_rx,
+    )
+    .await;
+
+    // Wait for graceful shutdown to complete
+    shutdown.wait_for_shutdown().await?;
+
+    serve_result
 }
 
 #[tokio::main]

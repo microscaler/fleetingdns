@@ -1,8 +1,10 @@
 use std::net::SocketAddr;
 
 use common::AppResult;
+use common::shutdown::ShutdownSignal;
 #[cfg(feature = "dot")]
 use rustls::ServerConfig;
+use tokio::sync::broadcast;
 
 pub mod redis_cache;
 pub mod sign;
@@ -49,6 +51,66 @@ pub async fn serve(cfg: Config) -> AppResult<()> {
             let _ = socket.send_to(&resp, peer).await?;
         }
     }
+}
+
+/// Run the DNS server with graceful shutdown support.
+///
+/// This version accepts a shutdown signal receiver and will gracefully
+/// shutdown when a signal is received.
+#[instrument]
+pub async fn serve_with_shutdown(
+    cfg: Config,
+    mut shutdown_rx: broadcast::Receiver<ShutdownSignal>,
+) -> AppResult<()> {
+    let pool = cfg.redis_pool.clone();
+
+    // Start DoT server with shutdown support
+    #[cfg(feature = "dot")]
+    let dot_handle = tokio::spawn(dot::serve_with_shutdown(
+        cfg.dot_addr,
+        cfg.tls_config.clone(),
+        pool.clone(),
+        shutdown_rx.resubscribe(),
+    ));
+
+    let socket = UdpSocket::bind(cfg.addr).await?;
+    info!(addr = %socket.local_addr()?, "DNS server listening with graceful shutdown support");
+
+    let mut buf = [0u8; 512];
+    loop {
+        tokio::select! {
+            // Handle DNS requests
+            result = socket.recv_from(&mut buf) => {
+                match result {
+                    Ok((len, peer)) => {
+                        info!("received {} bytes", len);
+                        if let Ok(resp) = udp::handle_packet(&buf[..len], &pool).await {
+                            let _ = socket.send_to(&resp, peer).await;
+                        }
+                    }
+                    Err(e) => {
+                        tracing::error!("UDP socket error: {}", e);
+                        break;
+                    }
+                }
+            }
+            // Handle shutdown signal
+            _ = shutdown_rx.recv() => {
+                info!("DNS server received shutdown signal, stopping");
+                break;
+            }
+        }
+    }
+
+    // Cleanup: DoT server will shutdown via its own signal
+    #[cfg(feature = "dot")]
+    {
+        dot_handle.abort();
+        let _ = dot_handle.await;
+    }
+
+    info!("DNS server shutdown complete");
+    Ok(())
 }
 
 #[cfg(test)]
@@ -173,5 +235,71 @@ mod dot {
                 let _ = peer;
             });
         }
+    }
+
+    /// Run the DNS-over-TLS server with graceful shutdown support.
+    pub async fn serve_with_shutdown(
+        addr: std::net::SocketAddr,
+        cfg: ServerConfig,
+        pool: redis_cache::RedisPool,
+        mut shutdown_rx: super::broadcast::Receiver<super::ShutdownSignal>,
+    ) -> AppResult<()> {
+        let listener = TcpListener::bind(addr).await?;
+        info!(addr=%listener.local_addr()?, "DoT server listening with graceful shutdown support");
+        let acceptor = TlsAcceptor::from(Arc::new(cfg));
+
+        loop {
+            tokio::select! {
+                // Handle new connections
+                result = listener.accept() => {
+                    match result {
+                        Ok((stream, peer)) => {
+                            let acceptor = acceptor.clone();
+                            let pool = pool.clone();
+                            tokio::spawn(async move {
+                                if let Ok(mut tls) = acceptor.accept(stream).await {
+                                    let mut len_buf = [0u8; 2];
+                                    loop {
+                                        if tls.read_exact(&mut len_buf).await.is_err() {
+                                            break;
+                                        }
+                                        let len = u16::from_be_bytes(len_buf) as usize;
+                                        let mut buf = vec![0u8; len];
+                                        if tls.read_exact(&mut buf).await.is_err() {
+                                            break;
+                                        }
+                                        if let Ok(resp) = super::udp::handle_packet(&buf, &pool).await {
+                                            let resp_len = (resp.len() as u16).to_be_bytes();
+                                            if tls.write_all(&resp_len).await.is_err() {
+                                                break;
+                                            }
+                                            if tls.write_all(&resp).await.is_err() {
+                                                break;
+                                            }
+                                        } else {
+                                            break;
+                                        }
+                                    }
+                                    let _ = tls.shutdown().await;
+                                }
+                                let _ = peer;
+                            });
+                        }
+                        Err(e) => {
+                            tracing::error!("DoT accept error: {}", e);
+                            break;
+                        }
+                    }
+                }
+                // Handle shutdown signal
+                _ = shutdown_rx.recv() => {
+                    info!("DoT server received shutdown signal, stopping");
+                    break;
+                }
+            }
+        }
+
+        info!("DoT server shutdown complete");
+        Ok(())
     }
 }

@@ -13,7 +13,11 @@ rand = { workspace = true }
 dnsd = { path = "../dnsd" }
 redis = { workspace = true }
 
+[features]
+e2e = []
+
 [dev-dependencies]
 tracing-test = "0.2"
 rustls-pemfile = { workspace = true }
 mini-redis = "0.4"
+hickory-resolver = "0.24"

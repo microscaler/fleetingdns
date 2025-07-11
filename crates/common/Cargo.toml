@@ -10,6 +10,11 @@ thiserror = { workspace = true }
 metrics = { workspace = true }
 rustls = "0.23"
 rcgen = "0.14"
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+libc = "0.2"
 
 [dev-dependencies]
 tracing-test = "0.2"
