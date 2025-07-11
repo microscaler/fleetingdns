@@ -469,9 +469,7 @@ pub fn get_default_socket_path(component: &str) -> PathBuf {
 
         // Fallback to a user-writable location
         if let Ok(home) = std::env::var("HOME") {
-            return PathBuf::from(format!(
-                "{home}/.local/run/fleetingdns/{component}.sock"
-            ));
+            return PathBuf::from(format!("{home}/.local/run/fleetingdns/{component}.sock"));
         }
     }
 
