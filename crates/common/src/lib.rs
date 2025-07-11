@@ -8,6 +8,7 @@ use tracing_subscriber::{EnvFilter, fmt};
 pub use metrics::{counter, gauge, histogram};
 
 pub mod tls;
+pub mod shutdown;
 
 use thiserror::Error;
 
@@ -20,6 +21,10 @@ pub enum AppError {
     /// Wrapper around [`std::io::Error`].
     #[error(transparent)]
     Io(#[from] std::io::Error),
+
+    /// Wrapper around [`serde_json::Error`].
+    #[error(transparent)]
+    SerdeJson(#[from] serde_json::Error),
 
     /// Generic error with custom message.
     #[error("{0}")]

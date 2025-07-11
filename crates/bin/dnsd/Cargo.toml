@@ -1,7 +1,11 @@
 [package]
-name = "dnsd-bin"
+name = "dnsd-bin-configurable"
 version = "0.1.0"
 edition = "2024"
+
+[[bin]]
+name = "dnsd-bin-configurable"
+path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
@@ -9,6 +13,10 @@ common = { path = "../../common" }
 dnsd = { path = "../../dnsd" }
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
+
+[dev-dependencies]
+tracing-test = "0.2"
+mini-redis = "0.4"
 
 [features]
 dot = ["dnsd/dot"]

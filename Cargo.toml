@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/*",
     "crates/bin/slot-setter",
+    "crates/bin/dnsd",
     "cmd/*"
 ]
 exclude = [
@@ -16,6 +17,7 @@ thiserror = "1"
 metrics = "0.21"
 metrics-exporter-prometheus = "0.12"
 tokio = { version = "1", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
 bb8 = "0.9"
 redis = { version = "0.32", default-features = false, features = ["tokio-comp"] }
 rustls = "0.23"
