@@ -1,9 +1,0 @@
-# Autopilot workload cluster in europe-west1
-# Should: Crossplane XR to create gke autopilot cluster for eu region
-apiVersion: container.gcp.crossplane.io/v1beta2
-kind: GKECluster
-metadata:
-  name: workload-eu
-spec:
-  location: europe-west1
-  autopilot: true
