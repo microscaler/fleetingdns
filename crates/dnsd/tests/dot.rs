@@ -1,16 +1,46 @@
 #![cfg(feature = "dot")]
 
-use std::net::{TcpListener, UdpSocket as StdUdpSocket};
+use std::net::{Ipv4Addr, TcpListener, UdpSocket as StdUdpSocket};
 use std::process::Stdio;
 use tokio::process::Command;
 use tokio::time::{Duration, sleep};
 
 use common::tls;
-use dnsd::{Config, serve};
+use dnsd::{Config, redis_cache, serve};
+use mini_redis::server;
+use tokio::net::TcpListener as TokioTcpListener;
+use tokio::task::JoinHandle;
 
 #[cfg(feature = "dot")]
 #[tokio::test]
 async fn kdig_dot_returns_loopback() {
+    if std::env::var("RUN_REDIS_TESTS").is_err() {
+        eprintln!("skipping test: RUN_REDIS_TESTS not set");
+        return;
+    }
+    async fn start_redis() -> Option<(String, JoinHandle<mini_redis::Result<()>>)> {
+        let listener = TokioTcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let handle =
+            tokio::spawn(async move { server::run(listener, tokio::signal::ctrl_c()).await });
+        sleep(Duration::from_millis(50)).await;
+        let url = format!("redis://{addr}/");
+        if redis_cache::new_pool(&url).await.is_err() {
+            handle.abort();
+            return None;
+        }
+        Some((url, handle))
+    }
+
+    let Some((redis_url, redis_handle)) = start_redis().await else {
+        eprintln!("skipping test: redis not available");
+        return;
+    };
+    let pool = redis_cache::new_pool(&redis_url).await.unwrap();
+    redis_cache::set_slot(&pool, "demo", Ipv4Addr::new(1, 2, 3, 4), 60)
+        .await
+        .unwrap();
+
     let udp_sock = StdUdpSocket::bind("127.0.0.1:0").unwrap();
     let udp_addr = udp_sock.local_addr().unwrap();
     drop(udp_sock);
@@ -25,6 +55,7 @@ async fn kdig_dot_returns_loopback() {
 
     let cfg = Config {
         addr: udp_addr,
+        redis_pool: pool.clone(),
         dot_addr,
         tls_config,
     };
@@ -46,6 +77,7 @@ async fn kdig_dot_returns_loopback() {
         .expect("kdig executed");
 
     handle.abort();
+    redis_handle.abort();
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("127.0.0.1"));
+    assert!(stdout.contains("1.2.3.4"));
 }
