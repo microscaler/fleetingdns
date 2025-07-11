@@ -480,7 +480,6 @@ pub fn get_default_socket_path(component: &str) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
 
     #[tokio::test]
     async fn test_shutdown_framework_creation() {
