@@ -473,7 +473,7 @@ pub fn get_default_socket_path(component: &str) -> PathBuf {
     if is_root {
         // System service mode
         #[cfg(target_os = "linux")]
-        return PathBuf::from(format!("/run/fleetingdns/{}.sock", component));
+        return PathBuf::from(format!("/run/fleetingdns/{component}.sock"));
 
         #[cfg(target_os = "macos")]
         return PathBuf::from(format!("/var/run/fleetingdns/{component}.sock"));
@@ -483,7 +483,7 @@ pub fn get_default_socket_path(component: &str) -> PathBuf {
     #[cfg(target_os = "linux")]
     {
         if let Ok(xdg_runtime) = std::env::var("XDG_RUNTIME_DIR") {
-            return PathBuf::from(format!("{}/fleetingdns/{}.sock", xdg_runtime, component));
+            return PathBuf::from(format!("{xdg_runtime}/fleetingdns/{component}.sock"));
         }
     }
 
