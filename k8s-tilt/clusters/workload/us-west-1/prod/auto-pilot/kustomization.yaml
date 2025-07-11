@@ -3,7 +3,9 @@ kind: Kustomization
 
 # Reference the base kustomization
 resources:
-  - ../../base/
+  # Flux kustomization, this is the only location where flux must be installed into a cluster.
+  - flux/
+  - ../../../../../base/
 
 patches:
   # Infrastructure LoadBalancer patches for GKE

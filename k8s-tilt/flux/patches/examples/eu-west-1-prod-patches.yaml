@@ -1,0 +1,65 @@
+# Example patches for eu-west-1 production cluster
+# Apply these patches to customize Flux sync for EU production
+
+# Patch GitRepository for production
+- target:
+    kind: GitRepository
+    name: fleetingdns
+  patch: |-
+    - op: replace
+      path: /spec/ref/branch
+      value: main
+    - op: replace
+      path: /spec/url
+      value: https://github.com/microscaler/fleetingdns
+    - op: replace
+      path: /spec/interval
+      value: 5m0s
+    - op: replace
+      path: /spec/secretRef/name
+      value: flux-system-eu-west-1
+
+# Patch infrastructure GitRepository for production
+- target:
+    kind: GitRepository
+    name: fleetingdns-infra
+  patch: |-
+    - op: replace
+      path: /spec/ref/branch
+      value: main
+    - op: replace
+      path: /spec/secretRef/name
+      value: flux-system-eu-west-1
+
+# Patch workload Kustomization for EU West 1 production
+- target:
+    kind: Kustomization
+    name: fleetingdns-workload
+  patch: |-
+    - op: replace
+      path: /spec/path
+      value: "./k8s-tilt/clusters/workload/eu-west-1/prod/auto-pilot"
+    - op: replace
+      path: /spec/postBuild/substitute/cluster_name
+      value: "fleetingdns-eu-west-1-prod"
+    - op: replace
+      path: /spec/postBuild/substitute/region
+      value: "eu-west-1"
+    - op: replace
+      path: /spec/postBuild/substitute/environment
+      value: "production"
+
+# Patch infrastructure Kustomization for EU West 1 production
+- target:
+    kind: Kustomization
+    name: fleetingdns-infra
+  patch: |-
+    - op: replace
+      path: /spec/postBuild/substitute/cluster_name
+      value: "fleetingdns-eu-west-1-prod"
+    - op: replace
+      path: /spec/postBuild/substitute/region
+      value: "eu-west-1"
+    - op: replace
+      path: /spec/postBuild/substitute/project_id
+      value: "fleetingdns-prod-eu-west-1" 

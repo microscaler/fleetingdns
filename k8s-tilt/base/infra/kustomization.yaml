@@ -15,7 +15,3 @@ resources:
   - ../components/mimir/
   - ../components/grafana/
   
-  # FleetingDNS services
-  - ../fleetingdns/dnsd/
-  - ../fleetingdns/edgehub/
-  - ../fleetingdns/api/ 

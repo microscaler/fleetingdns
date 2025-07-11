@@ -3,7 +3,9 @@ kind: Kustomization
 
 # Reference the base kustomization
 resources:
-  - ../../base/
+  # NOTE: alocal uses Tilt for deployment, NOT Flux!
+  # Flux is only installed in production/staging clusters via GitOps
+  - ../../../base/
 
 patches:
   # Infrastructure NodePort patches for Kind

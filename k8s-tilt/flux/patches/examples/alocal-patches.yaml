@@ -1,0 +1,47 @@
+# Example patches for alocal (local development) cluster
+# Apply these patches to customize Flux sync for local development
+
+# Patch GitRepository for local development
+- target:
+    kind: GitRepository
+    name: fleetingdns
+  patch: |-
+    - op: replace
+      path: /spec/ref/branch
+      value: dev
+    - op: replace
+      path: /spec/url
+      value: https://github.com/microscaler/fleetingdns
+    - op: replace
+      path: /spec/interval
+      value: 30s
+
+# Patch workload Kustomization for local cluster
+- target:
+    kind: Kustomization
+    name: fleetingdns-workload
+  patch: |-
+    - op: replace
+      path: /spec/path
+      value: "./k8s-tilt/clusters/workload/alocal"
+    - op: replace
+      path: /spec/postBuild/substitute/cluster_name
+      value: "alocal"
+    - op: replace
+      path: /spec/postBuild/substitute/region
+      value: "local"
+    - op: replace
+      path: /spec/postBuild/substitute/environment
+      value: "development"
+    - op: replace
+      path: /spec/interval
+      value: 5m0s
+
+# Disable infrastructure sync for local development
+- target:
+    kind: Kustomization
+    name: fleetingdns-infra
+  patch: |-
+    - op: replace
+      path: /spec/suspend
+      value: true 

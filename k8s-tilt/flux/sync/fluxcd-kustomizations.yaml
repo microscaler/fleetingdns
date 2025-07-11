@@ -1,0 +1,77 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: fleetingdns-workload
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/name: fleetingdns-workload
+    app.kubernetes.io/component: gitops
+    app.kubernetes.io/part-of: flux-system
+spec:
+  interval: 10m0s
+  timeout: 5m0s
+  retryInterval: 2m0s
+  sourceRef:
+    kind: GitRepository
+    name: fleetingdns
+  path: "./k8s-tilt/clusters/workload/CLUSTER_PATH"  # PATCH: Override per cluster
+  prune: true
+  wait: true
+  suspend: false  # PATCH: Override to true for disabled environments
+  dependsOn:
+    - name: fleetingdns-infra
+  postBuild:
+    substitute:
+      cluster_name: "CLUSTER_NAME"  # PATCH: Override per cluster
+      region: "REGION"              # PATCH: Override per region
+      environment: "ENVIRONMENT"    # PATCH: Override per environment
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: fleetingdns-infra
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/name: fleetingdns-infra
+    app.kubernetes.io/component: gitops-infra
+    app.kubernetes.io/part-of: flux-system
+spec:
+  interval: 10m0s
+  timeout: 10m0s
+  retryInterval: 2m0s
+  sourceRef:
+    kind: GitRepository
+    name: fleetingdns-infra
+  path: "./k8s-tilt/crossplane"  # PATCH: Override for infra-specific paths
+  prune: true
+  wait: true
+  suspend: false  # PATCH: Override to true for disabled environments
+  postBuild:
+    substitute:
+      cluster_name: "CLUSTER_NAME"  # PATCH: Override per cluster
+      region: "REGION"              # PATCH: Override per region
+      project_id: "PROJECT_ID"      # PATCH: Override per GCP project
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: fleetingdns-base
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/name: fleetingdns-base
+    app.kubernetes.io/component: gitops-base
+    app.kubernetes.io/part-of: flux-system
+spec:
+  interval: 5m0s
+  timeout: 3m0s
+  retryInterval: 1m0s
+  sourceRef:
+    kind: GitRepository
+    name: fleetingdns
+  path: "./k8s-tilt/base"
+  prune: true
+  wait: true
+  suspend: false
+  postBuild:
+    substitute:
+      namespace: "fleetingdns"  # PATCH: Override per environment if needed 
