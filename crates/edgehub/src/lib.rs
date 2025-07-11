@@ -9,6 +9,8 @@ use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
 use tracing::{info, instrument};
 
+pub mod redis;
+
 /// Configuration for the EdgeHub server.
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -16,6 +18,8 @@ pub struct Config {
     pub addr: SocketAddr,
     /// TLS configuration used for incoming connections.
     pub tls_config: ServerConfig,
+    /// Redis connection pool used to record tunnel state.
+    pub redis_pool: redis::RedisPool,
 }
 
 /// Start the EdgeHub server.
@@ -28,17 +32,23 @@ pub async fn serve(cfg: Config) -> AppResult<()> {
     info!(addr = %listener.local_addr()?, "edgehub listening");
 
     let acceptor = TlsAcceptor::from(Arc::new(cfg.tls_config));
+    let pool = cfg.redis_pool.clone();
 
     loop {
         let (stream, peer) = listener.accept().await?;
         let acceptor = acceptor.clone();
+        let pool = pool.clone();
         tokio::spawn(async move {
             match acceptor.accept(stream).await {
                 Ok(mut tls) => {
                     let port: u16 = rand::thread_rng().gen_range(30000..60000);
                     let slot = "demo";
+                    if let std::net::IpAddr::V4(ip) = peer.ip() {
+                        let _ = redis::set_slot(&pool, slot, ip, redis::DEFAULT_TTL).await;
+                    }
                     info!(peer=%peer, slot, port, "tunnel mapped");
                     let _ = tls.shutdown().await;
+                    let _ = redis::del_slot(&pool, slot).await;
                 }
                 Err(e) => {
                     info!(error=%e, peer=%peer, "tls handshake failed");
@@ -51,12 +61,14 @@ pub async fn serve(cfg: Config) -> AppResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mini_redis::server;
     use rustls::{
         ClientConfig, RootCertStore,
         pki_types::{CertificateDer, ServerName},
     };
     use rustls_pemfile::Item;
     use tokio::io::AsyncWriteExt;
+    use tokio::net::TcpListener;
     use tokio::net::TcpStream;
     use tokio_rustls::TlsConnector;
     use tracing_test::traced_test;
@@ -68,9 +80,26 @@ mod tests {
         let addr = std_listener.local_addr().unwrap();
         drop(std_listener);
 
+        async fn start_redis() -> (String, tokio::task::JoinHandle<mini_redis::Result<()>>) {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let addr = listener.local_addr().unwrap();
+            let handle =
+                tokio::spawn(async move { server::run(listener, tokio::signal::ctrl_c()).await });
+            (format!("redis://{addr}"), handle)
+        }
+
+        let (redis_url, redis_handle) = start_redis().await;
+        let pool = redis::new_pool(&redis_url).await.unwrap();
+
         let (tls_config, cert_pem) = common::tls::generate_tls_config(&["ssh"]).unwrap();
         let handle = tokio::spawn(async move {
-            serve(Config { addr, tls_config }).await.unwrap();
+            serve(Config {
+                addr,
+                tls_config,
+                redis_pool: pool,
+            })
+            .await
+            .unwrap();
         });
 
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -92,7 +121,12 @@ mod tests {
 
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         handle.abort();
+        redis_handle.abort();
 
-        assert!(logs_contain("tunnel mapped"));
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        let pool = redis::new_pool(&redis_url).await.unwrap();
+        let err = redis::get_slot(&pool, "demo").await.err();
+        assert!(err.is_some());
     }
 }

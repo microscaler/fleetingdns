@@ -10,7 +10,10 @@ common = { path = "../common" }
 rustls = { workspace = true }
 tokio-rustls = { workspace = true }
 rand = { workspace = true }
+dnsd = { path = "../dnsd" }
+redis = { workspace = true }
 
 [dev-dependencies]
 tracing-test = "0.2"
 rustls-pemfile = { workspace = true }
+mini-redis = "0.4"

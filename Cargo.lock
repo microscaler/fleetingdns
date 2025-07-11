@@ -526,7 +526,10 @@ name = "edgehub"
 version = "0.1.0"
 dependencies = [
  "common",
+ "dnsd",
+ "mini-redis",
  "rand",
+ "redis",
  "rustls",
  "rustls-pemfile",
  "tokio",
