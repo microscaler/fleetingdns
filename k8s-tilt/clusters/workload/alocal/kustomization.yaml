@@ -8,6 +8,13 @@ resources:
   - ../../../base/
 
 patches:
+  # Remove Crossplane components (not needed for local development)
+  - path: patches/remove-crossplane.yaml
+  - path: patches/remove-crossplane-helmrelease.yaml
+  - path: patches/remove-crossplane-helmrepository.yaml
+  - path: patches/remove-crossplane-flux-healthchecks.yaml
+  - path: patches/remove-crossplane-flux-components.yaml
+
   # Infrastructure NodePort patches for Kind
   - path: patches/redis.patch.yaml
     target:

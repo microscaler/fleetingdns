@@ -1,0 +1,30 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: fleetingdns-workload-components
+  namespace: flux-system
+spec:
+  interval: 5m0s
+  path: "./k8s-tilt/base/workloads"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: fleetingdns
+  timeout: 15m0s
+  wait: true
+  dependsOn:
+    - name: fleetingdns-workload-namespaces
+    - name: fleetingdns-control-plane-components
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: dnsd
+      namespace: fleetingdns
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: edgehub
+      namespace: fleetingdns
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: api
+      namespace: fleetingdns 

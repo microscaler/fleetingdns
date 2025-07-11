@@ -1,0 +1,13 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: fleetingdns-namespaces
+  namespace: flux-system
+spec:
+  healthChecks:
+    - apiVersion: v1
+      kind: Namespace
+      name: external-secrets-system
+    - apiVersion: v1
+      kind: Namespace
+      name: external-dns 
