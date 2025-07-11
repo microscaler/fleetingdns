@@ -1,7 +1,7 @@
-//! Graceful shutdown framework for FleetingDNS daemon binaries.
+//! Graceful shutdown framework for `FleetingDNS` daemon binaries.
 //!
 //! Provides unified signal handling, Unix socket control interface, and
-//! resource cleanup coordination across all FleetingDNS services.
+//! resource cleanup coordination across all `FleetingDNS` services.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -109,6 +109,9 @@ pub struct GracefulShutdown {
 
 impl GracefulShutdown {
     /// Create a new graceful shutdown coordinator.
+    ///
+    /// # Errors
+    /// Returns an error if the shutdown coordinator cannot be initialized.
     pub fn new(component_name: &str) -> AppResult<Self> {
         let config = ShutdownConfig {
             control_socket_path: get_default_socket_path(component_name),
@@ -120,6 +123,9 @@ impl GracefulShutdown {
     }
 
     /// Create with custom configuration.
+    ///
+    /// # Errors
+    /// Returns an error if the shutdown coordinator cannot be initialized with the given config.
     pub fn with_config(config: ShutdownConfig) -> AppResult<Self> {
         let (shutdown_tx, _) = broadcast::channel(16);
 
@@ -134,6 +140,9 @@ impl GracefulShutdown {
     }
 
     /// Start the shutdown framework (signal handlers and control socket).
+    ///
+    /// # Errors
+    /// Returns an error if signal handlers or control socket cannot be started.
     pub async fn start(&mut self) -> AppResult<()> {
         info!(
             component = %self.config.component_name,
@@ -151,11 +160,16 @@ impl GracefulShutdown {
     }
 
     /// Subscribe to shutdown signals.
+    #[must_use]
     pub fn subscribe(&self) -> broadcast::Receiver<ShutdownSignal> {
         self.shutdown_tx.subscribe()
     }
 
     /// Get current shutdown state.
+    ///
+    /// # Panics
+    /// Panics if the state mutex is poisoned.
+    #[must_use]
     pub fn state(&self) -> ShutdownState {
         *self.state.lock().unwrap()
     }
@@ -171,11 +185,18 @@ impl GracefulShutdown {
     }
 
     /// Get current active connection count.
+    #[must_use]
     pub fn active_connections(&self) -> u64 {
         self.active_connections.load(Ordering::Relaxed)
     }
 
     /// Trigger shutdown with specified signal.
+    ///
+    /// # Errors
+    /// Returns an error if the shutdown process cannot be initiated.
+    ///
+    /// # Panics
+    /// Panics if the state mutex is poisoned.
     pub async fn shutdown(&self, signal: ShutdownSignal) -> AppResult<()> {
         info!(
             component = %self.config.component_name,
@@ -201,6 +222,12 @@ impl GracefulShutdown {
     }
 
     /// Wait for shutdown to complete with timeout.
+    ///
+    /// # Errors
+    /// Returns an error if the shutdown process encounters an issue.
+    ///
+    /// # Panics
+    /// Panics if the state mutex is poisoned.
     pub async fn wait_for_shutdown(&self) -> AppResult<()> {
         let timeout_duration = match self.state() {
             ShutdownState::Draining => self.config.graceful_timeout,
@@ -433,6 +460,7 @@ async fn handle_control_connection(
 }
 
 /// Get POSIX-compliant default socket path for component.
+#[must_use]
 pub fn get_default_socket_path(component: &str) -> PathBuf {
     // Check environment variable first
     if let Ok(path) = std::env::var("FLEETINGDNS_CONTROL_SOCKET") {
@@ -449,28 +477,28 @@ pub fn get_default_socket_path(component: &str) -> PathBuf {
 
         #[cfg(target_os = "macos")]
         return PathBuf::from(format!("/var/run/fleetingdns/{component}.sock"));
-    } else {
-        // User mode
-        #[cfg(target_os = "linux")]
-        {
-            if let Ok(xdg_runtime) = std::env::var("XDG_RUNTIME_DIR") {
-                return PathBuf::from(format!("{}/fleetingdns/{}.sock", xdg_runtime, component));
-            }
-        }
+    }
 
-        #[cfg(target_os = "macos")]
-        {
-            if let Ok(home) = std::env::var("HOME") {
-                return PathBuf::from(format!(
-                    "{home}/Library/Application Support/fleetingdns/{component}.sock"
-                ));
-            }
+    // User mode
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(xdg_runtime) = std::env::var("XDG_RUNTIME_DIR") {
+            return PathBuf::from(format!("{}/fleetingdns/{}.sock", xdg_runtime, component));
         }
+    }
 
-        // Fallback to a user-writable location
+    #[cfg(target_os = "macos")]
+    {
         if let Ok(home) = std::env::var("HOME") {
-            return PathBuf::from(format!("{home}/.local/run/fleetingdns/{component}.sock"));
+            return PathBuf::from(format!(
+                "{home}/Library/Application Support/fleetingdns/{component}.sock"
+            ));
         }
+    }
+
+    // Fallback to a user-writable location
+    if let Ok(home) = std::env::var("HOME") {
+        return PathBuf::from(format!("{home}/.local/run/fleetingdns/{component}.sock"));
     }
 
     // Last resort fallback (should never happen in practice)

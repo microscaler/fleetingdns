@@ -1,4 +1,4 @@
-//! Common utilities shared across FleetingDNS crates.
+//! Common utilities shared across `FleetingDNS` crates.
 //!
 //! Provides application-wide tracing initialization, a basic error type,
 //! and re-exports of helpful metrics macros.

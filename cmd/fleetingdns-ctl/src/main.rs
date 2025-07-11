@@ -1,6 +1,6 @@
-//! FleetingDNS Control CLI
+//! `FleetingDNS` Control CLI
 //!
-//! Command-line tool for controlling FleetingDNS daemon processes via Unix socket.
+//! Command-line tool for controlling `FleetingDNS` daemon processes via Unix socket.
 
 use std::path::PathBuf;
 use std::time::Duration;
