@@ -1,12 +1,5 @@
-use hickory_resolver::TokioAsyncResolver;
-use std::net::{Ipv4Addr, SocketAddr};
-use std::process::Stdio;
 use std::time::Duration;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::{TcpListener, TcpStream};
-use tokio::process::Command;
-use tokio::time::{sleep, timeout};
-use tracing::{info, warn};
+use tokio::time::timeout;
 use tracing_test::traced_test;
 
 #[cfg(feature = "e2e")]
