@@ -11,15 +11,22 @@ struct Args {
     /// Address to bind the TLS listener.
     #[arg(long, default_value = "0.0.0.0:2222")]
     addr: SocketAddr,
+    /// Redis connection URL.
+    #[arg(long, default_value = "redis://127.0.0.1:6379")]
+    redis: String,
 }
 
 async fn run(args: Args) -> AppResult<()> {
     init_tracing();
     info!(addr=%args.addr, "edgehub listening");
     let (tls_config, _) = tls::generate_tls_config(&["ssh"])?;
+    let pool = edgehub::redis::new_pool(&args.redis)
+        .await
+        .map_err(|e| common::AppError::Message(e.to_string()))?;
     edgehub::serve(Config {
         addr: args.addr,
         tls_config,
+        redis_pool: pool,
     })
     .await
 }
