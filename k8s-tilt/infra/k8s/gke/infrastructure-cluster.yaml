@@ -1,0 +1,167 @@
+# Infrastructure GKE Cluster (Control Plane)
+apiVersion: container.gcp.upbound.io/v1beta1
+kind: Cluster
+metadata:
+  name: fleetingdns-infra-cluster
+  labels:
+    app.kubernetes.io/name: fleetingdns-infra-cluster
+    app.kubernetes.io/component: k8s-cluster
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-infra-cluster
+    project: fleetingdns-infra
+    location: europe-west1-b  # Zonal cluster for cost optimization
+    description: "Infrastructure control plane cluster for FleetingDNS"
+    
+    # Network Configuration
+    network: "projects/fleetingdns-infra/global/networks/fleetingdns-infra-vpc"
+    subnetwork: "projects/fleetingdns-infra/regions/europe-west1/subnetworks/fleetingdns-infra-control-plane"
+    
+    # IP Allocation Policy for Pods and Services
+    ipAllocationPolicy:
+    - clusterSecondaryRangeName: pods
+      servicesSecondaryRangeName: services
+    
+    # Networking Mode
+    networkingMode: VPC_NATIVE
+    
+    # Private Cluster Configuration
+    privateClusterConfig:
+    - enablePrivateNodes: true
+      enablePrivateEndpoint: false  # Allow public API access for management
+      masterIpv4CidrBlock: "172.16.0.0/28"
+      masterAuthorizedNetworksConfig:
+      - enabled: true
+        cidrBlocks:
+        - cidrBlock: "0.0.0.0/0"  # Configure specific IPs in production
+          displayName: "Management Access"
+    
+    # Master Auth Configuration
+    masterAuth:
+    - clientCertificateConfig:
+      - issueClientCertificate: false
+    
+    # Workload Identity Configuration
+    workloadIdentityConfig:
+    - workloadPool: "fleetingdns-infra.svc.id.goog"
+    
+    # Add-ons Configuration
+    addonsConfig:
+    - httpLoadBalancing:
+      - disabled: false
+      horizontalPodAutoscaling:
+      - disabled: false
+      networkPolicyConfig:
+      - disabled: false
+      gcePersistentDiskCsiDriverConfig:
+      - enabled: true
+    
+    # Network Policy
+    networkPolicy:
+    - enabled: true
+      provider: CALICO
+    
+    # Binary Authorization
+    binaryAuthorization:
+    - evaluationMode: PROJECT_SINGLETON_POLICY_ENFORCE
+    
+    # Maintenance Policy
+    maintenancePolicy:
+    - dailyMaintenanceWindow:
+      - startTime: "03:00"  # 3 AM UTC
+    
+    # Cluster Features
+    enableShieldedNodes: true
+    enableLegacyAbac: false
+    
+    # Logging and Monitoring
+    loggingConfig:
+    - enableComponents:
+      - "SYSTEM_COMPONENTS"
+      - "WORKLOADS"
+      - "API_SERVER"
+    
+    monitoringConfig:
+    - enableComponents:
+      - "SYSTEM_COMPONENTS"
+      - "WORKLOADS"
+      - "APISERVER"
+      - "SCHEDULER"
+      - "CONTROLLER_MANAGER"
+    
+    # Resource Labels
+    resourceLabels:
+      environment: production
+      cluster-type: infrastructure
+      managed-by: crossplane
+      purpose: control-plane
+  
+  providerConfigRef:
+    name: default
+---
+# Node Pool for Infrastructure Cluster
+apiVersion: container.gcp.upbound.io/v1beta1
+kind: NodePool
+metadata:
+  name: fleetingdns-infra-default-pool
+  labels:
+    app.kubernetes.io/name: fleetingdns-infra-default-pool
+    app.kubernetes.io/component: k8s-nodepool
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: default-pool
+    project: fleetingdns-infra
+    location: europe-west1-b
+    cluster: fleetingdns-infra-cluster
+    
+    # Node Configuration
+    nodeConfig:
+    - machineType: e2-standard-4  # 4 vCPU, 16GB RAM
+      diskType: pd-ssd
+      diskSizeGb: 100
+      imageType: COS_CONTAINERD
+      
+      # Security Configuration
+      serviceAccount: "fleetingdns-infra@fleetingdns-infra.iam.gserviceaccount.com"
+      oauthScopes:
+      - "https://www.googleapis.com/auth/cloud-platform"
+      
+      # Shielded Instance Configuration
+      shieldedInstanceConfig:
+      - enableSecureBoot: true
+        enableIntegrityMonitoring: true
+      
+      # Workload Metadata Configuration
+      workloadMetadataConfig:
+      - mode: GKE_METADATA
+      
+      # Labels and Tags
+      labels:
+        environment: production
+        node-type: infrastructure
+        managed-by: crossplane
+      
+      tags:
+      - "fleetingdns-infra"
+      - "k8s-control-plane"
+    
+    # Autoscaling Configuration
+    autoscaling:
+    - minNodeCount: 1
+      maxNodeCount: 3
+    
+    # Node Management
+    management:
+    - autoRepair: true
+      autoUpgrade: true
+    
+    # Upgrade Settings
+    upgradeSettings:
+    - maxSurge: 1
+      maxUnavailable: 0
+      strategy: SURGE
+  
+  providerConfigRef:
+    name: default 

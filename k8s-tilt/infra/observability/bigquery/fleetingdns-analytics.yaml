@@ -1,0 +1,124 @@
+apiVersion: bigquery.gcp.upbound.io/v1beta1
+kind: Dataset
+metadata:
+  name: fleetingdns-raw-data
+  labels:
+    app.kubernetes.io/name: fleetingdns-raw-data
+    app.kubernetes.io/component: observability
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    datasetId: fleetingdns_raw_data
+    project: fleetingdns-analytics
+    description: "Raw data ingestion for FleetingDNS - logs, metrics, events"
+    location: EU
+    defaultTableExpirationMs: 7776000000  # 90 days
+    labels:
+      environment: production
+      data-tier: raw
+      retention: "90-days"
+  providerConfigRef:
+    name: analytics
+---
+apiVersion: bigquery.gcp.upbound.io/v1beta1
+kind: Dataset
+metadata:
+  name: fleetingdns-processed-data
+  labels:
+    app.kubernetes.io/name: fleetingdns-processed-data
+    app.kubernetes.io/component: observability
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    datasetId: fleetingdns_processed_data
+    project: fleetingdns-analytics
+    description: "Processed and enriched data for FleetingDNS analytics"
+    location: EU
+    defaultTableExpirationMs: 15552000000  # 180 days
+    labels:
+      environment: production
+      data-tier: processed
+      retention: "180-days"
+  providerConfigRef:
+    name: analytics
+---
+apiVersion: bigquery.gcp.upbound.io/v1beta1
+kind: Dataset
+metadata:
+  name: fleetingdns-analytics-data
+  labels:
+    app.kubernetes.io/name: fleetingdns-analytics-data
+    app.kubernetes.io/component: observability
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    datasetId: fleetingdns_analytics_data
+    project: fleetingdns-analytics
+    description: "Analytics aggregations and ML models for FleetingDNS"
+    location: EU
+    defaultTableExpirationMs: 31536000000  # 365 days
+    labels:
+      environment: production
+      data-tier: analytics
+      retention: "365-days"
+  providerConfigRef:
+    name: analytics
+---
+apiVersion: bigquery.gcp.upbound.io/v1beta1
+kind: Dataset
+metadata:
+  name: fleetingdns-security-data
+  labels:
+    app.kubernetes.io/name: fleetingdns-security-data
+    app.kubernetes.io/component: observability
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    datasetId: fleetingdns_security_data
+    project: fleetingdns-analytics
+    description: "Security events and threat intelligence data"
+    location: EU
+    defaultTableExpirationMs: 31536000000  # 365 days
+    labels:
+      environment: production
+      data-tier: security
+      retention: "365-days"
+      compliance: "gdpr"
+  providerConfigRef:
+    name: analytics
+---
+# BigQuery Data Transfer for automated data ingestion
+apiVersion: bigquerydatatransfer.gcp.upbound.io/v1beta1
+kind: Config
+metadata:
+  name: fleetingdns-logs-transfer
+  labels:
+    app.kubernetes.io/name: fleetingdns-logs-transfer
+    app.kubernetes.io/component: observability
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    displayName: "FleetingDNS Logs Transfer"
+    project: fleetingdns-analytics
+    location: EU
+    dataSourceId: "scheduled_query"
+    destinationDatasetId: fleetingdns_processed_data
+    schedule: "every 15 minutes"
+    params:
+      query: |
+        SELECT
+          timestamp,
+          severity,
+          resource.type as resource_type,
+          resource.labels.project_id,
+          resource.labels.zone,
+          jsonPayload,
+          labels,
+          logName,
+          receiveTimestamp,
+          insertId
+        FROM `fleetingdns-infra.fleetingdns_raw_data.cloudaudit_googleapis_com_activity_*`
+        WHERE _TABLE_SUFFIX = FORMAT_DATE('%Y%m%d', DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY))
+      write_disposition: "WRITE_APPEND"
+  providerConfigRef:
+    name: analytics 

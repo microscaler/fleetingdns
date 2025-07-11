@@ -1,0 +1,290 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: xproject-composition
+  labels:
+    provider: gcp
+    service: project
+spec:
+  compositeTypeRef:
+    apiVersion: fleetingdns.io/v1alpha1
+    kind: XProject
+  
+  writeConnectionSecretsToNamespace: crossplane-system
+  
+  resources:
+  # GCP Project
+  - name: project
+    base:
+      apiVersion: cloudresourcemanager.gcp.upbound.io/v1beta1
+      kind: Project
+      spec:
+        forProvider:
+          name: ""
+          projectId: ""
+          billingAccount: ""
+          orgId: ""
+          folderId: ""
+          labels:
+            managed-by: "crossplane"
+            platform: "fleetingdns"
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectName
+      toFieldPath: spec.forProvider.name
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.projectId
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.billingAccount
+      toFieldPath: spec.forProvider.billingAccount
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.organizationId
+      toFieldPath: spec.forProvider.orgId
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.folderId
+      toFieldPath: spec.forProvider.folderId
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.labels
+      toFieldPath: spec.forProvider.labels
+      policy:
+        mergeOptions:
+          keepMapValues: true
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.environment
+      toFieldPath: spec.forProvider.labels.environment
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.region
+      toFieldPath: spec.forProvider.labels.region
+    - type: ToCompositeFieldPath
+      fromFieldPath: status.atProvider.number
+      toFieldPath: status.projectNumber
+    - type: ToCompositeFieldPath
+      fromFieldPath: status.atProvider.lifecycleState
+      toFieldPath: status.projectState
+
+  # Enable Required APIs
+  - name: compute-api
+    base:
+      apiVersion: serviceusage.gcp.upbound.io/v1beta1
+      kind: Service
+      spec:
+        forProvider:
+          service: compute.googleapis.com
+          project: ""
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+
+  - name: container-api
+    base:
+      apiVersion: serviceusage.gcp.upbound.io/v1beta1
+      kind: Service
+      spec:
+        forProvider:
+          service: container.googleapis.com
+          project: ""
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+
+  - name: dns-api
+    base:
+      apiVersion: serviceusage.gcp.upbound.io/v1beta1
+      kind: Service
+      spec:
+        forProvider:
+          service: dns.googleapis.com
+          project: ""
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+
+  - name: iam-api
+    base:
+      apiVersion: serviceusage.gcp.upbound.io/v1beta1
+      kind: Service
+      spec:
+        forProvider:
+          service: iam.googleapis.com
+          project: ""
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+
+  - name: secretmanager-api
+    base:
+      apiVersion: serviceusage.gcp.upbound.io/v1beta1
+      kind: Service
+      spec:
+        forProvider:
+          service: secretmanager.googleapis.com
+          project: ""
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+
+  - name: sql-api
+    base:
+      apiVersion: serviceusage.gcp.upbound.io/v1beta1
+      kind: Service
+      spec:
+        forProvider:
+          service: sqladmin.googleapis.com
+          project: ""
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+
+  - name: bigquery-api
+    base:
+      apiVersion: serviceusage.gcp.upbound.io/v1beta1
+      kind: Service
+      spec:
+        forProvider:
+          service: bigquery.googleapis.com
+          project: ""
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+
+  - name: logging-api
+    base:
+      apiVersion: serviceusage.gcp.upbound.io/v1beta1
+      kind: Service
+      spec:
+        forProvider:
+          service: logging.googleapis.com
+          project: ""
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+
+  - name: monitoring-api
+    base:
+      apiVersion: serviceusage.gcp.upbound.io/v1beta1
+      kind: Service
+      spec:
+        forProvider:
+          service: monitoring.googleapis.com
+          project: ""
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+
+  - name: cloudarmor-api
+    base:
+      apiVersion: serviceusage.gcp.upbound.io/v1beta1
+      kind: Service
+      spec:
+        forProvider:
+          service: compute.googleapis.com
+          project: ""
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+
+  - name: iap-api
+    base:
+      apiVersion: serviceusage.gcp.upbound.io/v1beta1
+      kind: Service
+      spec:
+        forProvider:
+          service: iap.googleapis.com
+          project: ""
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+
+  - name: certificatemanager-api
+    base:
+      apiVersion: serviceusage.gcp.upbound.io/v1beta1
+      kind: Service
+      spec:
+        forProvider:
+          service: certificatemanager.googleapis.com
+          project: ""
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+
+  # Default Service Account for Crossplane
+  - name: crossplane-service-account
+    base:
+      apiVersion: iam.gcp.upbound.io/v1beta1
+      kind: ServiceAccount
+      spec:
+        forProvider:
+          accountId: crossplane-sa
+          displayName: "Crossplane Service Account"
+          description: "Service account for Crossplane infrastructure management"
+          project: ""
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+
+  # IAM Binding for Crossplane Service Account
+  - name: crossplane-project-editor-binding
+    base:
+      apiVersion: iam.gcp.upbound.io/v1beta1
+      kind: ProjectIAMBinding
+      spec:
+        forProvider:
+          project: ""
+          role: roles/editor
+          members:
+          - ""
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.members[0]
+      transforms:
+      - type: string
+        string:
+          fmt: "serviceAccount:crossplane-sa@%s.iam.gserviceaccount.com" 

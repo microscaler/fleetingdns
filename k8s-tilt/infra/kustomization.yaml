@@ -1,0 +1,67 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: fleetingdns-infrastructure
+  annotations:
+    config.kubernetes.io/local-config: "true"
+
+resources:
+# Base Crossplane Configuration (XRDs, Compositions, Provider Config)
+- base/
+
+# Organization and Projects (must come first)
+- org/
+
+# IAM and Security Foundation
+- iam/
+- secret-manager/
+
+# Core Infrastructure Services
+- artifact-registry/
+- cloud-dns/
+- cloud-storage/
+
+# Networking Infrastructure (depends on projects)
+- networking/
+
+# Security Policies (depends on networking)
+- security/
+
+# Database Infrastructure (depends on networking)
+- databases/
+
+# Kubernetes Clusters (depends on networking, IAM, databases)
+- k8s/
+
+# Observability Infrastructure (BigQuery, Logging, Monitoring)
+- observability/
+
+commonLabels:
+  app.kubernetes.io/name: fleetingdns-infrastructure
+  app.kubernetes.io/part-of: fleetingdns
+  app.kubernetes.io/managed-by: crossplane
+
+patches:
+# Add common annotations to all resources
+- target:
+    group: "*"
+    version: "*"
+    kind: "*"
+  patch: |-
+    - op: add
+      path: /metadata/annotations/crossplane.io~1managed-by
+      value: fleetingdns-platform
+    - op: add
+      path: /metadata/annotations/fleetingdns.io~1deployment-order
+      value: infrastructure
+
+# Patch provider configurations to use correct credentials
+- target:
+    group: gcp.upbound.io
+    version: v1beta1
+    kind: ProviderConfig
+  patch: |-
+    - op: add
+      path: /metadata/annotations/crossplane.io~1external-name
+      value: fleetingdns-provider-config 

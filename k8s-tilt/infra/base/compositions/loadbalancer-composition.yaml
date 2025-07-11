@@ -1,0 +1,359 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: xloadbalancer-composition
+  labels:
+    provider: gcp
+    service: loadbalancer
+spec:
+  compositeTypeRef:
+    apiVersion: fleetingdns.io/v1alpha1
+    kind: XLoadBalancer
+  
+  writeConnectionSecretsToNamespace: crossplane-system
+  
+  resources:
+  # Global IP Address
+  - name: global-ip
+    base:
+      apiVersion: compute.gcp.upbound.io/v1beta1
+      kind: GlobalAddress
+      spec:
+        forProvider:
+          name: ""
+          project: ""
+          addressType: EXTERNAL
+          ipVersion: IPV4
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.globalIpName
+      toFieldPath: spec.forProvider.name
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+    - type: ToCompositeFieldPath
+      fromFieldPath: status.atProvider.address
+      toFieldPath: status.ipAddress
+
+  # SSL Certificate (Google-managed)
+  - name: ssl-certificate
+    base:
+      apiVersion: compute.gcp.upbound.io/v1beta1
+      kind: ManagedSSLCertificate
+      spec:
+        forProvider:
+          name: ""
+          project: ""
+          managed:
+          - domains: []
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.name
+      toFieldPath: spec.forProvider.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-ssl-cert"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.sslCertificates
+      toFieldPath: spec.forProvider.managed[0].domains
+
+  # Backend Service (HTTPS)
+  - name: backend-service-https
+    base:
+      apiVersion: compute.gcp.upbound.io/v1beta1
+      kind: BackendService
+      spec:
+        forProvider:
+          name: ""
+          project: ""
+          protocol: HTTPS
+          portName: https
+          timeoutSec: 30
+          enableCdn: false
+          loadBalancingScheme: EXTERNAL
+          securityPolicy: ""
+          healthChecks: []
+          backend: []
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.name
+      toFieldPath: spec.forProvider.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-backend-https"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.enableCdn
+      toFieldPath: spec.forProvider.enableCdn
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.cloudArmorPolicy
+      toFieldPath: spec.forProvider.securityPolicy
+    - type: CombineFromComposite
+      combine:
+        variables:
+        - fromFieldPath: spec.parameters.name
+        strategy: string
+        string:
+          fmt: "https://www.googleapis.com/compute/v1/projects/%s/global/healthChecks/%s-health-check"
+      toFieldPath: spec.forProvider.healthChecks[0]
+      policy:
+        fromFieldPath: Required
+
+  # Health Check for HTTPS Backend
+  - name: health-check-https
+    base:
+      apiVersion: compute.gcp.upbound.io/v1beta1
+      kind: HealthCheck
+      spec:
+        forProvider:
+          name: ""
+          project: ""
+          timeoutSec: 5
+          checkIntervalSec: 10
+          healthyThreshold: 2
+          unhealthyThreshold: 3
+          httpsHealthCheck:
+          - port: 443
+            requestPath: "/health"
+            portSpecification: USE_FIXED_PORT
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.name
+      toFieldPath: spec.forProvider.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-health-check"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+
+  # URL Map for HTTPS Load Balancer
+  - name: url-map
+    base:
+      apiVersion: compute.gcp.upbound.io/v1beta1
+      kind: URLMap
+      spec:
+        forProvider:
+          name: ""
+          project: ""
+          defaultService: ""
+          hostRule: []
+          pathMatcher: []
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.name
+      toFieldPath: spec.forProvider.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-url-map"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+    - type: CombineFromComposite
+      combine:
+        variables:
+        - fromFieldPath: spec.parameters.projectId
+        - fromFieldPath: spec.parameters.name
+        strategy: string
+        string:
+          fmt: "https://www.googleapis.com/compute/v1/projects/%s/global/backendServices/%s-backend-https"
+      toFieldPath: spec.forProvider.defaultService
+
+  # HTTPS Proxy
+  - name: https-proxy
+    base:
+      apiVersion: compute.gcp.upbound.io/v1beta1
+      kind: TargetHTTPSProxy
+      spec:
+        forProvider:
+          name: ""
+          project: ""
+          urlMap: ""
+          sslCertificates: []
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.name
+      toFieldPath: spec.forProvider.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-https-proxy"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+    - type: CombineFromComposite
+      combine:
+        variables:
+        - fromFieldPath: spec.parameters.projectId
+        - fromFieldPath: spec.parameters.name
+        strategy: string
+        string:
+          fmt: "https://www.googleapis.com/compute/v1/projects/%s/global/urlMaps/%s-url-map"
+      toFieldPath: spec.forProvider.urlMap
+    - type: CombineFromComposite
+      combine:
+        variables:
+        - fromFieldPath: spec.parameters.projectId
+        - fromFieldPath: spec.parameters.name
+        strategy: string
+        string:
+          fmt: "https://www.googleapis.com/compute/v1/projects/%s/global/sslCertificates/%s-ssl-cert"
+      toFieldPath: spec.forProvider.sslCertificates[0]
+
+  # Global Forwarding Rule for HTTPS
+  - name: forwarding-rule-https
+    base:
+      apiVersion: compute.gcp.upbound.io/v1beta1
+      kind: GlobalForwardingRule
+      spec:
+        forProvider:
+          name: ""
+          project: ""
+          target: ""
+          portRange: "443"
+          ipAddress: ""
+          loadBalancingScheme: EXTERNAL
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.name
+      toFieldPath: spec.forProvider.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-https-forwarding-rule"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.globalIpName
+      toFieldPath: spec.forProvider.ipAddress
+    - type: CombineFromComposite
+      combine:
+        variables:
+        - fromFieldPath: spec.parameters.projectId
+        - fromFieldPath: spec.parameters.name
+        strategy: string
+        string:
+          fmt: "https://www.googleapis.com/compute/v1/projects/%s/global/targetHttpsProxies/%s-https-proxy"
+      toFieldPath: spec.forProvider.target
+
+  # HTTP to HTTPS Redirect
+  - name: http-redirect-url-map
+    base:
+      apiVersion: compute.gcp.upbound.io/v1beta1
+      kind: URLMap
+      spec:
+        forProvider:
+          name: ""
+          project: ""
+          defaultUrlRedirect:
+          - httpsRedirect: true
+            redirectResponseCode: MOVED_PERMANENTLY_DEFAULT
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.name
+      toFieldPath: spec.forProvider.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-http-redirect"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+
+  # HTTP Proxy for Redirect
+  - name: http-proxy
+    base:
+      apiVersion: compute.gcp.upbound.io/v1beta1
+      kind: TargetHTTPProxy
+      spec:
+        forProvider:
+          name: ""
+          project: ""
+          urlMap: ""
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.name
+      toFieldPath: spec.forProvider.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-http-proxy"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+    - type: CombineFromComposite
+      combine:
+        variables:
+        - fromFieldPath: spec.parameters.projectId
+        - fromFieldPath: spec.parameters.name
+        strategy: string
+        string:
+          fmt: "https://www.googleapis.com/compute/v1/projects/%s/global/urlMaps/%s-http-redirect"
+      toFieldPath: spec.forProvider.urlMap
+
+  # Global Forwarding Rule for HTTP (Redirect)
+  - name: forwarding-rule-http
+    base:
+      apiVersion: compute.gcp.upbound.io/v1beta1
+      kind: GlobalForwardingRule
+      spec:
+        forProvider:
+          name: ""
+          project: ""
+          target: ""
+          portRange: "80"
+          ipAddress: ""
+          loadBalancingScheme: EXTERNAL
+        providerConfigRef:
+          name: default
+    patches:
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.name
+      toFieldPath: spec.forProvider.name
+      transforms:
+      - type: string
+        string:
+          fmt: "%s-http-forwarding-rule"
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.projectId
+      toFieldPath: spec.forProvider.project
+    - type: FromCompositeFieldPath
+      fromFieldPath: spec.parameters.globalIpName
+      toFieldPath: spec.forProvider.ipAddress
+    - type: CombineFromComposite
+      combine:
+        variables:
+        - fromFieldPath: spec.parameters.projectId
+        - fromFieldPath: spec.parameters.name
+        strategy: string
+        string:
+          fmt: "https://www.googleapis.com/compute/v1/projects/%s/global/targetHttpProxies/%s-http-proxy"
+      toFieldPath: spec.forProvider.target 

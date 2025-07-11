@@ -1,0 +1,310 @@
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: SecurityPolicy
+metadata:
+  name: fleetingdns-main-policy
+  labels:
+    app.kubernetes.io/name: fleetingdns-main-policy
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-main-policy
+    project: fleetingdns-infra
+    description: "Main Cloud Armor security policy for FleetingDNS web services"
+    
+    # Adaptive Protection for DDoS
+    adaptiveProtectionConfig:
+    - layer7DdosDefenseConfig:
+      - enable: true
+        ruleVisibility: STANDARD
+    
+    # Security Rules
+    rule:
+    # Default allow rule (lowest priority)
+    - action: allow
+      priority: 2147483647
+      match:
+      - versionedExpr: SRC_IPS_V1
+        config:
+        - srcIpRanges:
+          - "*"
+      description: "Default allow rule"
+    
+    # Block high-risk countries
+    - action: deny(403)
+      priority: 1000
+      match:
+      - expr:
+        - expression: 'origin.region_code == "CN" || origin.region_code == "RU" || origin.region_code == "KP" || origin.region_code == "IR"'
+      description: "Block traffic from high-risk countries"
+    
+    # SQL Injection Protection
+    - action: deny(403)
+      priority: 1100
+      match:
+      - expr:
+        - expression: 'has(request.headers["user-agent"]) && request.headers["user-agent"].contains("sqlmap")'
+      description: "Block SQL injection tools"
+    
+    # XSS Protection
+    - action: deny(403)
+      priority: 1200
+      match:
+      - expr:
+        - expression: 'request.url_map.path.matches(".*<script.*>.*")'
+      description: "Block XSS attempts"
+    
+    # Rate limiting for general traffic
+    - action: throttle
+      priority: 2000
+      match:
+      - versionedExpr: SRC_IPS_V1
+        config:
+        - srcIpRanges:
+          - "*"
+      description: "Rate limiting for general traffic"
+      rateLimitOptions:
+      - conformAction: allow
+        exceedAction: deny(429)
+        enforceOnKey: IP
+        rateLimitThreshold:
+        - count: 100
+          intervalSec: 60
+    
+    # Aggressive rate limiting for API endpoints
+    - action: throttle
+      priority: 2100
+      match:
+      - expr:
+        - expression: 'request.url_map.path.matches("/api/.*")'
+      description: "Aggressive rate limiting for API endpoints"
+      rateLimitOptions:
+      - conformAction: allow
+        exceedAction: deny(429)
+        enforceOnKey: IP
+        rateLimitThreshold:
+        - count: 50
+          intervalSec: 60
+    
+    # Block known bad user agents
+    - action: deny(403)
+      priority: 1300
+      match:
+      - expr:
+        - expression: 'has(request.headers["user-agent"]) && (request.headers["user-agent"].contains("nikto") || request.headers["user-agent"].contains("nessus") || request.headers["user-agent"].contains("openvas"))'
+      description: "Block security scanners"
+    
+    # Allow trusted networks (example: office IPs)
+    - action: allow
+      priority: 500
+      match:
+      - versionedExpr: SRC_IPS_V1
+        config:
+        - srcIpRanges:
+          - "203.0.113.0/24"  # Example trusted network
+      description: "Allow trusted office networks"
+
+  providerConfigRef:
+    name: default
+
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: SecurityPolicy
+metadata:
+  name: fleetingdns-dns-policy
+  labels:
+    app.kubernetes.io/name: fleetingdns-dns-policy
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-dns-policy
+    project: fleetingdns-infra
+    description: "Cloud Armor security policy for FleetingDNS DNS services"
+    
+    # Adaptive Protection for DNS-specific DDoS
+    adaptiveProtectionConfig:
+    - layer7DdosDefenseConfig:
+      - enable: true
+        ruleVisibility: STANDARD
+    
+    rule:
+    # Default allow rule
+    - action: allow
+      priority: 2147483647
+      match:
+      - versionedExpr: SRC_IPS_V1
+        config:
+        - srcIpRanges:
+          - "*"
+      description: "Default allow rule for DNS traffic"
+    
+    # DNS amplification protection
+    - action: deny(403)
+      priority: 1000
+      match:
+      - expr:
+        - expression: 'request.size > 512'
+      description: "Block oversized DNS requests (amplification protection)"
+    
+    # Rate limiting for DNS queries
+    - action: throttle
+      priority: 2000
+      match:
+      - versionedExpr: SRC_IPS_V1
+        config:
+        - srcIpRanges:
+          - "*"
+      description: "Rate limiting for DNS queries"
+      rateLimitOptions:
+      - conformAction: allow
+        exceedAction: deny(429)
+        enforceOnKey: IP
+        rateLimitThreshold:
+        - count: 1000
+          intervalSec: 60
+
+  providerConfigRef:
+    name: default
+
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: SecurityPolicy
+metadata:
+  name: fleetingdns-admin-policy
+  labels:
+    app.kubernetes.io/name: fleetingdns-admin-policy
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-admin-policy
+    project: fleetingdns-infra
+    description: "Strict Cloud Armor security policy for FleetingDNS admin interfaces"
+    
+    rule:
+    # Default deny rule (more restrictive for admin)
+    - action: deny(403)
+      priority: 2147483647
+      match:
+      - versionedExpr: SRC_IPS_V1
+        config:
+        - srcIpRanges:
+          - "*"
+      description: "Default deny rule for admin interfaces"
+    
+    # Allow only trusted admin networks
+    - action: allow
+      priority: 1000
+      match:
+      - versionedExpr: SRC_IPS_V1
+        config:
+        - srcIpRanges:
+          - "203.0.113.0/24"  # Example admin network
+          - "198.51.100.0/24" # Example VPN network
+      description: "Allow trusted admin networks only"
+    
+    # Very strict rate limiting for admin interfaces
+    - action: throttle
+      priority: 2000
+      match:
+      - versionedExpr: SRC_IPS_V1
+        config:
+        - srcIpRanges:
+          - "203.0.113.0/24"
+          - "198.51.100.0/24"
+      description: "Strict rate limiting for admin interfaces"
+      rateLimitOptions:
+      - conformAction: allow
+        exceedAction: deny(429)
+        enforceOnKey: IP
+        rateLimitThreshold:
+        - count: 20
+          intervalSec: 60
+
+  providerConfigRef:
+    name: default
+
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: SecurityPolicy
+metadata:
+  name: fleetingdns-bot-protection
+  labels:
+    app.kubernetes.io/name: fleetingdns-bot-protection
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-bot-protection
+    project: fleetingdns-infra
+    description: "Advanced bot protection policy for FleetingDNS"
+    
+    # Advanced adaptive protection
+    adaptiveProtectionConfig:
+    - layer7DdosDefenseConfig:
+      - enable: true
+        ruleVisibility: STANDARD
+    
+    rule:
+    # Default allow rule
+    - action: allow
+      priority: 2147483647
+      match:
+      - versionedExpr: SRC_IPS_V1
+        config:
+        - srcIpRanges:
+          - "*"
+      description: "Default allow rule"
+    
+    # Block common bot user agents
+    - action: deny(403)
+      priority: 1000
+      match:
+      - expr:
+        - expression: 'has(request.headers["user-agent"]) && (request.headers["user-agent"].contains("bot") || request.headers["user-agent"].contains("crawler") || request.headers["user-agent"].contains("spider"))'
+      description: "Block common bots and crawlers"
+    
+    # Block requests without user agent
+    - action: deny(403)
+      priority: 1100
+      match:
+      - expr:
+        - expression: '!has(request.headers["user-agent"])'
+      description: "Block requests without user agent"
+    
+    # Block suspicious request patterns
+    - action: deny(403)
+      priority: 1200
+      match:
+      - expr:
+        - expression: 'request.url_map.path.matches(".*\\.(php|asp|jsp).*")'
+      description: "Block requests for non-existent server technologies"
+    
+    # Challenge suspicious traffic with reCAPTCHA
+    - action: allow
+      priority: 1500
+      match:
+      - expr:
+        - expression: 'request.headers["cf-ipcountry"] == "US" || request.headers["cf-ipcountry"] == "GB" || request.headers["cf-ipcountry"] == "DE"'
+      description: "Allow traffic from trusted countries"
+      
+    # Rate limiting with progressive penalties
+    - action: throttle
+      priority: 2000
+      match:
+      - versionedExpr: SRC_IPS_V1
+        config:
+        - srcIpRanges:
+          - "*"
+      description: "Progressive rate limiting"
+      rateLimitOptions:
+      - conformAction: allow
+        exceedAction: deny(429)
+        enforceOnKey: IP
+        rateLimitThreshold:
+        - count: 200
+          intervalSec: 300
+
+  providerConfigRef:
+    name: default 

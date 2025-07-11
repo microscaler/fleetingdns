@@ -1,0 +1,267 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xsecurities.fleetingdns.io
+spec:
+  group: fleetingdns.io
+  names:
+    kind: XSecurity
+    plural: xsecurities
+  claimNames:
+    kind: SecurityClaim
+    plural: securityclaims
+  versions:
+  - name: v1alpha1
+    served: true
+    referenceable: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              parameters:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    description: "Security configuration name"
+                  projectId:
+                    type: string
+                    description: "GCP Project ID"
+                  cloudArmor:
+                    type: object
+                    description: "Cloud Armor configuration"
+                    properties:
+                      enabled:
+                        type: boolean
+                        default: true
+                      policyName:
+                        type: string
+                      description:
+                        type: string
+                      defaultRuleAction:
+                        type: string
+                        enum: ["allow", "deny"]
+                        default: "allow"
+                      rules:
+                        type: array
+                        description: "Security rules"
+                        items:
+                          type: object
+                          properties:
+                            priority:
+                              type: integer
+                            description:
+                              type: string
+                            action:
+                              type: string
+                              enum: ["allow", "deny", "throttle", "redirect"]
+                            match:
+                              type: object
+                              properties:
+                                versionedExpr:
+                                  type: string
+                                  enum: ["SRC_IPS_V1", "ORIGIN_IPS_V1"]
+                                config:
+                                  type: object
+                                  properties:
+                                    srcIpRanges:
+                                      type: array
+                                      items:
+                                        type: string
+                                expr:
+                                  type: object
+                                  properties:
+                                    expression:
+                                      type: string
+                            rateLimitOptions:
+                              type: object
+                              properties:
+                                conformAction:
+                                  type: string
+                                exceedAction:
+                                  type: string
+                                enforceOnKey:
+                                  type: string
+                                rateLimitThreshold:
+                                  type: object
+                                  properties:
+                                    count:
+                                      type: integer
+                                    intervalSec:
+                                      type: integer
+                      adaptiveProtection:
+                        type: object
+                        properties:
+                          enabled:
+                            type: boolean
+                            default: true
+                          autoDeployConfig:
+                            type: object
+                            properties:
+                              loadThreshold:
+                                type: number
+                                default: 0.1
+                              confidenceThreshold:
+                                type: number
+                                default: 0.5
+                              impactedBaselineThreshold:
+                                type: number
+                                default: 0.05
+                              expirationSec:
+                                type: integer
+                                default: 3600
+                  iap:
+                    type: object
+                    description: "Identity-Aware Proxy configuration"
+                    properties:
+                      enabled:
+                        type: boolean
+                        default: false
+                      brand:
+                        type: object
+                        properties:
+                          applicationTitle:
+                            type: string
+                          supportEmail:
+                            type: string
+                          privacyPolicyUrl:
+                            type: string
+                          termsOfServiceUrl:
+                            type: string
+                      oauthClient:
+                        type: object
+                        properties:
+                          displayName:
+                            type: string
+                          authorizedDomains:
+                            type: array
+                            items:
+                              type: string
+                      accessPolicy:
+                        type: object
+                        properties:
+                          title:
+                            type: string
+                          bindings:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                role:
+                                  type: string
+                                members:
+                                  type: array
+                                  items:
+                                    type: string
+                                condition:
+                                  type: object
+                                  properties:
+                                    title:
+                                      type: string
+                                    description:
+                                      type: string
+                                    expression:
+                                      type: string
+                  binaryAuthorization:
+                    type: object
+                    description: "Binary Authorization configuration"
+                    properties:
+                      enabled:
+                        type: boolean
+                        default: true
+                      policyName:
+                        type: string
+                      defaultAdmissionRule:
+                        type: object
+                        properties:
+                          evaluationMode:
+                            type: string
+                            enum: ["ALWAYS_ALLOW", "REQUIRE_ATTESTATION", "ALWAYS_DENY"]
+                          enforcementMode:
+                            type: string
+                            enum: ["ENFORCED_BLOCK_AND_AUDIT_LOG", "DRYRUN_AUDIT_LOG_ONLY"]
+                          requireAttestationsBy:
+                            type: array
+                            items:
+                              type: string
+                      clusterAdmissionRules:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            cluster:
+                              type: string
+                            evaluationMode:
+                              type: string
+                            enforcementMode:
+                              type: string
+                            requireAttestationsBy:
+                              type: array
+                              items:
+                                type: string
+                  vulnerabilityScanning:
+                    type: object
+                    description: "Container vulnerability scanning"
+                    properties:
+                      enabled:
+                        type: boolean
+                        default: true
+                      scanOnPush:
+                        type: boolean
+                        default: true
+                      severityThreshold:
+                        type: string
+                        enum: ["MINIMAL", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
+                        default: "HIGH"
+                  securityCenter:
+                    type: object
+                    description: "Security Command Center configuration"
+                    properties:
+                      enabled:
+                        type: boolean
+                        default: true
+                      tier:
+                        type: string
+                        enum: ["STANDARD", "PREMIUM"]
+                        default: "STANDARD"
+                      eventThreatDetection:
+                        type: boolean
+                        default: true
+                      webSecurityScanner:
+                        type: boolean
+                        default: true
+                  labels:
+                    type: object
+                    description: "Resource labels"
+                    additionalProperties:
+                      type: string
+                required:
+                - name
+                - projectId
+          status:
+            type: object
+            properties:
+              cloudArmorPolicyId:
+                type: string
+              iapClientId:
+                type: string
+              binaryAuthorizationPolicyId:
+                type: string
+              securityCenterStatus:
+                type: string
+              lastSecurityScan:
+                type: string
+              vulnerabilityCount:
+                type: object
+                properties:
+                  critical:
+                    type: integer
+                  high:
+                    type: integer
+                  medium:
+                    type: integer
+                  low:
+                    type: integer 

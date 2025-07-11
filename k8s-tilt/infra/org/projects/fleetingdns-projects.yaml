@@ -1,0 +1,194 @@
+# FleetingDNS Infrastructure Project
+apiVersion: fleetingdns.io/v1alpha1
+kind: XProject
+metadata:
+  name: fleetingdns-infra
+  labels:
+    app.kubernetes.io/name: fleetingdns-infra
+    app.kubernetes.io/component: infrastructure
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  parameters:
+    projectId: fleetingdns-infra
+    projectName: "FleetingDNS Infrastructure"
+    billingAccount: "0197D9-AD23AA-0EFFBF"  # Replace with actual billing account
+    organizationId: "123456789012"  # Replace with actual organization ID
+    folderId: "folders/987654321098"  # Replace with actual folder ID
+    environment: prod
+    region: europe-west1
+    labels:
+      environment: infrastructure
+      team: platform
+      cost-center: infrastructure
+      security-zone: control-plane
+---
+# FleetingDNS Analytics Project
+apiVersion: fleetingdns.io/v1alpha1
+kind: XProject
+metadata:
+  name: fleetingdns-analytics
+  labels:
+    app.kubernetes.io/name: fleetingdns-analytics
+    app.kubernetes.io/component: analytics
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  parameters:
+    projectId: fleetingdns-analytics
+    projectName: "FleetingDNS Analytics & Data Warehouse"
+    billingAccount: "0197D9-AD23AA-0EFFBF"
+    organizationId: "123456789012"
+    folderId: "folders/987654321098"
+    environment: prod
+    region: europe-west1
+    labels:
+      environment: production
+      team: data
+      cost-center: analytics
+      security-zone: data-processing
+---
+# FleetingDNS Security Project
+apiVersion: fleetingdns.io/v1alpha1
+kind: XProject
+metadata:
+  name: fleetingdns-security
+  labels:
+    app.kubernetes.io/name: fleetingdns-security
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  parameters:
+    projectId: fleetingdns-security
+    projectName: "FleetingDNS Security & Compliance"
+    billingAccount: "0197D9-AD23AA-0EFFBF"
+    organizationId: "123456789012"
+    folderId: "folders/987654321098"
+    environment: prod
+    region: europe-west1
+    labels:
+      environment: production
+      team: security
+      cost-center: security
+      security-zone: security-monitoring
+---
+# FleetingDNS Development Project
+apiVersion: fleetingdns.io/v1alpha1
+kind: XProject
+metadata:
+  name: fleetingdns-dev
+  labels:
+    app.kubernetes.io/name: fleetingdns-dev
+    app.kubernetes.io/component: development
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  parameters:
+    projectId: fleetingdns-dev
+    projectName: "FleetingDNS Development Environment"
+    billingAccount: "0197D9-AD23AA-0EFFBF"
+    organizationId: "123456789012"
+    folderId: "folders/987654321098"
+    environment: dev
+    region: europe-west1
+    labels:
+      environment: development
+      team: engineering
+      cost-center: development
+      security-zone: development
+---
+# FleetingDNS Staging Project
+apiVersion: fleetingdns.io/v1alpha1
+kind: XProject
+metadata:
+  name: fleetingdns-staging
+  labels:
+    app.kubernetes.io/name: fleetingdns-staging
+    app.kubernetes.io/component: staging
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  parameters:
+    projectId: fleetingdns-staging
+    projectName: "FleetingDNS Staging Environment"
+    billingAccount: "0197D9-AD23AA-0EFFBF"
+    organizationId: "123456789012"
+    folderId: "folders/987654321098"
+    environment: staging
+    region: europe-west1
+    labels:
+      environment: staging
+      team: engineering
+      cost-center: staging
+      security-zone: pre-production
+---
+# FleetingDNS Production EU Project
+apiVersion: fleetingdns.io/v1alpha1
+kind: XProject
+metadata:
+  name: fleetingdns-prod-eu
+  labels:
+    app.kubernetes.io/name: fleetingdns-prod-eu
+    app.kubernetes.io/component: production
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  parameters:
+    projectId: fleetingdns-prod-eu
+    projectName: "FleetingDNS Production Europe"
+    billingAccount: "0197D9-AD23AA-0EFFBF"
+    organizationId: "123456789012"
+    folderId: "folders/987654321098"
+    environment: prod
+    region: europe-west1
+    labels:
+      environment: production
+      team: engineering
+      cost-center: production
+      security-zone: production
+      region: europe
+---
+# FleetingDNS Production US Project
+apiVersion: fleetingdns.io/v1alpha1
+kind: XProject
+metadata:
+  name: fleetingdns-prod-us
+  labels:
+    app.kubernetes.io/name: fleetingdns-prod-us
+    app.kubernetes.io/component: production
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  parameters:
+    projectId: fleetingdns-prod-us
+    projectName: "FleetingDNS Production United States"
+    billingAccount: "0197D9-AD23AA-0EFFBF"
+    organizationId: "123456789012"
+    folderId: "folders/987654321098"
+    environment: prod
+    region: us-central1
+    labels:
+      environment: production
+      team: engineering
+      cost-center: production
+      security-zone: production
+      region: americas
+---
+# FleetingDNS Production APAC Project
+apiVersion: fleetingdns.io/v1alpha1
+kind: XProject
+metadata:
+  name: fleetingdns-prod-apac
+  labels:
+    app.kubernetes.io/name: fleetingdns-prod-apac
+    app.kubernetes.io/component: production
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  parameters:
+    projectId: fleetingdns-prod-apac
+    projectName: "FleetingDNS Production Asia Pacific"
+    billingAccount: "0197D9-AD23AA-0EFFBF"
+    organizationId: "123456789012"
+    folderId: "folders/987654321098"
+    environment: prod
+    region: asia-southeast1
+    labels:
+      environment: production
+      team: engineering
+      cost-center: production
+      security-zone: production
+      region: asia-pacific 

@@ -1,0 +1,269 @@
+# Main HTTPS Load Balancer for FleetingDNS Web Services
+apiVersion: fleetingdns.io/v1alpha1
+kind: XLoadBalancer
+metadata:
+  name: fleetingdns-main-lb
+  labels:
+    app.kubernetes.io/name: fleetingdns-main-lb
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  parameters:
+    name: fleetingdns-main-lb
+    type: global-https
+    projectId: fleetingdns-infra
+    globalIpName: fleetingdns-global-ip
+    sslCertificates:
+    - "fleetingdns.com"
+    - "*.fleetingdns.com"
+    urlMap:
+      defaultService: fleetingdns-portal-backend
+      hostRules:
+      - hosts:
+        - "api.fleetingdns.com"
+        pathMatcher: api-matcher
+      - hosts:
+        - "portal.fleetingdns.com"
+        - "admin.fleetingdns.com"
+        pathMatcher: portal-matcher
+      - hosts:
+        - "monitoring.fleetingdns.com"
+        pathMatcher: monitoring-matcher
+      pathMatchers:
+      - name: api-matcher
+        defaultService: fleetingdns-api-backend
+        pathRules:
+        - paths:
+          - "/api/v1/*"
+          - "/api/v2/*"
+          service: fleetingdns-api-backend
+      - name: portal-matcher
+        defaultService: fleetingdns-portal-backend
+        pathRules:
+        - paths:
+          - "/admin/*"
+          service: fleetingdns-admin-backend
+      - name: monitoring-matcher
+        defaultService: fleetingdns-monitoring-backend
+    backendServices:
+    - name: fleetingdns-api-backend
+      protocol: HTTPS
+      port: 443
+      timeoutSec: 30
+      healthCheck:
+        type: HTTPS
+        port: 443
+        path: "/health"
+        intervalSec: 10
+        timeoutSec: 5
+        healthyThreshold: 2
+        unhealthyThreshold: 3
+    - name: fleetingdns-portal-backend
+      protocol: HTTPS
+      port: 443
+      timeoutSec: 30
+      healthCheck:
+        type: HTTPS
+        port: 443
+        path: "/health"
+    - name: fleetingdns-admin-backend
+      protocol: HTTPS
+      port: 443
+      timeoutSec: 30
+      healthCheck:
+        type: HTTPS
+        port: 443
+        path: "/health"
+    - name: fleetingdns-monitoring-backend
+      protocol: HTTPS
+      port: 443
+      timeoutSec: 30
+      healthCheck:
+        type: HTTPS
+        port: 443
+        path: "/health"
+    cloudArmorPolicy: fleetingdns-main-policy
+    enableCdn: true
+    cdnPolicy:
+      cacheTtl: 3600
+      negativeCaching: true
+      compressionMode: AUTOMATIC
+    iapConfig:
+      enabled: true
+      oauthClientId: "fleetingdns-oauth-client"
+    labels:
+      service: web
+      tier: frontend
+      security: cloud-armor
+---
+# TCP Load Balancer for DNS Traffic
+apiVersion: fleetingdns.io/v1alpha1
+kind: XLoadBalancer
+metadata:
+  name: fleetingdns-dns-lb
+  labels:
+    app.kubernetes.io/name: fleetingdns-dns-lb
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  parameters:
+    name: fleetingdns-dns-lb
+    type: global-tcp
+    projectId: fleetingdns-infra
+    globalIpName: fleetingdns-dns-ip
+    backendServices:
+    - name: fleetingdns-dns-backend
+      protocol: TCP
+      port: 53
+      timeoutSec: 10
+      healthCheck:
+        type: TCP
+        port: 53
+        intervalSec: 5
+        timeoutSec: 3
+        healthyThreshold: 2
+        unhealthyThreshold: 3
+    cloudArmorPolicy: fleetingdns-dns-policy
+    labels:
+      service: dns
+      tier: infrastructure
+      protocol: tcp
+---
+# API-specific Load Balancer with Enhanced Security
+apiVersion: fleetingdns.io/v1alpha1
+kind: XLoadBalancer
+metadata:
+  name: fleetingdns-api-lb
+  labels:
+    app.kubernetes.io/name: fleetingdns-api-lb
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  parameters:
+    name: fleetingdns-api-lb
+    type: global-https
+    projectId: fleetingdns-infra
+    globalIpName: fleetingdns-api-ip
+    sslCertificates:
+    - "api.fleetingdns.com"
+    urlMap:
+      defaultService: fleetingdns-api-v2-backend
+      pathMatchers:
+      - name: api-version-matcher
+        defaultService: fleetingdns-api-v2-backend
+        pathRules:
+        - paths:
+          - "/v1/*"
+          service: fleetingdns-api-v1-backend
+        - paths:
+          - "/v2/*"
+          service: fleetingdns-api-v2-backend
+    backendServices:
+    - name: fleetingdns-api-v1-backend
+      protocol: HTTPS
+      port: 443
+      timeoutSec: 15
+      healthCheck:
+        type: HTTPS
+        port: 443
+        path: "/v1/health"
+        intervalSec: 10
+        timeoutSec: 5
+    - name: fleetingdns-api-v2-backend
+      protocol: HTTPS
+      port: 443
+      timeoutSec: 15
+      healthCheck:
+        type: HTTPS
+        port: 443
+        path: "/v2/health"
+        intervalSec: 10
+        timeoutSec: 5
+    cloudArmorPolicy: fleetingdns-bot-protection
+    enableCdn: false  # No CDN for API endpoints
+    labels:
+      service: api
+      tier: backend
+      version: multi
+---
+# Admin Interface Load Balancer with Strict Security
+apiVersion: fleetingdns.io/v1alpha1
+kind: XLoadBalancer
+metadata:
+  name: fleetingdns-admin-lb
+  labels:
+    app.kubernetes.io/name: fleetingdns-admin-lb
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  parameters:
+    name: fleetingdns-admin-lb
+    type: global-https
+    projectId: fleetingdns-infra
+    globalIpName: fleetingdns-global-ip  # Shared with main LB
+    sslCertificates:
+    - "admin.fleetingdns.com"
+    - "monitoring.fleetingdns.com"
+    - "analytics.fleetingdns.com"
+    - "security.fleetingdns.com"
+    urlMap:
+      defaultService: fleetingdns-admin-portal-backend
+      hostRules:
+      - hosts:
+        - "monitoring.fleetingdns.com"
+        pathMatcher: monitoring-matcher
+      - hosts:
+        - "analytics.fleetingdns.com"
+        pathMatcher: analytics-matcher
+      - hosts:
+        - "security.fleetingdns.com"
+        pathMatcher: security-matcher
+      pathMatchers:
+      - name: monitoring-matcher
+        defaultService: fleetingdns-grafana-backend
+      - name: analytics-matcher
+        defaultService: fleetingdns-bigquery-backend
+      - name: security-matcher
+        defaultService: fleetingdns-security-center-backend
+    backendServices:
+    - name: fleetingdns-admin-portal-backend
+      protocol: HTTPS
+      port: 443
+      timeoutSec: 30
+      healthCheck:
+        type: HTTPS
+        port: 443
+        path: "/admin/health"
+    - name: fleetingdns-grafana-backend
+      protocol: HTTPS
+      port: 443
+      timeoutSec: 30
+      healthCheck:
+        type: HTTPS
+        port: 443
+        path: "/api/health"
+    - name: fleetingdns-bigquery-backend
+      protocol: HTTPS
+      port: 443
+      timeoutSec: 30
+      healthCheck:
+        type: HTTPS
+        port: 443
+        path: "/health"
+    - name: fleetingdns-security-center-backend
+      protocol: HTTPS
+      port: 443
+      timeoutSec: 30
+      healthCheck:
+        type: HTTPS
+        port: 443
+        path: "/health"
+    cloudArmorPolicy: fleetingdns-admin-policy
+    enableCdn: false  # No CDN for admin interfaces
+    iapConfig:
+      enabled: true
+      oauthClientId: "fleetingdns-admin-oauth-client"
+    labels:
+      service: admin
+      tier: management
+      security: iap-protected 

@@ -1,0 +1,204 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xloadbalancers.fleetingdns.io
+spec:
+  group: fleetingdns.io
+  names:
+    kind: XLoadBalancer
+    plural: xloadbalancers
+  claimNames:
+    kind: LoadBalancerClaim
+    plural: loadbalancerclaims
+  versions:
+  - name: v1alpha1
+    served: true
+    referenceable: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              parameters:
+                type: object
+                properties:
+                  name:
+                    type: string
+                    description: "Load balancer name"
+                  type:
+                    type: string
+                    description: "Load balancer type"
+                    enum: ["global-https", "global-tcp", "regional", "internal"]
+                  projectId:
+                    type: string
+                    description: "GCP Project ID"
+                  region:
+                    type: string
+                    description: "Region for regional load balancers"
+                  globalIpName:
+                    type: string
+                    description: "Global IP address name"
+                  sslCertificates:
+                    type: array
+                    description: "SSL certificate names"
+                    items:
+                      type: string
+                  urlMap:
+                    type: object
+                    description: "URL mapping configuration"
+                    properties:
+                      defaultService:
+                        type: string
+                        description: "Default backend service"
+                      hostRules:
+                        type: array
+                        description: "Host-based routing rules"
+                        items:
+                          type: object
+                          properties:
+                            hosts:
+                              type: array
+                              items:
+                                type: string
+                            pathMatcher:
+                              type: string
+                      pathMatchers:
+                        type: array
+                        description: "Path matching rules"
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            defaultService:
+                              type: string
+                            pathRules:
+                              type: array
+                              items:
+                                type: object
+                                properties:
+                                  paths:
+                                    type: array
+                                    items:
+                                      type: string
+                                  service:
+                                    type: string
+                  backendServices:
+                    type: array
+                    description: "Backend service configurations"
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        protocol:
+                          type: string
+                          enum: ["HTTP", "HTTPS", "TCP", "UDP"]
+                        port:
+                          type: integer
+                        timeoutSec:
+                          type: integer
+                          default: 30
+                        healthCheck:
+                          type: object
+                          properties:
+                            type:
+                              type: string
+                              enum: ["HTTP", "HTTPS", "TCP"]
+                            port:
+                              type: integer
+                            path:
+                              type: string
+                            intervalSec:
+                              type: integer
+                              default: 10
+                            timeoutSec:
+                              type: integer
+                              default: 5
+                            healthyThreshold:
+                              type: integer
+                              default: 2
+                            unhealthyThreshold:
+                              type: integer
+                              default: 3
+                        backends:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              group:
+                                type: string
+                              balancingMode:
+                                type: string
+                                enum: ["UTILIZATION", "RATE", "CONNECTION"]
+                              maxUtilization:
+                                type: number
+                              maxRate:
+                                type: integer
+                              capacityScaler:
+                                type: number
+                                default: 1.0
+                  cloudArmorPolicy:
+                    type: string
+                    description: "Cloud Armor security policy name"
+                  enableCdn:
+                    type: boolean
+                    description: "Enable Cloud CDN"
+                    default: false
+                  cdnPolicy:
+                    type: object
+                    description: "Cloud CDN configuration"
+                    properties:
+                      cacheTtl:
+                        type: integer
+                        default: 3600
+                      negativeCaching:
+                        type: boolean
+                        default: true
+                      compressionMode:
+                        type: string
+                        enum: ["AUTOMATIC", "DISABLED"]
+                        default: "AUTOMATIC"
+                  iapConfig:
+                    type: object
+                    description: "Identity-Aware Proxy configuration"
+                    properties:
+                      enabled:
+                        type: boolean
+                        default: false
+                      oauthClientId:
+                        type: string
+                      oauthClientSecret:
+                        type: string
+                  labels:
+                    type: object
+                    description: "Resource labels"
+                    additionalProperties:
+                      type: string
+                required:
+                - name
+                - type
+                - projectId
+          status:
+            type: object
+            properties:
+              ipAddress:
+                type: string
+                description: "Assigned IP address"
+              status:
+                type: string
+                description: "Load balancer status"
+              backendServiceStatuses:
+                type: array
+                description: "Backend service statuses"
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                    healthy:
+                      type: boolean
+                    backendCount:
+                      type: integer 

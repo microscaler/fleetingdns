@@ -1,0 +1,140 @@
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: ManagedSSLCertificate
+metadata:
+  name: fleetingdns-wildcard-cert
+  labels:
+    app.kubernetes.io/name: fleetingdns-wildcard-cert
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-wildcard-cert
+    project: fleetingdns-infra
+    description: "Wildcard SSL certificate for *.fleetingdns.com"
+    managed:
+    - domains:
+      - "fleetingdns.com"
+      - "*.fleetingdns.com"
+  providerConfigRef:
+    name: default
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: ManagedSSLCertificate
+metadata:
+  name: fleetingdns-api-cert
+  labels:
+    app.kubernetes.io/name: fleetingdns-api-cert
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-api-cert
+    project: fleetingdns-infra
+    description: "SSL certificate for api.fleetingdns.com"
+    managed:
+    - domains:
+      - "api.fleetingdns.com"
+  providerConfigRef:
+    name: default
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: ManagedSSLCertificate
+metadata:
+  name: fleetingdns-portal-cert
+  labels:
+    app.kubernetes.io/name: fleetingdns-portal-cert
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-portal-cert
+    project: fleetingdns-infra
+    description: "SSL certificate for portal.fleetingdns.com"
+    managed:
+    - domains:
+      - "portal.fleetingdns.com"
+      - "admin.fleetingdns.com"
+      - "dev.fleetingdns.com"
+  providerConfigRef:
+    name: default
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: ManagedSSLCertificate
+metadata:
+  name: fleetingdns-monitoring-cert
+  labels:
+    app.kubernetes.io/name: fleetingdns-monitoring-cert
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-monitoring-cert
+    project: fleetingdns-infra
+    description: "SSL certificate for monitoring and analytics dashboards"
+    managed:
+    - domains:
+      - "monitoring.fleetingdns.com"
+      - "analytics.fleetingdns.com"
+      - "security.fleetingdns.com"
+  providerConfigRef:
+    name: default
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: ManagedSSLCertificate
+metadata:
+  name: fleetingdns-regional-eu-cert
+  labels:
+    app.kubernetes.io/name: fleetingdns-regional-eu-cert
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-regional-eu-cert
+    project: fleetingdns-infra
+    description: "SSL certificate for EU regional endpoints"
+    managed:
+    - domains:
+      - "eu.fleetingdns.com"
+      - "europe.fleetingdns.com"
+  providerConfigRef:
+    name: default
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: ManagedSSLCertificate
+metadata:
+  name: fleetingdns-regional-us-cert
+  labels:
+    app.kubernetes.io/name: fleetingdns-regional-us-cert
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-regional-us-cert
+    project: fleetingdns-infra
+    description: "SSL certificate for US regional endpoints"
+    managed:
+    - domains:
+      - "us.fleetingdns.com"
+      - "america.fleetingdns.com"
+  providerConfigRef:
+    name: default
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: ManagedSSLCertificate
+metadata:
+  name: fleetingdns-regional-apac-cert
+  labels:
+    app.kubernetes.io/name: fleetingdns-regional-apac-cert
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-regional-apac-cert
+    project: fleetingdns-infra
+    description: "SSL certificate for APAC regional endpoints"
+    managed:
+    - domains:
+      - "apac.fleetingdns.com"
+      - "asia.fleetingdns.com"
+  providerConfigRef:
+    name: default 

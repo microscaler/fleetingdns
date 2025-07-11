@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: fleetingdns-databases
+  annotations:
+    config.kubernetes.io/local-config: "true"
+
+resources:
+- postgresql.yaml
+- redis.yaml
+
+commonLabels:
+  app.kubernetes.io/name: fleetingdns-databases
+  app.kubernetes.io/component: database
+  app.kubernetes.io/part-of: fleetingdns
+  app.kubernetes.io/managed-by: crossplane
+
+patches:
+- target:
+    group: "*"
+    version: "*"
+    kind: "*"
+  patch: |-
+    - op: add
+      path: /metadata/annotations/crossplane.io~1managed-by
+      value: fleetingdns-platform 

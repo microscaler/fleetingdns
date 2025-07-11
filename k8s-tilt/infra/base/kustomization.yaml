@@ -1,0 +1,61 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: fleetingdns-crossplane-base
+  annotations:
+    config.kubernetes.io/local-config: "true"
+
+resources:
+# Provider Configuration
+- provider-config.yaml
+- provider-configs.yaml
+
+# Custom Resource Definitions (XRDs)
+- xrds/xproject.yaml
+- xrds/xloadbalancer.yaml
+- xrds/xsecurity.yaml
+
+# Compositions (Implementation of XRDs)
+- compositions/project-composition.yaml
+- compositions/loadbalancer-composition.yaml
+- compositions/security-composition.yaml
+
+commonLabels:
+  app.kubernetes.io/name: fleetingdns-crossplane-base
+  app.kubernetes.io/component: crossplane-base
+  app.kubernetes.io/part-of: fleetingdns
+  app.kubernetes.io/managed-by: crossplane
+
+patches:
+# Add common annotations to all resources
+- target:
+    group: "*"
+    version: "*"
+    kind: "*"
+  patch: |-
+    - op: add
+      path: /metadata/annotations/crossplane.io~1managed-by
+      value: fleetingdns-platform
+    - op: add
+      path: /metadata/annotations/fleetingdns.io~1deployment-order
+      value: base-configuration
+
+# Ensure all resources use the correct namespace
+- target:
+    group: pkg.crossplane.io
+    version: v1
+    kind: Provider
+  patch: |-
+    - op: replace
+      path: /metadata/namespace
+      value: crossplane-system
+
+- target:
+    group: pkg.crossplane.io
+    version: v1beta1
+    kind: DeploymentRuntimeConfig
+  patch: |-
+    - op: replace
+      path: /metadata/namespace
+      value: crossplane-system 

@@ -1,0 +1,71 @@
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: GlobalAddress
+metadata:
+  name: fleetingdns-global-ip
+  labels:
+    app.kubernetes.io/name: fleetingdns-global-ip
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-global-ip
+    project: fleetingdns-infra
+    description: "Global anycast IPv4 address for FleetingDNS"
+    addressType: EXTERNAL
+    ipVersion: IPV4
+  providerConfigRef:
+    name: default
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: GlobalAddress
+metadata:
+  name: fleetingdns-global-ipv6
+  labels:
+    app.kubernetes.io/name: fleetingdns-global-ipv6
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-global-ipv6
+    project: fleetingdns-infra
+    description: "Global anycast IPv6 address for FleetingDNS"
+    addressType: EXTERNAL
+    ipVersion: IPV6
+  providerConfigRef:
+    name: default
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: GlobalAddress
+metadata:
+  name: fleetingdns-api-ip
+  labels:
+    app.kubernetes.io/name: fleetingdns-api-ip
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-api-ip
+    project: fleetingdns-infra
+    description: "Global IP address for FleetingDNS API endpoints"
+    addressType: EXTERNAL
+    ipVersion: IPV4
+  providerConfigRef:
+    name: default
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: GlobalAddress
+metadata:
+  name: fleetingdns-dns-ip
+  labels:
+    app.kubernetes.io/name: fleetingdns-dns-ip
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-dns-ip
+    project: fleetingdns-infra
+    description: "Global IP address for FleetingDNS DNS traffic (TCP Load Balancer)"
+    addressType: EXTERNAL
+    ipVersion: IPV4
+  providerConfigRef:
+    name: default 
