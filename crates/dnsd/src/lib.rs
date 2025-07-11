@@ -63,7 +63,7 @@ pub async fn serve_with_shutdown(
     mut shutdown_rx: broadcast::Receiver<ShutdownSignal>,
 ) -> AppResult<()> {
     let pool = cfg.redis_pool.clone();
-    
+
     // Start DoT server with shutdown support
     #[cfg(feature = "dot")]
     let dot_handle = tokio::spawn(dot::serve_with_shutdown(
@@ -75,7 +75,7 @@ pub async fn serve_with_shutdown(
 
     let socket = UdpSocket::bind(cfg.addr).await?;
     info!(addr = %socket.local_addr()?, "DNS server listening with graceful shutdown support");
-    
+
     let mut buf = [0u8; 512];
     loop {
         tokio::select! {
@@ -101,14 +101,14 @@ pub async fn serve_with_shutdown(
             }
         }
     }
-    
+
     // Cleanup: DoT server will shutdown via its own signal
     #[cfg(feature = "dot")]
     {
         dot_handle.abort();
         let _ = dot_handle.await;
     }
-    
+
     info!("DNS server shutdown complete");
     Ok(())
 }
@@ -236,7 +236,7 @@ mod dot {
             });
         }
     }
-    
+
     /// Run the DNS-over-TLS server with graceful shutdown support.
     pub async fn serve_with_shutdown(
         addr: std::net::SocketAddr,
@@ -247,7 +247,7 @@ mod dot {
         let listener = TcpListener::bind(addr).await?;
         info!(addr=%listener.local_addr()?, "DoT server listening with graceful shutdown support");
         let acceptor = TlsAcceptor::from(Arc::new(cfg));
-        
+
         loop {
             tokio::select! {
                 // Handle new connections
@@ -298,7 +298,7 @@ mod dot {
                 }
             }
         }
-        
+
         info!("DoT server shutdown complete");
         Ok(())
     }

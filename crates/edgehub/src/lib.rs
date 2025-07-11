@@ -4,10 +4,10 @@ use std::sync::Arc;
 use common::AppResult;
 use common::shutdown::ShutdownSignal;
 use rand::Rng;
-use tokio::sync::broadcast;
 use rustls::ServerConfig;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
+use tokio::sync::broadcast;
 use tokio_rustls::TlsAcceptor;
 use tracing::{info, instrument};
 
@@ -115,7 +115,7 @@ pub async fn serve_with_shutdown(
             }
         }
     }
-    
+
     info!("EdgeHub shutdown complete");
     Ok(())
 }

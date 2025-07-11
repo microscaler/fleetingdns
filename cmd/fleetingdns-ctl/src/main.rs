@@ -20,11 +20,11 @@ struct Cli {
     /// Path to control socket
     #[arg(long, short)]
     socket: Option<PathBuf>,
-    
+
     /// Component name (used to find default socket path)
     #[arg(long, short, default_value = "dnsd")]
     component: String,
-    
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -65,14 +65,16 @@ impl From<ShutdownSignalArg> for ShutdownSignal {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     common::init_tracing();
-    
+
     let cli = Cli::parse();
-    
+
     // Determine socket path
-    let socket_path = cli.socket.unwrap_or_else(|| get_default_socket_path(&cli.component));
-    
+    let socket_path = cli
+        .socket
+        .unwrap_or_else(|| get_default_socket_path(&cli.component));
+
     info!("Connecting to control socket: {}", socket_path.display());
-    
+
     // Execute command
     match execute_command(&socket_path, &cli.command).await {
         Ok(response) => {
@@ -93,29 +95,29 @@ async fn execute_command(
     // Connect to Unix socket
     let stream = UnixStream::connect(socket_path).await?;
     let reader = BufReader::new(stream);
-    
+
     // Build command
     let control_command = match command {
-        Commands::Shutdown { signal } => ControlCommand::Shutdown { 
-            signal: signal.clone().into() 
+        Commands::Shutdown { signal } => ControlCommand::Shutdown {
+            signal: signal.clone().into(),
         },
         Commands::Status => ControlCommand::Status,
         Commands::Ping => ControlCommand::Ping,
         Commands::Reload => ControlCommand::Reload,
     };
-    
+
     // Send command
     let command_json = serde_json::to_string(&control_command)?;
     let mut stream = reader.into_inner();
     stream.write_all(command_json.as_bytes()).await?;
     stream.write_all(b"\n").await?;
     stream.flush().await?;
-    
+
     // Read response
     let mut reader = BufReader::new(stream);
     let mut response_line = String::new();
     reader.read_line(&mut response_line).await?;
-    
+
     // Parse response
     let response: ControlResponse = serde_json::from_str(response_line.trim())?;
     Ok(response)
@@ -134,27 +136,27 @@ fn format_duration(duration: Duration) -> String {
     let hours = total_seconds / 3600;
     let minutes = (total_seconds % 3600) / 60;
     let seconds = total_seconds % 60;
-    
+
     if hours > 0 {
-        format!("{}h {}m {}s", hours, minutes, seconds)
+        format!("{hours}h {minutes}m {seconds}s")
     } else if minutes > 0 {
-        format!("{}m {}s", minutes, seconds)
+        format!("{minutes}m {seconds}s")
     } else {
-        format!("{}s", seconds)
+        format!("{seconds}s")
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_format_duration() {
         assert_eq!(format_duration(Duration::from_secs(30)), "30s");
         assert_eq!(format_duration(Duration::from_secs(90)), "1m 30s");
         assert_eq!(format_duration(Duration::from_secs(3661)), "1h 1m 1s");
     }
-    
+
     #[test]
     fn test_shutdown_signal_conversion() {
         assert!(matches!(
@@ -170,4 +172,4 @@ mod tests {
             ShutdownSignal::Force
         ));
     }
-} 
+}

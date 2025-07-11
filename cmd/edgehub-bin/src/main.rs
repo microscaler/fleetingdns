@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use tracing::info;
 
-use common::{AppResult, init_tracing, tls, shutdown::GracefulShutdown};
+use common::{AppResult, init_tracing, shutdown::GracefulShutdown, tls};
 use edgehub::{self, Config};
 
 /// EdgeHub command line arguments.
@@ -25,32 +25,34 @@ struct Args {
 
 async fn run(args: Args) -> AppResult<()> {
     init_tracing();
-    
+
     // Initialize graceful shutdown framework
     let mut shutdown = if let Some(socket_path) = args.control_socket {
-        let mut config = common::shutdown::ShutdownConfig::default();
-        config.control_socket_path = socket_path;
-        config.component_name = "edgehub".to_string();
-        config.graceful_timeout = std::time::Duration::from_secs(args.shutdown_timeout);
+        let config = common::shutdown::ShutdownConfig {
+            control_socket_path: socket_path,
+            component_name: "edgehub".to_string(),
+            graceful_timeout: std::time::Duration::from_secs(args.shutdown_timeout),
+            ..Default::default()
+        };
         GracefulShutdown::with_config(config)?
     } else {
         GracefulShutdown::new("edgehub")?
     };
-    
+
     // Start shutdown framework
     shutdown.start().await?;
-    
+
     info!(
         addr = %args.addr,
         control_socket = %shutdown.config.control_socket_path.display(),
         "edgehub starting with graceful shutdown support"
     );
-    
+
     let (tls_config, _) = tls::generate_tls_config(&["ssh"])?;
     let pool = edgehub::redis::new_pool(&args.redis)
         .await
         .map_err(|e| common::AppError::Message(e.to_string()))?;
-    
+
     // Start EdgeHub server with shutdown signal
     let shutdown_rx = shutdown.subscribe();
     let serve_result = edgehub::serve_with_shutdown(
@@ -62,10 +64,10 @@ async fn run(args: Args) -> AppResult<()> {
         shutdown_rx,
     )
     .await;
-    
+
     // Wait for graceful shutdown to complete
     shutdown.wait_for_shutdown().await?;
-    
+
     serve_result
 }
 

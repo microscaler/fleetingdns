@@ -7,8 +7,8 @@ use tracing_subscriber::{EnvFilter, fmt};
 
 pub use metrics::{counter, gauge, histogram};
 
-pub mod tls;
 pub mod shutdown;
+pub mod tls;
 
 use thiserror::Error;
 

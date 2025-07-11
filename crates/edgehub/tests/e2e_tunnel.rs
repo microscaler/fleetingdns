@@ -1,3 +1,4 @@
+use hickory_resolver::TokioAsyncResolver;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::process::Stdio;
 use std::time::Duration;
@@ -7,16 +8,13 @@ use tokio::process::Command;
 use tokio::time::{sleep, timeout};
 use tracing::{info, warn};
 use tracing_test::traced_test;
-use hickory_resolver::TokioAsyncResolver;
 
 #[cfg(feature = "e2e")]
 #[tokio::test]
 #[traced_test]
 async fn test_e2e_tunnel_complete_flow() {
-    let result = timeout(Duration::from_secs(60), async {
-        e2e_tunnel_flow().await
-    }).await;
-    
+    let result = timeout(Duration::from_secs(60), async { e2e_tunnel_flow().await }).await;
+
     match result {
         Ok(Ok(())) => info!("E2E tunnel test completed successfully"),
         Ok(Err(e)) => {
@@ -25,7 +23,7 @@ async fn test_e2e_tunnel_complete_flow() {
                 return; // Don't panic for skipped tests
             }
             panic!("E2E tunnel test failed: {}", e);
-        },
+        }
         Err(_) => panic!("E2E tunnel test timed out after 60 seconds"),
     }
 }
@@ -33,7 +31,7 @@ async fn test_e2e_tunnel_complete_flow() {
 #[cfg(feature = "e2e")]
 async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting E2E tunnel flow test");
-    
+
     // Pre-build all binaries to avoid compilation delays during test
     info!("Building required binaries");
     let build_result = Command::new("cargo")
@@ -48,13 +46,13 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
         .stderr(Stdio::null())
         .status()
         .await?;
-    
+
     if !build_result.success() {
         return Err("Failed to build required binaries".into());
     }
-    
+
     info!("Binaries built successfully");
-    
+
     // Check if Redis is available (either via Docker Compose or locally)
     let redis_url = if is_redis_available("redis://127.0.0.1:6379").await {
         info!("Using Redis from Docker Compose");
@@ -64,7 +62,7 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
         info!("Starting local Redis server for testing");
         let redis_port = find_free_port().await?;
         let redis_url = format!("redis://127.0.0.1:{}", redis_port);
-        
+
         // Check if redis-server is available
         if Command::new("redis-server")
             .arg("--version")
@@ -74,9 +72,12 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
             .await
             .is_err()
         {
-            return Err("skipping test: redis-server not available and Docker Compose Redis not running".into());
+            return Err(
+                "skipping test: redis-server not available and Docker Compose Redis not running"
+                    .into(),
+            );
         }
-        
+
         let mut _redis_child = Command::new("redis-server")
             .arg("--port")
             .arg(redis_port.to_string())
@@ -89,11 +90,11 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()?;
-        
+
         sleep(Duration::from_millis(1000)).await;
         redis_url
     };
-    
+
     // Step 2: Start dnsd
     info!("Starting dnsd");
     let dnsd_port = find_free_port().await?;
@@ -108,19 +109,30 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()?;
-    
-    info!("Started dnsd on port {}, PID: {:?}", dnsd_port, dnsd_child.id());
+
+    info!(
+        "Started dnsd on port {}, PID: {:?}",
+        dnsd_port,
+        dnsd_child.id()
+    );
     sleep(Duration::from_millis(5000)).await; // Give more time for dnsd to start
-    
+
     // Check if dnsd is still running
     if let Ok(Some(exit_status)) = dnsd_child.try_wait() {
         let mut stderr_output = String::new();
         if let Some(mut stderr) = dnsd_child.stderr.take() {
-            stderr.read_to_string(&mut stderr_output).await.unwrap_or_default();
+            stderr
+                .read_to_string(&mut stderr_output)
+                .await
+                .unwrap_or_default();
         }
-        return Err(format!("dnsd exited early with status {:?}: {}", exit_status, stderr_output).into());
+        return Err(format!(
+            "dnsd exited early with status {:?}: {}",
+            exit_status, stderr_output
+        )
+        .into());
     }
-    
+
     // Also capture any stderr output even if the process is still running
     if let Some(stderr) = dnsd_child.stderr.as_mut() {
         use tokio::io::AsyncReadExt;
@@ -133,7 +145,7 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
             _ => {} // No stderr output or timeout
         }
     }
-    
+
     // Step 3: Start edgehub
     info!("Starting edgehub");
     let edgehub_port = find_free_port().await?;
@@ -149,29 +161,40 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()?;
-    
-    info!("Started edgehub on port {}, PID: {:?}", edgehub_port, edgehub_child.id());
+
+    info!(
+        "Started edgehub on port {}, PID: {:?}",
+        edgehub_port,
+        edgehub_child.id()
+    );
     sleep(Duration::from_millis(3000)).await; // Give more time for edgehub to start
-    
+
     // Check if edgehub is still running
     if let Ok(Some(exit_status)) = edgehub_child.try_wait() {
         let mut stderr_output = String::new();
         if let Some(mut stderr) = edgehub_child.stderr.take() {
-            stderr.read_to_string(&mut stderr_output).await.unwrap_or_default();
+            stderr
+                .read_to_string(&mut stderr_output)
+                .await
+                .unwrap_or_default();
         }
-        return Err(format!("edgehub exited early with status {:?}: {}", exit_status, stderr_output).into());
+        return Err(format!(
+            "edgehub exited early with status {:?}: {}",
+            exit_status, stderr_output
+        )
+        .into());
     }
-    
+
     // Step 4: Start netcat server
     info!("Starting echo server");
     let netcat_port = find_free_port().await?;
     let mut netcat_child = start_echo_server(netcat_port).await?;
-    
+
     // Step 5: Register slot using slot-setter
     info!("Registering slot with slot-setter");
     let slot_name = "test-slot";
     let target_ip = Ipv4Addr::new(127, 0, 0, 1);
-    
+
     let mut slot_setter_cmd = Command::new("cargo")
         .arg("run")
         .arg("-p")
@@ -186,26 +209,38 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()?;
-    
+
     let slot_setter_result = slot_setter_cmd.wait().await?;
-    
+
     if !slot_setter_result.success() {
         // Capture stderr for debugging
         let stderr = slot_setter_cmd.stderr.take();
         if let Some(mut stderr) = stderr {
             let mut error_output = String::new();
-            stderr.read_to_string(&mut error_output).await.unwrap_or_default();
-            return Err(format!("slot-setter failed with exit code {:?}: {}", slot_setter_result.code(), error_output).into());
+            stderr
+                .read_to_string(&mut error_output)
+                .await
+                .unwrap_or_default();
+            return Err(format!(
+                "slot-setter failed with exit code {:?}: {}",
+                slot_setter_result.code(),
+                error_output
+            )
+            .into());
         }
-        return Err(format!("slot-setter failed with exit code {:?}", slot_setter_result.code()).into());
+        return Err(format!(
+            "slot-setter failed with exit code {:?}",
+            slot_setter_result.code()
+        )
+        .into());
     }
-    
+
     sleep(Duration::from_millis(1000)).await;
-    
+
     // Step 6: Test DNS resolution
     info!("Testing DNS resolution");
     let hostname = format!("{}.fleetingdns.run", slot_name);
-    
+
     // First, test if the DNS server is listening by sending a simple UDP packet
     info!("Testing if DNS server is listening on port {}", dnsd_port);
     let test_socket = tokio::net::UdpSocket::bind("127.0.0.1:0").await?;
@@ -217,20 +252,22 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
         0x00, 0x00, // Authority RRs: 0
         0x00, 0x00, // Additional RRs: 0
         // Query for "test.example.com"
-        0x04, b't', b'e', b's', b't',
-        0x07, b'e', b'x', b'a', b'm', b'p', b'l', b'e',
-        0x03, b'c', b'o', b'm',
-        0x00, // End of name
+        0x04, b't', b'e', b's', b't', 0x07, b'e', b'x', b'a', b'm', b'p', b'l', b'e', 0x03, b'c',
+        b'o', b'm', 0x00, // End of name
         0x00, 0x01, // Type: A
         0x00, 0x01, // Class: IN
     ];
-    
+
     match timeout(Duration::from_secs(5), async {
-        test_socket.send_to(&simple_dns_query, format!("127.0.0.1:{}", dnsd_port)).await?;
+        test_socket
+            .send_to(&simple_dns_query, format!("127.0.0.1:{}", dnsd_port))
+            .await?;
         let mut buf = [0u8; 512];
         let (len, _) = test_socket.recv_from(&mut buf).await?;
         Ok::<usize, Box<dyn std::error::Error>>(len)
-    }).await {
+    })
+    .await
+    {
         Ok(Ok(len)) => info!("DNS server responded with {} bytes", len),
         Ok(Err(e)) => {
             warn!("DNS server test failed: {}", e);
@@ -241,25 +278,29 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
             return Err("DNS server not responding (timeout)".into());
         }
     }
-    
+
     // Create a custom resolver pointing to our dnsd instance
     let resolver = create_custom_resolver(dnsd_port).await?;
-    
+
     // Resolve the hostname
     let lookup_result = resolver.lookup_ip(&hostname).await;
     match lookup_result {
         Ok(response) => {
             let ips: Vec<_> = response.iter().collect();
             info!("DNS resolution successful: {} -> {:?}", hostname, ips);
-            
+
             // Verify the IP matches what we set
             if ips.is_empty() {
                 return Err("DNS resolution returned no IPs".into());
             }
-            
+
             let resolved_ip = ips[0];
             if resolved_ip != target_ip {
-                return Err(format!("DNS resolution mismatch: expected {}, got {}", target_ip, resolved_ip).into());
+                return Err(format!(
+                    "DNS resolution mismatch: expected {}, got {}",
+                    target_ip, resolved_ip
+                )
+                .into());
             }
         }
         Err(e) => {
@@ -267,29 +308,32 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
             return Err(format!("DNS resolution failed: {}", e).into());
         }
     }
-    
+
     // Step 7: Test tunnel connection
     info!("Testing tunnel connection");
-    
+
     // Give more time for the tunnel to establish
     sleep(Duration::from_millis(2000)).await;
-    
+
     // Try to connect to the resolved IP on the same port as the echo server
     let echo_port = netcat_port;
-    info!("Attempting to connect to 127.0.0.1:{} (echo server port)", echo_port);
-    
+    info!(
+        "Attempting to connect to 127.0.0.1:{} (echo server port)",
+        echo_port
+    );
+
     match TcpStream::connect(format!("127.0.0.1:{}", echo_port)).await {
         Ok(mut stream) => {
             info!("Connected to tunnel successfully");
-            
+
             // Send test data
             let test_data = b"Hello, tunnel!";
             stream.write_all(test_data).await?;
-            
+
             // Read response
             let mut response = vec![0u8; test_data.len()];
             stream.read_exact(&mut response).await?;
-            
+
             if response == test_data {
                 info!("Tunnel data transmission successful");
             } else {
@@ -297,12 +341,15 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Err(e) => {
-            info!("Failed to connect to tunnel: {}. This might be expected if the tunnel setup is different.", e);
-            
+            info!(
+                "Failed to connect to tunnel: {}. This might be expected if the tunnel setup is different.",
+                e
+            );
+
             // Let's also try connecting to the edgehub port to see if it's accepting connections
             let edgehub_port = edgehub_port;
             info!("Attempting to connect to edgehub on port {}", edgehub_port);
-            
+
             match TcpStream::connect(format!("127.0.0.1:{}", edgehub_port)).await {
                 Ok(_) => {
                     info!("Can connect to edgehub directly");
@@ -311,48 +358,54 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
                     info!("Cannot connect to edgehub either: {}", e2);
                 }
             }
-            
+
             // For now, let's not fail the test on this - the DNS resolution working is a big step
             info!("Continuing test despite tunnel connection issue");
         }
     }
-    
+
     // Step 8: Cleanup using graceful shutdown
     info!("Cleaning up processes using graceful shutdown");
-    
+
     // Send SIGTERM for graceful shutdown to dnsd and edgehub
     if let Some(dnsd_pid) = dnsd_child.id() {
-        info!("Sending graceful shutdown signal to dnsd (PID: {})", dnsd_pid);
+        info!(
+            "Sending graceful shutdown signal to dnsd (PID: {})",
+            dnsd_pid
+        );
         let _ = Command::new("kill")
             .arg("-TERM")
             .arg(dnsd_pid.to_string())
             .status()
             .await;
     }
-    
+
     if let Some(edgehub_pid) = edgehub_child.id() {
-        info!("Sending graceful shutdown signal to edgehub (PID: {})", edgehub_pid);
+        info!(
+            "Sending graceful shutdown signal to edgehub (PID: {})",
+            edgehub_pid
+        );
         let _ = Command::new("kill")
             .arg("-TERM")
             .arg(edgehub_pid.to_string())
             .status()
             .await;
     }
-    
+
     // Kill netcat server (it doesn't have graceful shutdown)
     if let Err(e) = netcat_child.kill().await {
         warn!("Failed to kill netcat process: {}", e);
     }
-    
+
     // Wait for graceful shutdown to complete
     info!("Waiting for graceful shutdown to complete");
     sleep(Duration::from_millis(2000)).await;
-    
+
     // Wait for processes to exit gracefully
     let dnsd_result = timeout(Duration::from_secs(5), dnsd_child.wait()).await;
     let edgehub_result = timeout(Duration::from_secs(5), edgehub_child.wait()).await;
     let netcat_result = timeout(Duration::from_secs(2), netcat_child.wait()).await;
-    
+
     match dnsd_result {
         Ok(Ok(status)) => info!("dnsd exited gracefully with status: {:?}", status),
         Ok(Err(e)) => warn!("dnsd wait error: {}", e),
@@ -361,7 +414,7 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
             let _ = dnsd_child.kill().await;
         }
     }
-    
+
     match edgehub_result {
         Ok(Ok(status)) => info!("edgehub exited gracefully with status: {:?}", status),
         Ok(Err(e)) => warn!("edgehub wait error: {}", e),
@@ -370,13 +423,13 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
             let _ = edgehub_child.kill().await;
         }
     }
-    
+
     match netcat_result {
         Ok(Ok(status)) => info!("netcat exited with status: {:?}", status),
         Ok(Err(e)) => warn!("netcat wait error: {}", e),
         Err(_) => warn!("netcat termination timed out"),
     }
-    
+
     info!("E2E tunnel flow test completed successfully");
     Ok(())
 }
@@ -384,7 +437,7 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(feature = "e2e")]
 async fn is_redis_available(redis_url: &str) -> bool {
     use redis::AsyncCommands;
-    
+
     match redis::Client::open(redis_url) {
         Ok(client) => {
             if let Ok(mut conn) = client.get_multiplexed_async_connection().await {
@@ -403,22 +456,22 @@ async fn is_redis_available(redis_url: &str) -> bool {
 async fn find_free_port() -> Result<u16, Box<dyn std::error::Error>> {
     use std::collections::HashSet;
     let mut used_ports = HashSet::new();
-    
+
     // Try multiple times to find a free port
     for attempt in 0..20 {
         let listener = TcpListener::bind("127.0.0.1:0").await?;
         let port = listener.local_addr()?.port();
         drop(listener);
-        
+
         // Skip if we've already tried this port
         if used_ports.contains(&port) {
             continue;
         }
         used_ports.insert(port);
-        
+
         // Give a small delay to ensure the port is released
         sleep(Duration::from_millis(50 + attempt * 10)).await;
-        
+
         // Double-check that the port is actually free by trying to bind to it
         match TcpListener::bind(format!("127.0.0.1:{}", port)).await {
             Ok(test_listener) => {
@@ -431,7 +484,7 @@ async fn find_free_port() -> Result<u16, Box<dyn std::error::Error>> {
             }
         }
     }
-    
+
     Err("Could not find a free port after 20 attempts".into())
 }
 
@@ -487,29 +540,31 @@ async fn start_echo_server(port: u16) -> Result<tokio::process::Child, Box<dyn s
                     });
                 }
             });
-            
+
             // Return a dummy child process that we can "kill" by aborting the handle
             let child = Command::new("sleep")
                 .arg("3600")
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
                 .spawn()?;
-            
+
             // Store the handle for cleanup (this is a bit hacky but works for testing)
             tokio::spawn(async move {
                 sleep(Duration::from_secs(3600)).await;
                 handle.abort();
             });
-            
+
             Ok(child)
         }
     }
 }
 
 #[cfg(feature = "e2e")]
-async fn create_custom_resolver(dns_port: u16) -> Result<TokioAsyncResolver, Box<dyn std::error::Error>> {
-    use hickory_resolver::config::{ResolverConfig, ResolverOpts, NameServerConfig, Protocol};
-    
+async fn create_custom_resolver(
+    dns_port: u16,
+) -> Result<TokioAsyncResolver, Box<dyn std::error::Error>> {
+    use hickory_resolver::config::{NameServerConfig, Protocol, ResolverConfig, ResolverOpts};
+
     let mut config = ResolverConfig::new();
     let nameserver = NameServerConfig {
         socket_addr: SocketAddr::new("127.0.0.1".parse()?, dns_port),
@@ -519,7 +574,7 @@ async fn create_custom_resolver(dns_port: u16) -> Result<TokioAsyncResolver, Box
         bind_addr: None,
     };
     config.add_name_server(nameserver);
-    
+
     let resolver = TokioAsyncResolver::tokio(config, ResolverOpts::default());
     Ok(resolver)
 }
@@ -534,9 +589,13 @@ async fn test_e2e_tunnel_basic() {
         // This is a placeholder for actual e2e tunnel testing
         tokio::time::sleep(Duration::from_millis(100)).await;
         Ok::<(), Box<dyn std::error::Error>>(())
-    }).await;
-    
-    assert!(result.is_ok(), "Basic tunnel test should complete within timeout");
+    })
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "Basic tunnel test should complete within timeout"
+    );
 }
 
 #[tokio::test]
@@ -548,9 +607,13 @@ async fn test_tunnel_redis_integration() {
         // This would test that tunnel slots are properly set/deleted in Redis
         tokio::time::sleep(Duration::from_millis(100)).await;
         Ok::<(), Box<dyn std::error::Error>>(())
-    }).await;
-    
-    assert!(result.is_ok(), "Redis integration test should complete within timeout");
+    })
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "Redis integration test should complete within timeout"
+    );
 }
 
 #[tokio::test]
@@ -562,7 +625,11 @@ async fn test_tunnel_tls_handshake() {
         // This would test that TLS connections are properly established
         tokio::time::sleep(Duration::from_millis(100)).await;
         Ok::<(), Box<dyn std::error::Error>>(())
-    }).await;
-    
-    assert!(result.is_ok(), "TLS handshake test should complete within timeout");
-} 
+    })
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "TLS handshake test should complete within timeout"
+    );
+}

@@ -10,7 +10,7 @@ use std::time::{Duration, SystemTime};
 
 use serde::{Deserialize, Serialize};
 use tokio::net::{UnixListener, UnixStream};
-use tokio::signal::unix::{signal, SignalKind};
+use tokio::signal::unix::{SignalKind, signal};
 use tokio::sync::broadcast;
 use tokio::task::JoinHandle;
 use tokio::time::timeout;
@@ -115,14 +115,14 @@ impl GracefulShutdown {
             component_name: component_name.to_string(),
             ..Default::default()
         };
-        
+
         Self::with_config(config)
     }
-    
+
     /// Create with custom configuration.
     pub fn with_config(config: ShutdownConfig) -> AppResult<Self> {
         let (shutdown_tx, _) = broadcast::channel(16);
-        
+
         Ok(Self {
             config,
             state: Arc::new(Mutex::new(ShutdownState::Running)),
@@ -132,7 +132,7 @@ impl GracefulShutdown {
             control_handle: None,
         })
     }
-    
+
     /// Start the shutdown framework (signal handlers and control socket).
     pub async fn start(&mut self) -> AppResult<()> {
         info!(
@@ -140,41 +140,41 @@ impl GracefulShutdown {
             socket_path = %self.config.control_socket_path.display(),
             "Starting graceful shutdown framework"
         );
-        
+
         // Start signal handlers
         self.start_signal_handlers().await?;
-        
+
         // Start Unix socket control interface
         self.start_control_socket().await?;
-        
+
         Ok(())
     }
-    
+
     /// Subscribe to shutdown signals.
     pub fn subscribe(&self) -> broadcast::Receiver<ShutdownSignal> {
         self.shutdown_tx.subscribe()
     }
-    
+
     /// Get current shutdown state.
     pub fn state(&self) -> ShutdownState {
         *self.state.lock().unwrap()
     }
-    
+
     /// Increment active connection count.
     pub fn connection_started(&self) {
         self.active_connections.fetch_add(1, Ordering::Relaxed);
     }
-    
+
     /// Decrement active connection count.
     pub fn connection_finished(&self) {
         self.active_connections.fetch_sub(1, Ordering::Relaxed);
     }
-    
+
     /// Get current active connection count.
     pub fn active_connections(&self) -> u64 {
         self.active_connections.load(Ordering::Relaxed)
     }
-    
+
     /// Trigger shutdown with specified signal.
     pub async fn shutdown(&self, signal: ShutdownSignal) -> AppResult<()> {
         info!(
@@ -182,7 +182,7 @@ impl GracefulShutdown {
             signal = ?signal,
             "Initiating shutdown"
         );
-        
+
         // Update state
         {
             let mut state = self.state.lock().unwrap();
@@ -191,15 +191,15 @@ impl GracefulShutdown {
                 _ => ShutdownState::Draining,
             };
         }
-        
+
         // Broadcast shutdown signal
         if let Err(e) = self.shutdown_tx.send(signal) {
             warn!("Failed to broadcast shutdown signal: {}", e);
         }
-        
+
         Ok(())
     }
-    
+
     /// Wait for shutdown to complete with timeout.
     pub async fn wait_for_shutdown(&self) -> AppResult<()> {
         let timeout_duration = match self.state() {
@@ -207,20 +207,21 @@ impl GracefulShutdown {
             ShutdownState::Stopping => self.config.immediate_timeout,
             _ => self.config.force_timeout,
         };
-        
+
         info!(
             component = %self.config.component_name,
             timeout = ?timeout_duration,
             "Waiting for shutdown to complete"
         );
-        
+
         // Wait for connections to drain
         let result = timeout(timeout_duration, async {
             while self.active_connections() > 0 {
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
-        }).await;
-        
+        })
+        .await;
+
         if result.is_err() {
             warn!(
                 component = %self.config.component_name,
@@ -228,25 +229,25 @@ impl GracefulShutdown {
                 "Shutdown timeout reached, forcing termination"
             );
         }
-        
+
         // Update final state
         {
             let mut state = self.state.lock().unwrap();
             *state = ShutdownState::Stopped;
         }
-        
+
         info!(
             component = %self.config.component_name,
             "Shutdown complete"
         );
-        
+
         Ok(())
     }
-    
+
     async fn start_signal_handlers(&self) -> AppResult<()> {
         let shutdown_tx = self.shutdown_tx.clone();
         let component_name = self.config.component_name.clone();
-        
+
         // SIGTERM - Graceful shutdown
         let mut sigterm = signal(SignalKind::terminate())?;
         let shutdown_tx_term = shutdown_tx.clone();
@@ -256,7 +257,7 @@ impl GracefulShutdown {
             info!(component = %component_term, "Received SIGTERM, initiating graceful shutdown");
             let _ = shutdown_tx_term.send(ShutdownSignal::Graceful);
         });
-        
+
         // SIGINT - Graceful shutdown (Ctrl+C)
         let mut sigint = signal(SignalKind::interrupt())?;
         let shutdown_tx_int = shutdown_tx.clone();
@@ -266,7 +267,7 @@ impl GracefulShutdown {
             info!(component = %component_int, "Received SIGINT, initiating graceful shutdown");
             let _ = shutdown_tx_int.send(ShutdownSignal::Graceful);
         });
-        
+
         // SIGUSR1 - Immediate shutdown
         let mut sigusr1 = signal(SignalKind::user_defined1())?;
         let shutdown_tx_usr1 = shutdown_tx.clone();
@@ -276,7 +277,7 @@ impl GracefulShutdown {
             info!(component = %component_usr1, "Received SIGUSR1, initiating immediate shutdown");
             let _ = shutdown_tx_usr1.send(ShutdownSignal::Immediate);
         });
-        
+
         // SIGUSR2 - Force shutdown
         let mut sigusr2 = signal(SignalKind::user_defined2())?;
         let shutdown_tx_usr2 = shutdown_tx;
@@ -286,33 +287,33 @@ impl GracefulShutdown {
             info!(component = %component_usr2, "Received SIGUSR2, initiating force shutdown");
             let _ = shutdown_tx_usr2.send(ShutdownSignal::Force);
         });
-        
+
         Ok(())
     }
-    
+
     async fn start_control_socket(&mut self) -> AppResult<()> {
         // Ensure socket directory exists
         if let Some(parent) = self.config.control_socket_path.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
-        
+
         // Remove existing socket file if it exists
         let _ = tokio::fs::remove_file(&self.config.control_socket_path).await;
-        
+
         let listener = UnixListener::bind(&self.config.control_socket_path)?;
-        
+
         let state = self.state.clone();
         let active_connections = self.active_connections.clone();
         let start_time = self.start_time;
         let component_name = self.config.component_name.clone();
         let shutdown_tx = self.shutdown_tx.clone();
-        
+
         let handle = tokio::spawn(async move {
             info!(
                 component = %component_name,
                 "Control socket listening for commands"
             );
-            
+
             loop {
                 match listener.accept().await {
                     Ok((stream, _)) => {
@@ -320,7 +321,7 @@ impl GracefulShutdown {
                         let active_connections = active_connections.clone();
                         let component_name = component_name.clone();
                         let shutdown_tx = shutdown_tx.clone();
-                        
+
                         tokio::spawn(async move {
                             if let Err(e) = handle_control_connection(
                                 stream,
@@ -329,7 +330,9 @@ impl GracefulShutdown {
                                 start_time,
                                 component_name,
                                 shutdown_tx,
-                            ).await {
+                            )
+                            .await
+                            {
                                 error!("Control connection error: {}", e);
                             }
                         });
@@ -341,7 +344,7 @@ impl GracefulShutdown {
                 }
             }
         });
-        
+
         self.control_handle = Some(handle);
         Ok(())
     }
@@ -351,7 +354,7 @@ impl Drop for GracefulShutdown {
     fn drop(&mut self) {
         // Clean up control socket
         let _ = std::fs::remove_file(&self.config.control_socket_path);
-        
+
         // Abort control handle
         if let Some(handle) = &self.control_handle {
             handle.abort();
@@ -368,17 +371,17 @@ async fn handle_control_connection(
     shutdown_tx: broadcast::Sender<ShutdownSignal>,
 ) -> AppResult<()> {
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-    
+
     let mut reader = BufReader::new(stream);
     let mut line = String::new();
-    
+
     if reader.read_line(&mut line).await? == 0 {
         return Ok(()); // Connection closed
     }
-    
+
     let command: ControlCommand = serde_json::from_str(line.trim())
-        .map_err(|e| AppError::Message(format!("Invalid command: {}", e)))?;
-    
+        .map_err(|e| AppError::Message(format!("Invalid command: {e}")))?;
+
     let response = match command {
         ControlCommand::Shutdown { signal } => {
             info!(
@@ -386,52 +389,46 @@ async fn handle_control_connection(
                 signal = ?signal,
                 "Control socket shutdown command received"
             );
-            
+
             let _ = shutdown_tx.send(signal);
-            
+
             ControlResponse {
-                status: format!("Shutdown initiated with signal: {:?}", signal),
+                status: format!("Shutdown initiated with signal: {signal:?}"),
                 uptime: start_time.elapsed().unwrap_or_default(),
                 active_connections: active_connections.load(Ordering::Relaxed),
                 shutdown_state: *state.lock().unwrap(),
                 component: component_name,
             }
         }
-        ControlCommand::Status => {
-            ControlResponse {
-                status: "Service running".to_string(),
-                uptime: start_time.elapsed().unwrap_or_default(),
-                active_connections: active_connections.load(Ordering::Relaxed),
-                shutdown_state: *state.lock().unwrap(),
-                component: component_name,
-            }
-        }
-        ControlCommand::Ping => {
-            ControlResponse {
-                status: "Pong".to_string(),
-                uptime: start_time.elapsed().unwrap_or_default(),
-                active_connections: active_connections.load(Ordering::Relaxed),
-                shutdown_state: *state.lock().unwrap(),
-                component: component_name,
-            }
-        }
-        ControlCommand::Reload => {
-            ControlResponse {
-                status: "Reload not implemented yet".to_string(),
-                uptime: start_time.elapsed().unwrap_or_default(),
-                active_connections: active_connections.load(Ordering::Relaxed),
-                shutdown_state: *state.lock().unwrap(),
-                component: component_name,
-            }
-        }
+        ControlCommand::Status => ControlResponse {
+            status: "Service running".to_string(),
+            uptime: start_time.elapsed().unwrap_or_default(),
+            active_connections: active_connections.load(Ordering::Relaxed),
+            shutdown_state: *state.lock().unwrap(),
+            component: component_name,
+        },
+        ControlCommand::Ping => ControlResponse {
+            status: "Pong".to_string(),
+            uptime: start_time.elapsed().unwrap_or_default(),
+            active_connections: active_connections.load(Ordering::Relaxed),
+            shutdown_state: *state.lock().unwrap(),
+            component: component_name,
+        },
+        ControlCommand::Reload => ControlResponse {
+            status: "Reload not implemented yet".to_string(),
+            uptime: start_time.elapsed().unwrap_or_default(),
+            active_connections: active_connections.load(Ordering::Relaxed),
+            shutdown_state: *state.lock().unwrap(),
+            component: component_name,
+        },
     };
-    
+
     let response_json = serde_json::to_string(&response)?;
     let mut stream = reader.into_inner();
     stream.write_all(response_json.as_bytes()).await?;
     stream.write_all(b"\n").await?;
     stream.flush().await?;
-    
+
     Ok(())
 }
 
@@ -441,17 +438,17 @@ pub fn get_default_socket_path(component: &str) -> PathBuf {
     if let Ok(path) = std::env::var("FLEETINGDNS_CONTROL_SOCKET") {
         return PathBuf::from(path);
     }
-    
+
     // Determine if running as root
     let is_root = unsafe { libc::getuid() == 0 };
-    
+
     if is_root {
         // System service mode
         #[cfg(target_os = "linux")]
         return PathBuf::from(format!("/run/fleetingdns/{}.sock", component));
-        
+
         #[cfg(target_os = "macos")]
-        return PathBuf::from(format!("/var/run/fleetingdns/{}.sock", component));
+        return PathBuf::from(format!("/var/run/fleetingdns/{component}.sock"));
     } else {
         // User mode
         #[cfg(target_os = "linux")]
@@ -460,74 +457,75 @@ pub fn get_default_socket_path(component: &str) -> PathBuf {
                 return PathBuf::from(format!("{}/fleetingdns/{}.sock", xdg_runtime, component));
             }
         }
-        
+
         #[cfg(target_os = "macos")]
         {
             if let Ok(home) = std::env::var("HOME") {
                 return PathBuf::from(format!(
-                    "{}/Library/Application Support/fleetingdns/{}.sock",
-                    home, component
+                    "{home}/Library/Application Support/fleetingdns/{component}.sock"
                 ));
             }
         }
-        
+
         // Fallback to a user-writable location
         if let Ok(home) = std::env::var("HOME") {
-            return PathBuf::from(format!("{}/.local/run/fleetingdns/{}.sock", home, component));
+            return PathBuf::from(format!(
+                "{home}/.local/run/fleetingdns/{component}.sock"
+            ));
         }
     }
-    
+
     // Last resort fallback (should never happen in practice)
-    PathBuf::from(format!("/tmp/fleetingdns-{}.sock", component))
+    PathBuf::from(format!("/tmp/fleetingdns-{component}.sock"))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use tokio::time::sleep;
-    
+
     #[tokio::test]
     async fn test_shutdown_framework_creation() {
         let shutdown = GracefulShutdown::new("test").unwrap();
         assert_eq!(shutdown.state(), ShutdownState::Running);
         assert_eq!(shutdown.active_connections(), 0);
     }
-    
+
     #[tokio::test]
     async fn test_connection_tracking() {
         let shutdown = GracefulShutdown::new("test").unwrap();
-        
+
         shutdown.connection_started();
         assert_eq!(shutdown.active_connections(), 1);
-        
+
         shutdown.connection_started();
         assert_eq!(shutdown.active_connections(), 2);
-        
+
         shutdown.connection_finished();
         assert_eq!(shutdown.active_connections(), 1);
-        
+
         shutdown.connection_finished();
         assert_eq!(shutdown.active_connections(), 0);
     }
-    
+
     #[tokio::test]
     async fn test_shutdown_signal_broadcast() {
         let shutdown = GracefulShutdown::new("test").unwrap();
         let mut rx = shutdown.subscribe();
-        
+
         shutdown.shutdown(ShutdownSignal::Graceful).await.unwrap();
-        
+
         let signal = rx.recv().await.unwrap();
         assert_eq!(signal, ShutdownSignal::Graceful);
         assert_eq!(shutdown.state(), ShutdownState::Draining);
     }
-    
+
     #[test]
     fn test_socket_path_generation() {
         // Test component name formatting
         let path = get_default_socket_path("test-component");
         assert!(path.to_string_lossy().contains("test-component"));
-        
+
         // Test environment variable override
         unsafe {
             std::env::set_var("FLEETINGDNS_CONTROL_SOCKET", "/custom/path.sock");
@@ -538,4 +536,4 @@ mod tests {
             std::env::remove_var("FLEETINGDNS_CONTROL_SOCKET");
         }
     }
-} 
+}

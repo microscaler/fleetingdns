@@ -3,10 +3,10 @@ use std::net::SocketAddr;
 use clap::Parser;
 use tracing::info;
 
-use common::{init_tracing, AppResult};
-use dnsd::{self, redis_cache, Config};
 #[cfg(feature = "dot")]
 use common::tls;
+use common::{AppResult, init_tracing};
+use dnsd::{self, Config, redis_cache};
 
 /// DNS daemon command line arguments.
 #[derive(Parser, Debug, Clone)]
@@ -45,17 +45,18 @@ async fn main() -> AppResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mini_redis::server;
     use std::net::UdpSocket as StdUdpSocket;
     use tokio::net::{TcpListener, UdpSocket};
     use tokio::task::JoinHandle;
-    use tokio::time::{sleep, Duration};
+    use tokio::time::{Duration, sleep};
     use tracing_test::traced_test;
-    use mini_redis::server;
 
     async fn start_redis() -> (String, JoinHandle<mini_redis::Result<()>>) {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
-        let handle = tokio::spawn(async move { server::run(listener, tokio::signal::ctrl_c()).await });
+        let handle =
+            tokio::spawn(async move { server::run(listener, tokio::signal::ctrl_c()).await });
         (format!("redis://{}", addr), handle)
     }
 
@@ -67,7 +68,9 @@ mod tests {
         drop(std_sock);
 
         let (redis_url, redis_handle) = start_redis().await;
-        unsafe { std::env::set_var("REDIS_URL", &redis_url); }
+        unsafe {
+            std::env::set_var("REDIS_URL", &redis_url);
+        }
         let handle = tokio::spawn(async move { run(Args { addr }).await.unwrap() });
 
         sleep(Duration::from_millis(50)).await;
