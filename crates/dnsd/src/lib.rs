@@ -14,6 +14,8 @@ use tracing::{info, instrument};
 pub struct Config {
     /// Address to bind the UDP socket to.
     pub addr: SocketAddr,
+    /// Redis connection pool for slot lookups.
+    pub redis_pool: redis_cache::RedisPool,
     #[cfg(feature = "dot")]
     /// Address for DNS-over-TLS.
     pub dot_addr: SocketAddr,
@@ -28,8 +30,13 @@ pub struct Config {
 /// packet. The function runs until cancelled.
 #[instrument]
 pub async fn serve(cfg: Config) -> AppResult<()> {
+    let pool = cfg.redis_pool.clone();
     #[cfg(feature = "dot")]
-    tokio::spawn(dot::serve(cfg.dot_addr, cfg.tls_config.clone()));
+    tokio::spawn(dot::serve(
+        cfg.dot_addr,
+        cfg.tls_config.clone(),
+        pool.clone(),
+    ));
 
     let socket = UdpSocket::bind(cfg.addr).await?;
     info!(addr = %socket.local_addr()?, "listening");
@@ -37,7 +44,7 @@ pub async fn serve(cfg: Config) -> AppResult<()> {
     loop {
         let (len, peer) = socket.recv_from(&mut buf).await?;
         info!("received {} bytes", len);
-        if let Ok(resp) = udp::handle_packet(&buf[..len]) {
+        if let Ok(resp) = udp::handle_packet(&buf[..len], &pool).await {
             let _ = socket.send_to(&resp, peer).await?;
         }
     }
@@ -46,14 +53,27 @@ pub async fn serve(cfg: Config) -> AppResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mini_redis::server;
     use std::net::UdpSocket as StdUdpSocket;
-    use tokio::net::UdpSocket;
+    use tokio::net::{TcpListener, UdpSocket};
+    use tokio::task::JoinHandle;
     use tokio::time::{Duration, sleep};
     use tracing_test::traced_test;
 
     #[tokio::test]
     #[traced_test]
     async fn logs_received_bytes() {
+        async fn start_redis() -> (String, JoinHandle<mini_redis::Result<()>>) {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let addr = listener.local_addr().unwrap();
+            let handle =
+                tokio::spawn(async move { server::run(listener, tokio::signal::ctrl_c()).await });
+            (format!("redis://{addr}"), handle)
+        }
+
+        let (redis_url, redis_handle) = start_redis().await;
+        let pool = redis_cache::new_pool(&redis_url).await.unwrap();
+
         let std_sock = StdUdpSocket::bind("127.0.0.1:0").unwrap();
         let addr = std_sock.local_addr().unwrap();
         #[cfg(feature = "dot")]
@@ -64,6 +84,7 @@ mod tests {
         let (tls_config, _) = common::tls::generate_tls_config(&["dot"]).unwrap();
         let cfg = Config {
             addr,
+            redis_pool: pool.clone(),
             #[cfg(feature = "dot")]
             dot_addr,
             #[cfg(feature = "dot")]
@@ -78,6 +99,7 @@ mod tests {
 
         sleep(Duration::from_millis(50)).await;
         handle.abort();
+        redis_handle.abort();
 
         assert!(logs_contain("received 12 bytes"));
     }
@@ -85,6 +107,7 @@ mod tests {
 
 #[cfg(feature = "dot")]
 mod dot {
+    use super::redis_cache;
     use super::udp;
     use common::AppResult;
     use rustls::ServerConfig;
@@ -104,13 +127,22 @@ mod dot {
     /// The server runs indefinitely until the task is cancelled. Errors are
     /// returned if binding the listener or accepting connections fails.
     /// Returns `Ok(())` when the server shuts down gracefully.
-    pub async fn serve(addr: std::net::SocketAddr, cfg: ServerConfig) -> AppResult<()> {
+    ///
+    /// * `addr` - Address to bind the TLS listener.
+    /// * `cfg` - TLS configuration for the server.
+    /// * `pool` - Redis connection pool used for DNS record lookups.
+    pub async fn serve(
+        addr: std::net::SocketAddr,
+        cfg: ServerConfig,
+        pool: redis_cache::RedisPool,
+    ) -> AppResult<()> {
         let listener = TcpListener::bind(addr).await?;
         info!(addr=%listener.local_addr()?, "dot listening");
         let acceptor = TlsAcceptor::from(Arc::new(cfg));
         loop {
             let (stream, peer) = listener.accept().await?;
             let acceptor = acceptor.clone();
+            let pool = pool.clone();
             tokio::spawn(async move {
                 if let Ok(mut tls) = acceptor.accept(stream).await {
                     let mut len_buf = [0u8; 2];
@@ -123,7 +155,7 @@ mod dot {
                         if tls.read_exact(&mut buf).await.is_err() {
                             break;
                         }
-                        if let Ok(resp) = udp::handle_packet(&buf) {
+                        if let Ok(resp) = udp::handle_packet(&buf, &pool).await {
                             let resp_len = (resp.len() as u16).to_be_bytes();
                             if tls.write_all(&resp_len).await.is_err() {
                                 break;
