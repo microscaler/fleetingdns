@@ -2,7 +2,7 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: redis
-  namespace: fleetingdns
+  namespace: redis
   labels:
     app.kubernetes.io/name: redis
     app.kubernetes.io/component: infrastructure
@@ -17,7 +17,7 @@ spec:
       sourceRef:
         kind: HelmRepository
         name: bitnami
-        namespace: flux-system
+        namespace: redis
       interval: 5m0s
   values:
     # Architecture
