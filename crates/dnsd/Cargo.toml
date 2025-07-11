@@ -7,13 +7,14 @@ edition = "2024"
 common = { path = "../common" }
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
-hickory-proto = "0.24"
+hickory-proto = { version = "0.24", features = ["dnssec", "dnssec-ring"] }
 tokio-rustls = { version = "0.26", optional = true }
 rustls = { version = "0.23", optional = true }
 bb8 = { workspace = true }
 bb8-redis = "0.24"
 redis = { workspace = true }
 thiserror = { workspace = true }
+ring = "0.17"
 
 [features]
 dot = ["tokio-rustls", "rustls"]

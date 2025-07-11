@@ -1,8 +1,9 @@
 use hickory_proto::op::{Message, MessageType, OpCode, ResponseCode};
-use hickory_proto::rr::{RData, Record, rdata};
+use hickory_proto::rr::{RData, Record, RecordType, rdata};
 use hickory_proto::serialize::binary::{BinEncodable, BinEncoder};
 
 use crate::redis_cache::{self, CacheError};
+use crate::sign;
 use common::{AppError, AppResult};
 
 /// Handle a single DNS packet, returning a response buffer.
@@ -54,6 +55,19 @@ pub async fn handle_packet(packet: &[u8], pool: &redis_cache::RedisPool) -> AppR
         message.set_response_code(ResponseCode::NoError);
         let record = Record::from_rdata(qname.clone(), 60, RData::A(rdata::A(ip)));
         message.add_answer(record);
+
+        if let Some(signer) = sign::signer() {
+            let mut rrset = Vec::new();
+            {
+                let mut enc = BinEncoder::new(&mut rrset);
+                for rec in message.answers() {
+                    rec.emit(&mut enc)
+                        .map_err(|e| AppError::Message(e.to_string()))?;
+                }
+            }
+            let sig = signer.rrsig_record(qname, RecordType::A, 60, &rrset);
+            message.add_answer(sig);
+        }
     } else {
         message.set_response_code(ResponseCode::NXDomain);
     }
