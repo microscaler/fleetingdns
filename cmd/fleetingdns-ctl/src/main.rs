@@ -29,7 +29,7 @@ struct Cli {
     command: Commands,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 enum Commands {
     /// Shutdown the daemon gracefully
     Shutdown {
@@ -149,6 +149,10 @@ fn format_duration(duration: Duration) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
+    use tokio::net::UnixListener;
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    use common::shutdown::{ControlCommand, ControlResponse, ShutdownState};
 
     #[test]
     fn test_format_duration() {
@@ -171,5 +175,289 @@ mod tests {
             ShutdownSignal::from(ShutdownSignalArg::Force),
             ShutdownSignal::Force
         ));
+    }
+
+    #[test]
+    fn test_format_duration_edge_cases() {
+        assert_eq!(format_duration(Duration::from_secs(0)), "0s");
+        assert_eq!(format_duration(Duration::from_secs(59)), "59s");
+        assert_eq!(format_duration(Duration::from_secs(60)), "1m 0s");
+        assert_eq!(format_duration(Duration::from_secs(3600)), "1h 0m 0s");
+        assert_eq!(format_duration(Duration::from_secs(3660)), "1h 1m 0s");
+        assert_eq!(format_duration(Duration::from_secs(7323)), "2h 2m 3s");
+    }
+
+    #[test]
+    fn test_shutdown_signal_arg_clone() {
+        let signal = ShutdownSignalArg::Graceful;
+        let cloned = signal.clone();
+        assert!(matches!(cloned, ShutdownSignalArg::Graceful));
+    }
+
+    #[test]
+    fn test_cli_parsing() {
+        use clap::Parser;
+        
+        // Test basic parsing
+        let cli = Cli::try_parse_from(&["fleetingdns-ctl", "status"]).unwrap();
+        assert_eq!(cli.component, "dnsd");
+        assert!(cli.socket.is_none());
+        assert!(matches!(cli.command, Commands::Status));
+
+        // Test with custom component
+        let cli = Cli::try_parse_from(&["fleetingdns-ctl", "--component", "edgehub", "ping"]).unwrap();
+        assert_eq!(cli.component, "edgehub");
+        assert!(matches!(cli.command, Commands::Ping));
+
+        // Test with custom socket path
+        let cli = Cli::try_parse_from(&["fleetingdns-ctl", "--socket", "/tmp/test.sock", "status"]).unwrap();
+        assert_eq!(cli.socket.unwrap(), PathBuf::from("/tmp/test.sock"));
+
+        // Test shutdown with signal
+        let cli = Cli::try_parse_from(&["fleetingdns-ctl", "shutdown", "--signal", "immediate"]).unwrap();
+        if let Commands::Shutdown { signal } = cli.command {
+            assert!(matches!(signal, ShutdownSignalArg::Immediate));
+        } else {
+            panic!("Expected shutdown command");
+        }
+    }
+
+    #[test]
+    fn test_cli_version() {
+        let result = Cli::try_parse_from(&["fleetingdns-ctl", "--version"]);
+        // This will fail because --version exits, but we can test that it's recognized
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cli_help() {
+        let result = Cli::try_parse_from(&["fleetingdns-ctl", "--help"]);
+        // This will fail because --help exits, but we can test that it's recognized
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_commands_variants() {
+        // Test all command variants can be matched
+        let commands = vec![
+            Commands::Status,
+            Commands::Ping,
+            Commands::Reload,
+            Commands::Shutdown { signal: ShutdownSignalArg::Graceful },
+        ];
+
+        for cmd in commands {
+            match cmd {
+                Commands::Status => { /* OK */ }
+                Commands::Ping => { /* OK */ }
+                Commands::Reload => { /* OK */ }
+                Commands::Shutdown { signal: _ } => { /* OK */ }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_command_mock_server() {
+        // Create a temporary socket path
+        let socket_path = std::env::temp_dir().join("test_fleetingdns_ctl.sock");
+        
+        // Remove socket if it exists
+        let _ = std::fs::remove_file(&socket_path);
+
+        // Create mock server
+        let listener = UnixListener::bind(&socket_path).unwrap();
+        
+        let server_handle = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut reader = BufReader::new(stream);
+            let mut line = String::new();
+            reader.read_line(&mut line).await.unwrap();
+            
+            // Parse the command
+            let _command: ControlCommand = serde_json::from_str(line.trim()).unwrap();
+            
+            // Send mock response
+            let response = ControlResponse {
+                component: "test".to_string(),
+                status: "running".to_string(),
+                uptime: Duration::from_secs(3600),
+                active_connections: 5,
+                shutdown_state: ShutdownState::Running,
+            };
+            
+            let response_json = serde_json::to_string(&response).unwrap();
+            let mut stream = reader.into_inner();
+            stream.write_all(response_json.as_bytes()).await.unwrap();
+            stream.write_all(b"\n").await.unwrap();
+            stream.flush().await.unwrap();
+        });
+
+        // Test execute_command
+        let result = execute_command(&socket_path, &Commands::Status).await;
+        assert!(result.is_ok());
+        
+        let response = result.unwrap();
+        assert_eq!(response.component, "test");
+        assert_eq!(response.status, "running");
+        assert_eq!(response.uptime, Duration::from_secs(3600));
+        assert_eq!(response.active_connections, 5);
+        assert!(matches!(response.shutdown_state, ShutdownState::Running));
+
+        server_handle.await.unwrap();
+        
+        // Clean up
+        let _ = std::fs::remove_file(&socket_path);
+    }
+
+    #[tokio::test]
+    async fn test_execute_command_different_commands() {
+        let socket_path = std::env::temp_dir().join("test_fleetingdns_ctl_2.sock");
+        let _ = std::fs::remove_file(&socket_path);
+
+        let commands_to_test = vec![
+            Commands::Status,
+            Commands::Ping,
+            Commands::Reload,
+            Commands::Shutdown { signal: ShutdownSignalArg::Graceful },
+            Commands::Shutdown { signal: ShutdownSignalArg::Immediate },
+            Commands::Shutdown { signal: ShutdownSignalArg::Force },
+        ];
+
+        for command in commands_to_test {
+            let listener = UnixListener::bind(&socket_path).unwrap();
+            
+            let command_clone = command.clone();
+            let server_handle = tokio::spawn(async move {
+                let (stream, _) = listener.accept().await.unwrap();
+                let mut reader = BufReader::new(stream);
+                let mut line = String::new();
+                reader.read_line(&mut line).await.unwrap();
+                
+                // Parse and verify the command
+                let received_command: ControlCommand = serde_json::from_str(line.trim()).unwrap();
+                
+                // Verify command type matches
+                match (&command_clone, &received_command) {
+                    (Commands::Status, ControlCommand::Status) => { /* OK */ }
+                    (Commands::Ping, ControlCommand::Ping) => { /* OK */ }
+                    (Commands::Reload, ControlCommand::Reload) => { /* OK */ }
+                    (Commands::Shutdown { signal }, ControlCommand::Shutdown { signal: recv_signal }) => {
+                        let expected_signal = ShutdownSignal::from(signal.clone());
+                        assert_eq!(recv_signal, &expected_signal);
+                    }
+                    _ => panic!("Command mismatch"),
+                }
+                
+                // Send mock response
+                let response = ControlResponse {
+                    component: "test".to_string(),
+                    status: "running".to_string(),
+                    uptime: Duration::from_secs(1800),
+                    active_connections: 3,
+                    shutdown_state: ShutdownState::Running,
+                };
+                
+                let response_json = serde_json::to_string(&response).unwrap();
+                let mut stream = reader.into_inner();
+                stream.write_all(response_json.as_bytes()).await.unwrap();
+                stream.write_all(b"\n").await.unwrap();
+                stream.flush().await.unwrap();
+            });
+
+            let result = execute_command(&socket_path, &command).await;
+            assert!(result.is_ok());
+
+            server_handle.await.unwrap();
+            let _ = std::fs::remove_file(&socket_path);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_execute_command_connection_error() {
+        let socket_path = std::env::temp_dir().join("nonexistent_socket.sock");
+        let _ = std::fs::remove_file(&socket_path);
+
+        let result = execute_command(&socket_path, &Commands::Status).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_execute_command_invalid_response() {
+        let socket_path = std::env::temp_dir().join("test_fleetingdns_ctl_invalid.sock");
+        let _ = std::fs::remove_file(&socket_path);
+
+        let listener = UnixListener::bind(&socket_path).unwrap();
+        
+        let server_handle = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut reader = BufReader::new(stream);
+            let mut line = String::new();
+            reader.read_line(&mut line).await.unwrap();
+            
+            // Send invalid JSON response
+            let mut stream = reader.into_inner();
+            stream.write_all(b"invalid json\n").await.unwrap();
+            stream.flush().await.unwrap();
+        });
+
+        let result = execute_command(&socket_path, &Commands::Status).await;
+        assert!(result.is_err());
+
+        server_handle.await.unwrap();
+        let _ = std::fs::remove_file(&socket_path);
+    }
+
+    #[test]
+    fn test_print_response() {
+        let response = ControlResponse {
+            component: "test-component".to_string(),
+            status: "healthy".to_string(),
+            uptime: Duration::from_secs(7323), // 2h 2m 3s
+            active_connections: 42,
+            shutdown_state: ShutdownState::Running,
+        };
+
+        // We can't easily test stdout, but we can verify the function doesn't panic
+        print_response(&response);
+    }
+
+    #[test]
+    fn test_default_socket_path_usage() {
+        // Test that get_default_socket_path is called with the component name
+        let path = get_default_socket_path("test-component");
+        assert!(path.to_string_lossy().contains("test-component"));
+    }
+
+    #[test]
+    fn test_shutdown_signal_arg_value_enum() {
+        use clap::ValueEnum;
+        
+        // Test that all variants can be parsed
+        assert!(ShutdownSignalArg::from_str("graceful", true).is_ok());
+        assert!(ShutdownSignalArg::from_str("immediate", true).is_ok());
+        assert!(ShutdownSignalArg::from_str("force", true).is_ok());
+        
+        // Test invalid variant
+        assert!(ShutdownSignalArg::from_str("invalid", true).is_err());
+    }
+
+    #[test]
+    fn test_cli_struct_fields() {
+        let cli = Cli {
+            socket: Some(PathBuf::from("/test/path")),
+            component: "test-component".to_string(),
+            command: Commands::Status,
+        };
+
+        assert_eq!(cli.socket, Some(PathBuf::from("/test/path")));
+        assert_eq!(cli.component, "test-component");
+        assert!(matches!(cli.command, Commands::Status));
+    }
+
+    #[test]
+    fn test_format_duration_large_values() {
+        // Test very large durations
+        assert_eq!(format_duration(Duration::from_secs(86400)), "24h 0m 0s");
+        assert_eq!(format_duration(Duration::from_secs(90061)), "25h 1m 1s");
     }
 }
