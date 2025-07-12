@@ -1,0 +1,224 @@
+# Security Components Template for FleetingDNS
+# This file contains the standard security components
+# Copy and customize these resources for specific security configurations
+
+# Cloud Armor Security Policy
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: SecurityPolicy
+metadata:
+  name: fleetingdns-security-policy-template
+  labels:
+    app.kubernetes.io/name: fleetingdns-security-policy
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/template: "security"
+spec:
+  forProvider:
+    name: fleetingdns-security-policy
+    description: "Cloud Armor security policy for FleetingDNS"
+    adaptiveProtectionConfig:
+      layer7DdosDefenseConfig:
+        enable: true
+        ruleVisibility: "STANDARD"
+    rule:
+      - action: "allow"
+        priority: 2147483647
+        match:
+          versionedExpr: "SRC_IPS_V1"
+          config:
+            srcIpRanges:
+              - "*"
+        description: "Default allow rule"
+      - action: "deny(403)"
+        priority: 1000
+        match:
+          expr:
+            expression: 'origin.region_code == "CN" || origin.region_code == "RU"'
+        description: "Block traffic from high-risk countries"
+      - action: "throttle"
+        priority: 2000
+        match:
+          versionedExpr: "SRC_IPS_V1"
+          config:
+            srcIpRanges:
+              - "*"
+        description: "Rate limiting rule"
+        rateLimitOptions:
+          conformAction: "allow"
+          exceedAction: "deny(429)"
+          enforceOnKey: "IP"
+          rateLimitThreshold:
+            count: 100
+            intervalSec: 60
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+# IAP Brand (OAuth Consent Screen)
+apiVersion: iap.gcp.crossplane.io/v1alpha1
+kind: Brand
+metadata:
+  name: fleetingdns-iap-brand-template
+  labels:
+    app.kubernetes.io/name: fleetingdns-iap-brand
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/template: "security"
+spec:
+  forProvider:
+    projectRef:
+      name: fleetingdns-infra-project
+    supportEmail: "admin@fleetingdns.com"
+    applicationTitle: "FleetingDNS Admin Portal"
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+# IAP OAuth Client
+apiVersion: iap.gcp.crossplane.io/v1alpha1
+kind: Client
+metadata:
+  name: fleetingdns-iap-client-template
+  labels:
+    app.kubernetes.io/name: fleetingdns-iap-client
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/template: "security"
+spec:
+  forProvider:
+    displayName: "FleetingDNS IAP OAuth Client"
+    brandRef:
+      name: fleetingdns-iap-brand-template
+  providerConfigRef:
+    name: gcp-provider-config-infra
+  writeConnectionSecretsToRef:
+    name: fleetingdns-iap-oauth-secret
+    namespace: crossplane-system
+---
+# Binary Authorization Policy
+apiVersion: binaryauthorization.gcp.crossplane.io/v1alpha1
+kind: Policy
+metadata:
+  name: fleetingdns-binary-auth-policy-template
+  labels:
+    app.kubernetes.io/name: fleetingdns-binary-auth-policy
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/template: "security"
+spec:
+  forProvider:
+    projectRef:
+      name: fleetingdns-infra-project
+    description: "Binary Authorization policy for FleetingDNS"
+    defaultAdmissionRule:
+      evaluationMode: "REQUIRE_ATTESTATION"
+      enforcementMode: "ENFORCED_BLOCK_AND_AUDIT_LOG"
+      requireAttestationsBy: []
+    globalPolicyEvaluationMode: "ENABLE"
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+# Container Analysis Note (for vulnerability scanning)
+apiVersion: containeranalysis.gcp.crossplane.io/v1alpha1
+kind: Note
+metadata:
+  name: fleetingdns-vulnerability-note-template
+  labels:
+    app.kubernetes.io/name: fleetingdns-vulnerability-note
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/template: "security"
+spec:
+  forProvider:
+    name: "projects/fleetingdns-security/notes/fleetingdns-vulnerability-note"
+    shortDescription: "Vulnerability scanning note for FleetingDNS"
+    longDescription: "Container vulnerability analysis for FleetingDNS images"
+    vulnerabilityAssessment:
+      shortDescription: "Vulnerability assessment"
+      longDescription: "Automated vulnerability scanning for container images"
+  providerConfigRef:
+    name: gcp-provider-config-security
+---
+# Security Command Center Notification Config
+apiVersion: securitycenter.gcp.crossplane.io/v1alpha1
+kind: NotificationConfig
+metadata:
+  name: fleetingdns-scc-notification-template
+  labels:
+    app.kubernetes.io/name: fleetingdns-scc-notification
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/template: "security"
+spec:
+  forProvider:
+    configId: "fleetingdns-scc-notifications"
+    organization: "organizations/YOUR_ORG_ID"  # Replace with actual org ID
+    description: "Security Command Center notifications for FleetingDNS"
+    pubsubTopic: "projects/fleetingdns-security/topics/security-notifications"
+    streamingConfig:
+      filter: 'state="ACTIVE" AND NOT mute="MUTED"'
+  providerConfigRef:
+    name: gcp-provider-config-security
+---
+# IAM Policy for IAP Access
+apiVersion: cloudresourcemanager.gcp.crossplane.io/v1alpha1
+kind: ProjectIAMPolicy
+metadata:
+  name: fleetingdns-iap-access-policy-template
+  labels:
+    app.kubernetes.io/name: fleetingdns-iap-access-policy
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/template: "security"
+spec:
+  forProvider:
+    projectRef:
+      name: fleetingdns-infra-project
+    policy:
+      bindings:
+        - role: "roles/iap.httpsResourceAccessor"
+          members:
+            - "group:fleetingdns-admins@fleetingdns.com"
+            - "user:admin@fleetingdns.com"
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+# Service Account for Security Operations
+apiVersion: iam.gcp.crossplane.io/v1alpha1
+kind: ServiceAccount
+metadata:
+  name: fleetingdns-security-service-account-template
+  labels:
+    app.kubernetes.io/name: fleetingdns-security-sa
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/template: "security"
+spec:
+  forProvider:
+    accountId: "fleetingdns-security-sa"
+    displayName: "FleetingDNS Security Service Account"
+    description: "Service account for security operations and monitoring"
+    projectRef:
+      name: fleetingdns-security-project
+  providerConfigRef:
+    name: gcp-provider-config-security
+---
+# IAM Binding for Security Service Account
+apiVersion: cloudresourcemanager.gcp.crossplane.io/v1alpha1
+kind: ProjectIAMPolicy
+metadata:
+  name: fleetingdns-security-sa-binding-template
+  labels:
+    app.kubernetes.io/name: fleetingdns-security-sa-binding
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/template: "security"
+spec:
+  forProvider:
+    projectRef:
+      name: fleetingdns-security-project
+    policy:
+      bindings:
+        - role: "roles/securitycenter.editor"
+          members:
+            - "serviceAccount:fleetingdns-security-sa@fleetingdns-security.iam.gserviceaccount.com"
+  providerConfigRef:
+    name: gcp-provider-config-security 

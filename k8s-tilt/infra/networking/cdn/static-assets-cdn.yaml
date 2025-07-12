@@ -1,4 +1,4 @@
-apiVersion: compute.gcp.crossplane.io/v1beta1
+apiVersion: compute.gcp.upbound.io/v1beta1
 kind: BackendService
 metadata:
   name: fleetingdns-static-cdn-backend
@@ -57,7 +57,7 @@ spec:
   providerConfigRef:
     name: gcp-provider-config-infra
 ---
-apiVersion: compute.gcp.crossplane.io/v1beta1
+apiVersion: compute.gcp.upbound.io/v1beta1
 kind: BackendBucket
 metadata:
   name: fleetingdns-static-assets-bucket
@@ -93,7 +93,7 @@ spec:
   providerConfigRef:
     name: gcp-provider-config-infra
 ---
-apiVersion: compute.gcp.crossplane.io/v1beta1
+apiVersion: compute.gcp.upbound.io/v1beta1
 kind: BackendService
 metadata:
   name: fleetingdns-api-cdn-backend

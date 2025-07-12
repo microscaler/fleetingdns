@@ -1,4 +1,4 @@
-apiVersion: compute.gcp.crossplane.io/v1beta1
+apiVersion: compute.gcp.upbound.io/v1beta1
 kind: Firewall
 metadata:
   name: workload-allow-dns
@@ -30,7 +30,7 @@ spec:
   providerConfigRef:
     name: gcp-provider-config-dev
 ---
-apiVersion: compute.gcp.crossplane.io/v1beta1
+apiVersion: compute.gcp.upbound.io/v1beta1
 kind: Firewall
 metadata:
   name: workload-allow-api
@@ -59,7 +59,7 @@ spec:
   providerConfigRef:
     name: gcp-provider-config-dev
 ---
-apiVersion: compute.gcp.crossplane.io/v1beta1
+apiVersion: compute.gcp.upbound.io/v1beta1
 kind: Firewall
 metadata:
   name: workload-allow-edgehub
@@ -88,7 +88,7 @@ spec:
   providerConfigRef:
     name: gcp-provider-config-dev
 ---
-apiVersion: compute.gcp.crossplane.io/v1beta1
+apiVersion: compute.gcp.upbound.io/v1beta1
 kind: Firewall
 metadata:
   name: workload-allow-internal
@@ -114,7 +114,7 @@ spec:
   providerConfigRef:
     name: gcp-provider-config-dev
 ---
-apiVersion: compute.gcp.crossplane.io/v1beta1
+apiVersion: compute.gcp.upbound.io/v1beta1
 kind: Firewall
 metadata:
   name: workload-allow-health-checks
