@@ -1,10 +1,29 @@
+#[cfg(feature = "e2e")]
+use hickory_resolver::TokioAsyncResolver;
+#[cfg(feature = "e2e")]
+use std::net::{Ipv4Addr, SocketAddr};
+#[cfg(feature = "e2e")]
+use std::process::Stdio;
 use std::time::Duration;
+#[cfg(feature = "e2e")]
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+#[cfg(feature = "e2e")]
+use tokio::net::{TcpListener, TcpStream};
+#[cfg(feature = "e2e")]
+use tokio::process::Command;
+#[cfg(feature = "e2e")]
+use tokio::time::sleep;
 use tokio::time::timeout;
+#[cfg(feature = "e2e")]
+use tracing::{info, warn};
 use tracing_test::traced_test;
 
+/// Executes the full end-to-end tunnel test ensuring that all services start
+/// correctly and that a tunnel can be established.
 #[cfg(feature = "e2e")]
 #[tokio::test]
 #[traced_test]
+#[tracing::instrument]
 async fn test_e2e_tunnel_complete_flow() {
     let result = timeout(Duration::from_secs(60), async { e2e_tunnel_flow().await }).await;
 
@@ -15,13 +34,17 @@ async fn test_e2e_tunnel_complete_flow() {
                 info!("E2E tunnel test skipped: {}", e);
                 return; // Don't panic for skipped tests
             }
-            panic!("E2E tunnel test failed: {}", e);
+            panic!("E2E tunnel test failed: {e}");
         }
         Err(_) => panic!("E2E tunnel test timed out after 60 seconds"),
     }
 }
 
+/// Runs the full tunnel setup flow used by `test_e2e_tunnel_complete_flow`.
+/// This builds binaries, launches Redis, dnsd and edgehub and verifies DNS
+/// resolution and tunnel connectivity.
 #[cfg(feature = "e2e")]
+#[tracing::instrument]
 async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting E2E tunnel flow test");
 
@@ -54,7 +77,7 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
         // Try to start a local Redis server for testing
         info!("Starting local Redis server for testing");
         let redis_port = find_free_port().await?;
-        let redis_url = format!("redis://127.0.0.1:{}", redis_port);
+        let redis_url = format!("redis://127.0.0.1:{redis_port}");
 
         // Check if redis-server is available
         if Command::new("redis-server")
@@ -97,7 +120,7 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
         .arg("dnsd-bin")
         .arg("--")
         .arg("--addr")
-        .arg(format!("127.0.0.1:{}", dnsd_port))
+        .arg(format!("127.0.0.1:{dnsd_port}"))
         .env("REDIS_URL", &redis_url)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -119,16 +142,13 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
                 .await
                 .unwrap_or_default();
         }
-        return Err(format!(
-            "dnsd exited early with status {:?}: {}",
-            exit_status, stderr_output
-        )
-        .into());
+        return Err(
+            format!("dnsd exited early with status {exit_status:?}: {stderr_output}").into(),
+        );
     }
 
     // Also capture any stderr output even if the process is still running
     if let Some(stderr) = dnsd_child.stderr.as_mut() {
-        use tokio::io::AsyncReadExt;
         let mut buf = [0u8; 1024];
         match timeout(Duration::from_millis(100), stderr.read(&mut buf)).await {
             Ok(Ok(n)) if n > 0 => {
@@ -148,7 +168,7 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
         .arg("edgehub-bin")
         .arg("--")
         .arg("--addr")
-        .arg(format!("127.0.0.1:{}", edgehub_port))
+        .arg(format!("127.0.0.1:{edgehub_port}"))
         .arg("--redis")
         .arg(&redis_url)
         .stdout(Stdio::piped())
@@ -171,11 +191,9 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
                 .await
                 .unwrap_or_default();
         }
-        return Err(format!(
-            "edgehub exited early with status {:?}: {}",
-            exit_status, stderr_output
-        )
-        .into());
+        return Err(
+            format!("edgehub exited early with status {exit_status:?}: {stderr_output}").into(),
+        );
     }
 
     // Step 4: Start netcat server
@@ -215,9 +233,8 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
                 .await
                 .unwrap_or_default();
             return Err(format!(
-                "slot-setter failed with exit code {:?}: {}",
-                slot_setter_result.code(),
-                error_output
+                "slot-setter failed with exit code {:?}: {error_output}",
+                slot_setter_result.code()
             )
             .into());
         }
@@ -232,7 +249,7 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
 
     // Step 6: Test DNS resolution
     info!("Testing DNS resolution");
-    let hostname = format!("{}.fleetingdns.run", slot_name);
+    let hostname = format!("{slot_name}.fleetingdns.run");
 
     // First, test if the DNS server is listening by sending a simple UDP packet
     info!("Testing if DNS server is listening on port {}", dnsd_port);
@@ -253,7 +270,7 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
 
     match timeout(Duration::from_secs(5), async {
         test_socket
-            .send_to(&simple_dns_query, format!("127.0.0.1:{}", dnsd_port))
+            .send_to(&simple_dns_query, format!("127.0.0.1:{dnsd_port}"))
             .await?;
         let mut buf = [0u8; 512];
         let (len, _) = test_socket.recv_from(&mut buf).await?;
@@ -264,7 +281,7 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
         Ok(Ok(len)) => info!("DNS server responded with {} bytes", len),
         Ok(Err(e)) => {
             warn!("DNS server test failed: {}", e);
-            return Err(format!("DNS server not responding: {}", e).into());
+            return Err(format!("DNS server not responding: {e}").into());
         }
         Err(_) => {
             warn!("DNS server test timed out");
@@ -290,15 +307,14 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
             let resolved_ip = ips[0];
             if resolved_ip != target_ip {
                 return Err(format!(
-                    "DNS resolution mismatch: expected {}, got {}",
-                    target_ip, resolved_ip
+                    "DNS resolution mismatch: expected {target_ip}, got {resolved_ip}"
                 )
                 .into());
             }
         }
         Err(e) => {
             warn!("DNS resolution failed: {}", e);
-            return Err(format!("DNS resolution failed: {}", e).into());
+            return Err(format!("DNS resolution failed: {e}").into());
         }
     }
 
@@ -315,7 +331,7 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
         echo_port
     );
 
-    match TcpStream::connect(format!("127.0.0.1:{}", echo_port)).await {
+    match TcpStream::connect(format!("127.0.0.1:{echo_port}")).await {
         Ok(mut stream) => {
             info!("Connected to tunnel successfully");
 
@@ -340,10 +356,9 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
             );
 
             // Let's also try connecting to the edgehub port to see if it's accepting connections
-            let edgehub_port = edgehub_port;
             info!("Attempting to connect to edgehub on port {}", edgehub_port);
 
-            match TcpStream::connect(format!("127.0.0.1:{}", edgehub_port)).await {
+            match TcpStream::connect(format!("127.0.0.1:{edgehub_port}")).await {
                 Ok(_) => {
                     info!("Can connect to edgehub directly");
                 }
@@ -427,25 +442,26 @@ async fn e2e_tunnel_flow() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Determines if a Redis instance is reachable at the provided URL by
+/// performing a simple `PING` command.
 #[cfg(feature = "e2e")]
+#[tracing::instrument]
 async fn is_redis_available(redis_url: &str) -> bool {
     use redis::AsyncCommands;
 
-    match redis::Client::open(redis_url) {
-        Ok(client) => {
-            if let Ok(mut conn) = client.get_multiplexed_async_connection().await {
-                // Try a simple ping command
-                if let Ok(_) = conn.ping::<String>().await {
-                    return true;
-                }
-            }
-        }
-        Err(_) => {}
+    if let Ok(client) = redis::Client::open(redis_url)
+        && let Ok(mut conn) = client.get_multiplexed_async_connection().await
+        && conn.ping::<String>().await.is_ok()
+    {
+        return true;
     }
     false
 }
 
+/// Attempts to locate an available TCP port on localhost by repeatedly
+/// binding to port 0 and verifying that the selected port is free.
 #[cfg(feature = "e2e")]
+#[tracing::instrument]
 async fn find_free_port() -> Result<u16, Box<dyn std::error::Error>> {
     use std::collections::HashSet;
     let mut used_ports = HashSet::new();
@@ -466,7 +482,7 @@ async fn find_free_port() -> Result<u16, Box<dyn std::error::Error>> {
         sleep(Duration::from_millis(50 + attempt * 10)).await;
 
         // Double-check that the port is actually free by trying to bind to it
-        match TcpListener::bind(format!("127.0.0.1:{}", port)).await {
+        match TcpListener::bind(format!("127.0.0.1:{port}")).await {
             Ok(test_listener) => {
                 drop(test_listener);
                 return Ok(port);
@@ -481,7 +497,11 @@ async fn find_free_port() -> Result<u16, Box<dyn std::error::Error>> {
     Err("Could not find a free port after 20 attempts".into())
 }
 
+/// Spawns a basic TCP echo server on the provided port using any available tool
+/// (`nc`, `socat` or a minimal Rust implementation). The returned child process
+/// can be used to terminate the server.
 #[cfg(feature = "e2e")]
+#[tracing::instrument]
 async fn start_echo_server(port: u16) -> Result<tokio::process::Child, Box<dyn std::error::Error>> {
     // Create a simple echo server using netcat if available, otherwise use a Rust implementation
     if Command::new("nc")
@@ -514,7 +534,7 @@ async fn start_echo_server(port: u16) -> Result<tokio::process::Child, Box<dyn s
             .is_ok()
         {
             let child = Command::new("socat")
-                .arg(format!("TCP-LISTEN:{},fork", port))
+                .arg(format!("TCP-LISTEN:{port},fork"))
                 .arg("EXEC:cat")
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
@@ -522,7 +542,7 @@ async fn start_echo_server(port: u16) -> Result<tokio::process::Child, Box<dyn s
             Ok(child)
         } else {
             // Last resort: create a simple Rust echo server
-            let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).await?;
+            let listener = TcpListener::bind(format!("127.0.0.1:{port}")).await?;
             let handle = tokio::spawn(async move {
                 while let Ok((mut stream, _)) = listener.accept().await {
                     tokio::spawn(async move {
@@ -552,7 +572,11 @@ async fn start_echo_server(port: u16) -> Result<tokio::process::Child, Box<dyn s
     }
 }
 
+/// Builds a DNS resolver configured to query the local `dnsd` instance running
+/// on the provided port. This allows the test to verify DNS answers without
+/// modifying the system resolver.
 #[cfg(feature = "e2e")]
+#[tracing::instrument]
 async fn create_custom_resolver(
     dns_port: u16,
 ) -> Result<TokioAsyncResolver, Box<dyn std::error::Error>> {
@@ -573,8 +597,11 @@ async fn create_custom_resolver(
 }
 
 // Keep the original simple tests for non-e2e runs
+/// Basic smoke test verifying that the async test harness executes without
+/// performing the full tunnel workflow.
 #[tokio::test]
 #[traced_test]
+#[tracing::instrument]
 async fn test_e2e_tunnel_basic() {
     // Test basic tunnel establishment and teardown
     let result = timeout(Duration::from_secs(5), async {
@@ -591,8 +618,10 @@ async fn test_e2e_tunnel_basic() {
     );
 }
 
+/// Ensures that tunnel state is correctly written to and removed from Redis.
 #[tokio::test]
 #[traced_test]
+#[tracing::instrument]
 async fn test_tunnel_redis_integration() {
     // Test that tunnel state is properly managed in Redis
     let result = timeout(Duration::from_secs(10), async {
@@ -609,8 +638,10 @@ async fn test_tunnel_redis_integration() {
     );
 }
 
+/// Validates that TLS connections for tunnel setup succeed.
 #[tokio::test]
 #[traced_test]
+#[tracing::instrument]
 async fn test_tunnel_tls_handshake() {
     // Test TLS handshake for tunnel connections
     let result = timeout(Duration::from_secs(15), async {
