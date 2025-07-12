@@ -7,3 +7,4 @@
 
 | - [x] **T-24** | Wire Redis lookup into dnsd answer path | `crates/dnsd` | *Desc* Replace hard-coded 127.0.0.1 with Redis result; if none, NXDOMAIN.
 Existing tests updated. |
+| - [x] **T-32** | Document `dot::serve` public API | crates/dnsd/src/lib.rs | Add rustdoc describing parameters, behavior and graceful shutdown. |
