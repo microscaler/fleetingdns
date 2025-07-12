@@ -8,3 +8,4 @@
 | - [x] **T-24** | Wire Redis lookup into dnsd answer path | `crates/dnsd` | *Desc* Replace hard-coded 127.0.0.1 with Redis result; if none, NXDOMAIN.
 Existing tests updated. |
 | - [x] **T-32** | Document `dot::serve` public API | crates/dnsd/src/lib.rs | Add rustdoc describing parameters, behavior and graceful shutdown. |
+| - [ ] **T-29** | `dns_queries_total` metric | `crates/dnsd/src/lib.rs` | *Desc* Increment `dns_queries_total{protocol="udp"}` and `{protocol="dot"}` for every request using `metrics::counter!`.<br><br>*AC* Integration test asserts counter increases after a query. |
