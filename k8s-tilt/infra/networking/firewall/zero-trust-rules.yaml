@@ -1,0 +1,145 @@
+apiVersion: compute.gcp.crossplane.io/v1beta1
+kind: Firewall
+metadata:
+  name: zero-trust-database-access
+  labels:
+    app.kubernetes.io/name: zero-trust-database-access
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/security-policy: zero-trust
+spec:
+  forProvider:
+    name: zero-trust-database-access
+    networkRef:
+      name: fleetingdns-prod-eu-vpc
+    description: "Zero Trust: Allow only authenticated services to access databases"
+    direction: INGRESS
+    priority: 500
+    sourceServiceAccounts:
+      - "fleetingdns-api@fleetingdns-prod-eu.iam.gserviceaccount.com"
+      - "fleetingdns-analytics@fleetingdns-analytics.iam.gserviceaccount.com"
+    targetTags:
+      - "database-server"
+    allow:
+      - protocol: tcp
+        ports:
+          - "5432"  # PostgreSQL
+          - "6379"  # Redis
+  providerConfigRef:
+    name: gcp-provider-config-prod-eu
+---
+apiVersion: compute.gcp.crossplane.io/v1beta1
+kind: Firewall
+metadata:
+  name: zero-trust-admin-access
+  labels:
+    app.kubernetes.io/name: zero-trust-admin-access
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/security-policy: zero-trust
+spec:
+  forProvider:
+    name: zero-trust-admin-access
+    networkRef:
+      name: fleetingdns-infra-vpc
+    description: "Zero Trust: Admin access only through IAP with MFA"
+    direction: INGRESS
+    priority: 600
+    sourceRanges:
+      - "35.235.240.0/20"  # IAP IP ranges
+    targetTags:
+      - "admin-interface"
+    allow:
+      - protocol: tcp
+        ports:
+          - "443"
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: compute.gcp.crossplane.io/v1beta1
+kind: Firewall
+metadata:
+  name: zero-trust-monitoring-access
+  labels:
+    app.kubernetes.io/name: zero-trust-monitoring-access
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/security-policy: zero-trust
+spec:
+  forProvider:
+    name: zero-trust-monitoring-access
+    networkRef:
+      name: fleetingdns-infra-vpc
+    description: "Zero Trust: Monitoring access only from security project"
+    direction: INGRESS
+    priority: 700
+    sourceServiceAccounts:
+      - "fleetingdns-monitoring@fleetingdns-security.iam.gserviceaccount.com"
+    targetTags:
+      - "monitoring-endpoint"
+    allow:
+      - protocol: tcp
+        ports:
+          - "9090"  # Prometheus
+          - "3000"  # Grafana
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: compute.gcp.crossplane.io/v1beta1
+kind: Firewall
+metadata:
+  name: zero-trust-deny-cross-env
+  labels:
+    app.kubernetes.io/name: zero-trust-deny-cross-env
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/security-policy: zero-trust
+spec:
+  forProvider:
+    name: zero-trust-deny-cross-env
+    networkRef:
+      name: fleetingdns-prod-eu-vpc
+    description: "Zero Trust: Deny dev/staging access to production"
+    direction: INGRESS
+    priority: 800
+    sourceRanges:
+      - "10.16.0.0/20"  # dev
+      - "10.20.0.0/20"  # staging
+    deny:
+      - protocol: all
+  providerConfigRef:
+    name: gcp-provider-config-prod-eu
+---
+apiVersion: compute.gcp.crossplane.io/v1beta1
+kind: Firewall
+metadata:
+  name: zero-trust-egress-control
+  labels:
+    app.kubernetes.io/name: zero-trust-egress-control
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/security-policy: zero-trust
+spec:
+  forProvider:
+    name: zero-trust-egress-control
+    networkRef:
+      name: fleetingdns-prod-eu-vpc
+    description: "Zero Trust: Control egress traffic to known destinations"
+    direction: EGRESS
+    priority: 900
+    destinationRanges:
+      - "8.8.8.8/32"      # Google DNS
+      - "8.8.4.4/32"      # Google DNS
+      - "199.36.153.8/32" # FreeDNS
+      - "199.36.153.9/32" # FreeDNS
+    targetTags:
+      - "fleetingdns-dnsd"
+    allow:
+      - protocol: udp
+        ports:
+          - "53"
+      - protocol: tcp
+        ports:
+          - "53"
+  providerConfigRef:
+    name: gcp-provider-config-prod-eu 

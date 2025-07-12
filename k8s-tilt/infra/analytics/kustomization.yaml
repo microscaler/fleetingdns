@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: ml-analytics
+  annotations:
+    config.kubernetes.io/local-config: "true"
+
+resources:
+  - ml-pipelines.yaml
+  - threat-intelligence-ml.yaml
+  - predictive-analytics.yaml
+  - data-studio-dashboards.yaml
+  - ml-models.yaml
+
+commonLabels:
+  app.kubernetes.io/name: fleetingdns-ml-analytics
+  app.kubernetes.io/component: analytics
+  app.kubernetes.io/part-of: fleetingdns-infrastructure 

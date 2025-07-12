@@ -1,0 +1,37 @@
+apiVersion: iap.gcp.crossplane.io/v1alpha1
+kind: Brand
+metadata:
+  name: fleetingdns-monitoring-brand
+  labels:
+    app.kubernetes.io/name: fleetingdns-monitoring-brand
+    app.kubernetes.io/component: identity
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/oauth-scope: monitoring
+spec:
+  forProvider:
+    applicationTitle: "FleetingDNS Monitoring Dashboard"
+    supportEmail: "monitoring@fleetingdns.com"
+    projectRef:
+      name: fleetingdns-security-project
+  providerConfigRef:
+    name: gcp-provider-config-security
+---
+apiVersion: iap.gcp.crossplane.io/v1alpha1
+kind: Client
+metadata:
+  name: fleetingdns-monitoring-oauth-client
+  labels:
+    app.kubernetes.io/name: fleetingdns-monitoring-oauth-client
+    app.kubernetes.io/component: identity
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/oauth-scope: monitoring
+spec:
+  forProvider:
+    displayName: "FleetingDNS Monitoring Dashboard OAuth Client"
+    brandRef:
+      name: fleetingdns-monitoring-brand
+  providerConfigRef:
+    name: gcp-provider-config-security
+  writeConnectionSecretsToRef:
+    name: fleetingdns-monitoring-oauth-secret
+    namespace: crossplane-system 

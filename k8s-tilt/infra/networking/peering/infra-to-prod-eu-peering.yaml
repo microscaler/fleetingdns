@@ -1,0 +1,43 @@
+apiVersion: compute.gcp.crossplane.io/v1beta1
+kind: NetworkPeering
+metadata:
+  name: infra-to-prod-eu-peering
+  labels:
+    app.kubernetes.io/name: infra-to-prod-eu-peering
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: infrastructure
+    fleetingdns.com/region: global
+spec:
+  forProvider:
+    name: infra-to-prod-eu-peering
+    networkRef:
+      name: fleetingdns-infra-vpc
+    peerNetwork: "projects/fleetingdns-prod-eu/global/networks/fleetingdns-prod-eu-vpc"
+    autoCreateRoutes: true
+    importCustomRoutes: true
+    exportCustomRoutes: true
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: compute.gcp.crossplane.io/v1beta1
+kind: NetworkPeering
+metadata:
+  name: prod-eu-to-infra-peering
+  labels:
+    app.kubernetes.io/name: prod-eu-to-infra-peering
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: production
+    fleetingdns.com/region: europe-west1
+spec:
+  forProvider:
+    name: prod-eu-to-infra-peering
+    networkRef:
+      name: fleetingdns-prod-eu-vpc
+    peerNetwork: "projects/fleetingdns-infra/global/networks/fleetingdns-infra-vpc"
+    autoCreateRoutes: true
+    importCustomRoutes: true
+    exportCustomRoutes: true
+  providerConfigRef:
+    name: gcp-provider-config-prod-eu 

@@ -1,0 +1,37 @@
+apiVersion: iap.gcp.crossplane.io/v1alpha1
+kind: Brand
+metadata:
+  name: fleetingdns-developer-brand
+  labels:
+    app.kubernetes.io/name: fleetingdns-developer-brand
+    app.kubernetes.io/component: identity
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/oauth-scope: developer
+spec:
+  forProvider:
+    applicationTitle: "FleetingDNS Developer Portal"
+    supportEmail: "developer@fleetingdns.com"
+    projectRef:
+      name: fleetingdns-infra-project
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: iap.gcp.crossplane.io/v1alpha1
+kind: Client
+metadata:
+  name: fleetingdns-developer-oauth-client
+  labels:
+    app.kubernetes.io/name: fleetingdns-developer-oauth-client
+    app.kubernetes.io/component: identity
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/oauth-scope: developer
+spec:
+  forProvider:
+    displayName: "FleetingDNS Developer Portal OAuth Client"
+    brandRef:
+      name: fleetingdns-developer-brand
+  providerConfigRef:
+    name: gcp-provider-config-infra
+  writeConnectionSecretsToRef:
+    name: fleetingdns-developer-oauth-secret
+    namespace: crossplane-system 

@@ -1,0 +1,309 @@
+apiVersion: aiplatform.gcp.crossplane.io/v1alpha1
+kind: TrainingPipeline
+metadata:
+  name: fleetingdns-threat-detection-training
+  labels:
+    app.kubernetes.io/name: fleetingdns-threat-detection-training
+    app.kubernetes.io/component: analytics
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/model-type: "threat-detection"
+spec:
+  forProvider:
+    displayName: "FleetingDNS Threat Detection Model Training"
+    projectRef:
+      name: fleetingdns-analytics-project
+    location: "europe-west1"
+    trainingTaskDefinition: |
+      {
+        "trainingTaskInputs": {
+          "workerPoolSpecs": [
+            {
+              "machineSpec": {
+                "machineType": "n1-standard-8",
+                "acceleratorType": "NVIDIA_TESLA_T4",
+                "acceleratorCount": 1
+              },
+              "replicaCount": 1,
+              "containerSpec": {
+                "imageUri": "gcr.io/fleetingdns-analytics/threat-detection-trainer:latest",
+                "args": [
+                  "--training_data_path=gs://fleetingdns-ml-data-eu/threat-detection/training",
+                  "--validation_data_path=gs://fleetingdns-ml-data-eu/threat-detection/validation",
+                  "--model_output_path=gs://fleetingdns-ml-models-eu/threat-detection/v3.0",
+                  "--epochs=100",
+                  "--batch_size=512",
+                  "--learning_rate=0.001",
+                  "--model_type=xgboost_classifier",
+                  "--feature_columns=query_entropy,query_frequency,geo_anomaly_score,subdomain_count,query_length,time_of_day,day_of_week",
+                  "--target_column=is_threat",
+                  "--validation_split=0.2",
+                  "--early_stopping_patience=10",
+                  "--cross_validation_folds=5"
+                ],
+                "env": [
+                  {
+                    "name": "GOOGLE_CLOUD_PROJECT",
+                    "value": "fleetingdns-analytics"
+                  },
+                  {
+                    "name": "MODEL_VERSION",
+                    "value": "v3.0"
+                  },
+                  {
+                    "name": "FEATURE_STORE_ID",
+                    "value": "fleetingdns-features"
+                  }
+                ]
+              }
+            }
+          ],
+          "baseOutputDirectory": {
+            "outputUriPrefix": "gs://fleetingdns-ml-artifacts-eu/training-runs"
+          }
+        }
+      }
+    modelToUpload:
+      displayName: "FleetingDNS Threat Detection Model v3.0"
+      description: "XGBoost classifier for detecting DNS-based threats and tunneling attempts"
+      artifactUri: "gs://fleetingdns-ml-models-eu/threat-detection/v3.0"
+      containerSpec:
+        imageUri: "gcr.io/fleetingdns-analytics/threat-detection-predictor:latest"
+        healthRoute: "/health"
+        predictRoute: "/predict"
+        env:
+          - name: "MODEL_PATH"
+            value: "/opt/ml/model"
+          - name: "FEATURE_STORE_PROJECT"
+            value: "fleetingdns-analytics"
+      labels:
+        model_type: "threat_detection"
+        version: "v3.0"
+        framework: "xgboost"
+        use_case: "dns_threat_detection"
+    inputDataConfig:
+      datasetRef:
+        name: fleetingdns-threat-training-dataset
+      annotationsFilter: "threat_label != 'unknown'"
+      annotationSchemaUri: "gs://fleetingdns-ml-schemas/threat-detection-schema.yaml"
+  providerConfigRef:
+    name: gcp-provider-config-analytics
+---
+apiVersion: aiplatform.gcp.crossplane.io/v1alpha1
+kind: Dataset
+metadata:
+  name: fleetingdns-threat-training-dataset
+  labels:
+    app.kubernetes.io/name: fleetingdns-threat-training-dataset
+    app.kubernetes.io/component: analytics
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    displayName: "FleetingDNS Threat Detection Training Dataset"
+    projectRef:
+      name: fleetingdns-analytics-project
+    location: "europe-west1"
+    metadataSchemaUri: "gs://google-cloud-aiplatform/schema/dataset/metadata/tabular_1.0.0.yaml"
+    metadata:
+      inputConfig:
+        bigquerySource:
+          uri: "bq://fleetingdns-analytics.threat_intelligence.labeled_threats"
+    labels:
+      data_type: "threat_intelligence"
+      source: "honeypot_data"
+      quality: "production"
+  providerConfigRef:
+    name: gcp-provider-config-analytics
+---
+apiVersion: aiplatform.gcp.crossplane.io/v1alpha1
+kind: TrainingPipeline
+metadata:
+  name: fleetingdns-dns-tunneling-training
+  labels:
+    app.kubernetes.io/name: fleetingdns-dns-tunneling-training
+    app.kubernetes.io/component: analytics
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/model-type: "dns-tunneling"
+spec:
+  forProvider:
+    displayName: "FleetingDNS DNS Tunneling Detection Model Training"
+    projectRef:
+      name: fleetingdns-analytics-project
+    location: "europe-west1"
+    trainingTaskDefinition: |
+      {
+        "trainingTaskInputs": {
+          "workerPoolSpecs": [
+            {
+              "machineSpec": {
+                "machineType": "n1-highmem-8",
+                "acceleratorType": "NVIDIA_TESLA_V100",
+                "acceleratorCount": 1
+              },
+              "replicaCount": 1,
+              "containerSpec": {
+                "imageUri": "gcr.io/fleetingdns-analytics/dns-tunneling-trainer:latest",
+                "args": [
+                  "--training_data_path=gs://fleetingdns-ml-data-eu/dns-tunneling/training",
+                  "--validation_data_path=gs://fleetingdns-ml-data-eu/dns-tunneling/validation",
+                  "--model_output_path=gs://fleetingdns-ml-models-eu/dns-tunneling/v2.5",
+                  "--model_type=lstm_autoencoder",
+                  "--sequence_length=100",
+                  "--embedding_dim=128",
+                  "--hidden_units=256,128,64",
+                  "--dropout_rate=0.3",
+                  "--epochs=200",
+                  "--batch_size=256",
+                  "--learning_rate=0.0005",
+                  "--anomaly_threshold=0.8",
+                  "--feature_columns=query_bytes,subdomain_entropy,frequency_score,length_distribution,character_distribution",
+                  "--validation_split=0.15"
+                ],
+                "env": [
+                  {
+                    "name": "GOOGLE_CLOUD_PROJECT",
+                    "value": "fleetingdns-analytics"
+                  },
+                  {
+                    "name": "MODEL_VERSION",
+                    "value": "v2.5"
+                  }
+                ]
+              }
+            }
+          ],
+          "baseOutputDirectory": {
+            "outputUriPrefix": "gs://fleetingdns-ml-artifacts-eu/dns-tunneling-training"
+          }
+        }
+      }
+    modelToUpload:
+      displayName: "FleetingDNS DNS Tunneling Detection Model v2.5"
+      description: "LSTM Autoencoder for detecting DNS tunneling patterns and data exfiltration"
+      artifactUri: "gs://fleetingdns-ml-models-eu/dns-tunneling/v2.5"
+      containerSpec:
+        imageUri: "gcr.io/fleetingdns-analytics/dns-tunneling-predictor:latest"
+        healthRoute: "/health"
+        predictRoute: "/predict"
+        env:
+          - name: "MODEL_PATH"
+            value: "/opt/ml/model"
+          - name: "ANOMALY_THRESHOLD"
+            value: "0.8"
+      labels:
+        model_type: "dns_tunneling"
+        version: "v2.5"
+        framework: "tensorflow"
+        architecture: "lstm_autoencoder"
+  providerConfigRef:
+    name: gcp-provider-config-analytics
+---
+apiVersion: aiplatform.gcp.crossplane.io/v1alpha1
+kind: Endpoint
+metadata:
+  name: fleetingdns-threat-detection-endpoint
+  labels:
+    app.kubernetes.io/name: fleetingdns-threat-detection-endpoint
+    app.kubernetes.io/component: analytics
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    displayName: "FleetingDNS Threat Detection Endpoint"
+    projectRef:
+      name: fleetingdns-analytics-project
+    location: "europe-west1"
+    description: "Real-time threat detection endpoint for FleetingDNS"
+    labels:
+      endpoint_type: "threat_detection"
+      environment: "production"
+    network: "projects/fleetingdns-analytics/global/networks/fleetingdns-analytics-vpc"
+    encryptionSpec:
+      kmsKeyName: "projects/fleetingdns-security/locations/europe-west1/keyRings/ml-encryption/cryptoKeys/endpoint-key"
+  providerConfigRef:
+    name: gcp-provider-config-analytics
+---
+apiVersion: aiplatform.gcp.crossplane.io/v1alpha1
+kind: DeployedModel
+metadata:
+  name: fleetingdns-threat-detection-deployed
+  labels:
+    app.kubernetes.io/name: fleetingdns-threat-detection-deployed
+    app.kubernetes.io/component: analytics
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    endpointRef:
+      name: fleetingdns-threat-detection-endpoint
+    modelRef:
+      name: fleetingdns-threat-detection-model
+    displayName: "Threat Detection Model Deployment"
+    dedicatedResources:
+      machineSpec:
+        machineType: "n1-standard-4"
+        acceleratorType: "NVIDIA_TESLA_T4"
+        acceleratorCount: 1
+      minReplicaCount: 2
+      maxReplicaCount: 10
+      autoscalingMetricSpecs:
+        - metricName: "aiplatform.googleapis.com/prediction/online/cpu/utilization"
+          target: 70
+        - metricName: "aiplatform.googleapis.com/prediction/online/prediction_count"
+          target: 1000
+    serviceAccount: "threat-detection-serving@fleetingdns-analytics.iam.gserviceaccount.com"
+    disableContainerLogging: false
+    enableAccessLogging: true
+  providerConfigRef:
+    name: gcp-provider-config-analytics
+---
+apiVersion: aiplatform.gcp.crossplane.io/v1alpha1
+kind: ModelDeploymentMonitoringJob
+metadata:
+  name: fleetingdns-threat-model-monitoring
+  labels:
+    app.kubernetes.io/name: fleetingdns-threat-model-monitoring
+    app.kubernetes.io/component: analytics
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    displayName: "FleetingDNS Threat Detection Model Monitoring"
+    projectRef:
+      name: fleetingdns-analytics-project
+    location: "europe-west1"
+    endpointRef:
+      name: fleetingdns-threat-detection-endpoint
+    modelDeploymentMonitoringObjectiveConfigs:
+      - deployedModelId: "fleetingdns-threat-detection-deployed"
+        objectiveConfig:
+          trainingDataset:
+            dataFormat: "bigquery"
+            bigquerySource:
+              uri: "bq://fleetingdns-analytics.threat_intelligence.training_data"
+            targetField: "is_threat"
+          trainingPredictionSkewDetectionConfig:
+            skewThresholds:
+              "query_entropy": 0.3
+              "query_frequency": 0.25
+              "geo_anomaly_score": 0.4
+            attributionScoreSkewThresholds:
+              "query_entropy": 0.2
+              "query_frequency": 0.15
+          predictionDriftDetectionConfig:
+            driftThresholds:
+              "query_entropy": 0.3
+              "query_frequency": 0.25
+            attributionScoreDriftThresholds:
+              "query_entropy": 0.2
+    modelDeploymentMonitoringScheduleConfig:
+      monitorInterval: "3600s"  # 1 hour
+    loggingSamplingStrategy:
+      randomSampleConfig:
+        sampleRate: 0.1  # Sample 10% of predictions
+    alertConfig:
+      emailAlertConfig:
+        userEmails:
+          - "ml-team@fleetingdns.com"
+          - "data-team@fleetingdns.com"
+      notificationChannels:
+        - "projects/fleetingdns-analytics/notificationChannels/ml-alerts"
+    enableMonitoringPipelineLogs: true
+  providerConfigRef:
+    name: gcp-provider-config-analytics 

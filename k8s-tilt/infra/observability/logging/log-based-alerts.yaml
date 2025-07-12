@@ -1,0 +1,255 @@
+apiVersion: monitoring.gcp.crossplane.io/v1alpha1
+kind: AlertPolicy
+metadata:
+  name: fleetingdns-security-breach-alert
+  labels:
+    app.kubernetes.io/name: fleetingdns-security-breach-alert
+    app.kubernetes.io/component: observability
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/alert-type: "security"
+    fleetingdns.com/severity: "critical"
+spec:
+  forProvider:
+    projectRef:
+      name: fleetingdns-security-project
+    displayName: "FleetingDNS Security Breach Detection"
+    documentation:
+      content: |
+        This alert fires when potential security breaches are detected in FleetingDNS infrastructure.
+        
+        Immediate actions:
+        1. Check Security Command Center for related findings
+        2. Review recent access logs and authentication events
+        3. Verify integrity of critical systems
+        4. Consider activating incident response procedures
+        
+        Investigation steps:
+        1. Review the specific log entries that triggered this alert
+        2. Check for lateral movement indicators
+        3. Verify all administrative access
+        4. Review firewall and network logs
+      mimeType: "text/markdown"
+    conditions:
+      - displayName: "Multiple failed authentication attempts"
+        conditionThreshold:
+          filter: |
+            resource.type="gce_instance" OR resource.type="gke_cluster"
+            protoPayload.authenticationInfo.principalEmail !~ ".*@system.gserviceaccount.com"
+            protoPayload.authorizationInfo.granted=false
+          comparison: "COMPARISON_GREATER_THAN"
+          thresholdValue: 10
+          duration: "300s"  # 5 minutes
+          aggregations:
+            - alignmentPeriod: "60s"
+              perSeriesAligner: "ALIGN_RATE"
+              crossSeriesReducer: "REDUCE_SUM"
+              groupByFields:
+                - "protoPayload.authenticationInfo.principalEmail"
+                - "resource.labels.instance_id"
+    alertStrategy:
+      autoClose: "1800s"  # 30 minutes
+    combiner: "OR"
+    enabled: true
+    notificationChannels:
+      - "projects/fleetingdns-security/notificationChannels/security-team-pager"
+      - "projects/fleetingdns-security/notificationChannels/security-team-email"
+      - "projects/fleetingdns-security/notificationChannels/security-team-slack"
+  providerConfigRef:
+    name: gcp-provider-config-security
+---
+apiVersion: monitoring.gcp.crossplane.io/v1alpha1
+kind: AlertPolicy
+metadata:
+  name: fleetingdns-dns-tunneling-alert
+  labels:
+    app.kubernetes.io/name: fleetingdns-dns-tunneling-alert
+    app.kubernetes.io/component: observability
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/alert-type: "threat-detection"
+    fleetingdns.com/severity: "high"
+spec:
+  forProvider:
+    projectRef:
+      name: fleetingdns-security-project
+    displayName: "FleetingDNS DNS Tunneling Detection"
+    documentation:
+      content: |
+        This alert fires when DNS tunneling activity is detected.
+        
+        Immediate actions:
+        1. Identify the source IP and domain involved
+        2. Check if this is a known legitimate use case
+        3. Review DNS query patterns and frequency
+        4. Consider rate limiting or blocking if malicious
+        
+        Investigation steps:
+        1. Analyze DNS query logs for patterns
+        2. Check for data exfiltration indicators
+        3. Review related network traffic
+        4. Update threat intelligence feeds
+      mimeType: "text/markdown"
+    conditions:
+      - displayName: "High frequency DNS queries"
+        conditionThreshold:
+          filter: |
+            resource.type="dns_query"
+            jsonPayload.query_rate > 100
+          comparison: "COMPARISON_GREATER_THAN"
+          thresholdValue: 1000
+          duration: "300s"
+          aggregations:
+            - alignmentPeriod: "60s"
+              perSeriesAligner: "ALIGN_RATE"
+              crossSeriesReducer: "REDUCE_SUM"
+              groupByFields:
+                - "jsonPayload.client_ip"
+                - "jsonPayload.query_domain"
+      - displayName: "Suspicious subdomain patterns"
+        conditionThreshold:
+          filter: |
+            resource.type="k8s_container"
+            resource.labels.container_name="fleetingdns-dnsd"
+            jsonPayload.subdomain_entropy > 4.5
+          comparison: "COMPARISON_GREATER_THAN"
+          thresholdValue: 0
+          duration: "60s"
+    alertStrategy:
+      autoClose: "3600s"  # 1 hour
+    combiner: "OR"
+    enabled: true
+    notificationChannels:
+      - "projects/fleetingdns-security/notificationChannels/threat-intel-team"
+      - "projects/fleetingdns-security/notificationChannels/soc-team"
+  providerConfigRef:
+    name: gcp-provider-config-security
+---
+apiVersion: monitoring.gcp.crossplane.io/v1alpha1
+kind: AlertPolicy
+metadata:
+  name: fleetingdns-application-errors-alert
+  labels:
+    app.kubernetes.io/name: fleetingdns-application-errors-alert
+    app.kubernetes.io/component: observability
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/alert-type: "application"
+    fleetingdns.com/severity: "medium"
+spec:
+  forProvider:
+    projectRef:
+      name: fleetingdns-analytics-project
+    displayName: "FleetingDNS Application Error Rate"
+    documentation:
+      content: |
+        This alert fires when application error rates exceed acceptable thresholds.
+        
+        Immediate actions:
+        1. Check application health dashboards
+        2. Review recent deployments
+        3. Check resource utilization
+        4. Verify database connectivity
+        
+        Investigation steps:
+        1. Review application logs for error details
+        2. Check infrastructure metrics
+        3. Verify external dependencies
+        4. Consider rolling back recent changes
+      mimeType: "text/markdown"
+    conditions:
+      - displayName: "High error rate"
+        conditionThreshold:
+          filter: |
+            resource.type="k8s_container"
+            (
+              resource.labels.container_name="fleetingdns-api" OR
+              resource.labels.container_name="fleetingdns-dnsd" OR
+              resource.labels.container_name="fleetingdns-edgehub"
+            )
+            severity >= "ERROR"
+          comparison: "COMPARISON_GREATER_THAN"
+          thresholdValue: 10  # 10 errors per minute
+          duration: "300s"
+          aggregations:
+            - alignmentPeriod: "60s"
+              perSeriesAligner: "ALIGN_RATE"
+              crossSeriesReducer: "REDUCE_SUM"
+              groupByFields:
+                - "resource.labels.container_name"
+                - "resource.labels.cluster_name"
+    alertStrategy:
+      autoClose: "1800s"  # 30 minutes
+    combiner: "OR"
+    enabled: true
+    notificationChannels:
+      - "projects/fleetingdns-analytics/notificationChannels/dev-team-slack"
+      - "projects/fleetingdns-analytics/notificationChannels/sre-team-pager"
+  providerConfigRef:
+    name: gcp-provider-config-analytics
+---
+apiVersion: monitoring.gcp.crossplane.io/v1alpha1
+kind: AlertPolicy
+metadata:
+  name: fleetingdns-performance-degradation-alert
+  labels:
+    app.kubernetes.io/name: fleetingdns-performance-degradation-alert
+    app.kubernetes.io/component: observability
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/alert-type: "performance"
+    fleetingdns.com/severity: "medium"
+spec:
+  forProvider:
+    projectRef:
+      name: fleetingdns-analytics-project
+    displayName: "FleetingDNS Performance Degradation"
+    documentation:
+      content: |
+        This alert fires when performance metrics indicate degradation.
+        
+        Immediate actions:
+        1. Check load balancer and CDN metrics
+        2. Review cluster resource utilization
+        3. Verify database performance
+        4. Check for traffic spikes
+        
+        Investigation steps:
+        1. Analyze latency trends
+        2. Review scaling events
+        3. Check for resource constraints
+        4. Verify external service dependencies
+      mimeType: "text/markdown"
+    conditions:
+      - displayName: "High DNS resolution latency"
+        conditionThreshold:
+          filter: |
+            resource.type="k8s_container"
+            resource.labels.container_name="fleetingdns-dnsd"
+            jsonPayload.dns_resolution_time_ms > 100
+          comparison: "COMPARISON_GREATER_THAN"
+          thresholdValue: 100  # 100ms average
+          duration: "600s"    # 10 minutes
+          aggregations:
+            - alignmentPeriod: "60s"
+              perSeriesAligner: "ALIGN_MEAN"
+              crossSeriesReducer: "REDUCE_MEAN"
+              groupByFields:
+                - "resource.labels.cluster_name"
+      - displayName: "High API response latency"
+        conditionThreshold:
+          filter: |
+            resource.type="http_load_balancer"
+            httpRequest.latency > "500ms"
+          comparison: "COMPARISON_GREATER_THAN"
+          thresholdValue: 500  # 500ms average
+          duration: "300s"     # 5 minutes
+          aggregations:
+            - alignmentPeriod: "60s"
+              perSeriesAligner: "ALIGN_MEAN"
+              crossSeriesReducer: "REDUCE_MEAN"
+    alertStrategy:
+      autoClose: "1800s"  # 30 minutes
+    combiner: "OR"
+    enabled: true
+    notificationChannels:
+      - "projects/fleetingdns-analytics/notificationChannels/sre-team-slack"
+      - "projects/fleetingdns-analytics/notificationChannels/performance-team"
+  providerConfigRef:
+    name: gcp-provider-config-analytics 

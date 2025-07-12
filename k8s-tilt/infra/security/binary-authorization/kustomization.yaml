@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: binary-authorization
+  annotations:
+    config.kubernetes.io/local-config: "true"
+
+resources:
+  - binary-auth-policy.yaml
+  - attestors.yaml
+  - cluster-admission-rules.yaml
+  - vulnerability-scanning.yaml
+
+commonLabels:
+  app.kubernetes.io/name: fleetingdns-binary-auth
+  app.kubernetes.io/component: security
+  app.kubernetes.io/part-of: fleetingdns-infrastructure 

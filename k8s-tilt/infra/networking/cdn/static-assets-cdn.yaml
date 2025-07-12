@@ -1,0 +1,167 @@
+apiVersion: compute.gcp.crossplane.io/v1beta1
+kind: BackendService
+metadata:
+  name: fleetingdns-static-cdn-backend
+  labels:
+    app.kubernetes.io/name: fleetingdns-static-cdn-backend
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/cdn-enabled: "true"
+    fleetingdns.com/content-type: "static"
+spec:
+  forProvider:
+    name: fleetingdns-static-cdn-backend
+    description: "CDN backend optimized for static assets"
+    protocol: HTTPS
+    timeoutSec: 60
+    enableCdn: true
+    cdnPolicy:
+      cacheMode: "CACHE_ALL_STATIC"
+      defaultTtl: 86400    # 24 hours for static assets
+      maxTtl: 2592000     # 30 days for static assets
+      clientTtl: 86400    # 24 hours
+      negativeCaching: true
+      negativeCachingPolicy:
+        - code: 404
+          ttl: 300  # 5 minutes for missing assets
+        - code: 403
+          ttl: 60   # 1 minute for forbidden
+      cacheKeyPolicy:
+        includeHost: true
+        includeProtocol: true
+        includeQueryString: true  # Include version parameters
+        queryStringWhitelist:
+          - "v"       # version parameter
+          - "hash"    # content hash
+          - "t"       # timestamp
+      bypassCacheOnRequestHeaders:
+        - headerName: "Cache-Control"
+          value: "no-cache"
+      serveWhileStale: 604800  # 7 days for static content
+    compressionMode: "AUTOMATIC"
+    customRequestHeaders:
+      - "X-Static-CDN: enabled"
+      - "X-Content-Type: static-assets"
+    customResponseHeaders:
+      - "Cache-Control: public, max-age=86400, immutable"
+      - "X-Cache-Status: {cdn_cache_status}"
+      - "X-Edge-Location: {pop}"
+      - "Vary: Accept-Encoding"
+    backends:
+      - group: "projects/fleetingdns-infra/global/backendBuckets/fleetingdns-static-assets"
+        balancingMode: "UTILIZATION"
+        maxUtilization: 1.0
+        capacityScaler: 1.0
+    healthChecks: []  # Not needed for Cloud Storage backend
+    securityPolicy: "projects/fleetingdns-infra/global/securityPolicies/fleetingdns-static-armor"
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: compute.gcp.crossplane.io/v1beta1
+kind: BackendBucket
+metadata:
+  name: fleetingdns-static-assets-bucket
+  labels:
+    app.kubernetes.io/name: fleetingdns-static-assets-bucket
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/content-type: "static"
+spec:
+  forProvider:
+    name: fleetingdns-static-assets
+    description: "Backend bucket for static assets CDN"
+    bucketName: "fleetingdns-static-assets-eu"
+    enableCdn: true
+    cdnPolicy:
+      cacheMode: "CACHE_ALL_STATIC"
+      defaultTtl: 86400
+      maxTtl: 2592000
+      negativeCaching: true
+      negativeCachingPolicy:
+        - code: 404
+          ttl: 300
+      cacheKeyPolicy:
+        includeHost: false
+        includeProtocol: false
+        includeQueryString: true
+        queryStringWhitelist:
+          - "v"
+          - "hash"
+    customResponseHeaders:
+      - "Cache-Control: public, max-age=86400, immutable"
+      - "X-Content-Source: gcs"
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: compute.gcp.crossplane.io/v1beta1
+kind: BackendService
+metadata:
+  name: fleetingdns-api-cdn-backend
+  labels:
+    app.kubernetes.io/name: fleetingdns-api-cdn-backend
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/cdn-enabled: "true"
+    fleetingdns.com/content-type: "api"
+spec:
+  forProvider:
+    name: fleetingdns-api-cdn-backend
+    description: "CDN backend for API responses with selective caching"
+    protocol: HTTPS
+    timeoutSec: 30
+    enableCdn: true
+    cdnPolicy:
+      cacheMode: "USE_ORIGIN_HEADERS"  # Respect API cache headers
+      defaultTtl: 300     # 5 minutes default for API
+      maxTtl: 3600       # 1 hour max for API
+      clientTtl: 300     # 5 minutes
+      negativeCaching: true
+      negativeCachingPolicy:
+        - code: 404
+          ttl: 60   # 1 minute for API 404s
+        - code: 500
+          ttl: 0    # Don't cache server errors
+        - code: 503
+          ttl: 0    # Don't cache service unavailable
+      cacheKeyPolicy:
+        includeHost: true
+        includeProtocol: true
+        includeQueryString: true
+        queryStringWhitelist:
+          - "limit"
+          - "offset"
+          - "filter"
+          - "sort"
+        queryStringBlacklist:
+          - "api_key"  # Don't cache based on API key
+          - "token"    # Don't cache based on token
+      bypassCacheOnRequestHeaders:
+        - headerName: "Authorization"  # Don't cache authenticated requests
+        - headerName: "Cache-Control"
+          value: "no-cache"
+      requestCoalescing: true  # Coalesce identical requests
+    compressionMode: "AUTOMATIC"
+    customRequestHeaders:
+      - "X-API-CDN: enabled"
+      - "X-Forwarded-Proto: https"
+    customResponseHeaders:
+      - "X-Cache-Status: {cdn_cache_status}"
+      - "X-API-Edge: {pop}"
+    backends:
+      - group: "projects/fleetingdns-prod-eu/zones/europe-west1-b/instanceGroups/fleetingdns-api-ig"
+        balancingMode: "RATE"
+        maxRatePerInstance: 1000
+        capacityScaler: 1.0
+      - group: "projects/fleetingdns-prod-us/zones/us-central1-a/instanceGroups/fleetingdns-api-ig"
+        balancingMode: "RATE"
+        maxRatePerInstance: 1000
+        capacityScaler: 1.0
+      - group: "projects/fleetingdns-prod-apac/zones/asia-southeast1-a/instanceGroups/fleetingdns-api-ig"
+        balancingMode: "RATE"
+        maxRatePerInstance: 1000
+        capacityScaler: 1.0
+    healthChecks:
+      - "projects/fleetingdns-infra/global/healthChecks/fleetingdns-api-health"
+    securityPolicy: "projects/fleetingdns-infra/global/securityPolicies/fleetingdns-api-armor"
+  providerConfigRef:
+    name: gcp-provider-config-infra 

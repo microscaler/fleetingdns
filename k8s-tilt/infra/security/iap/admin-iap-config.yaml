@@ -1,0 +1,72 @@
+apiVersion: iap.gcp.crossplane.io/v1alpha1
+kind: WebBackendService
+metadata:
+  name: fleetingdns-admin-iap
+  labels:
+    app.kubernetes.io/name: fleetingdns-admin-iap
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/iap-protected: "true"
+    fleetingdns.com/mfa-required: "true"
+spec:
+  forProvider:
+    projectRef:
+      name: fleetingdns-infra-project
+    iapSettings:
+      enabled: true
+      oauth2ClientIdRef:
+        name: fleetingdns-admin-oauth-client
+      oauth2ClientSecretRef:
+        name: fleetingdns-admin-oauth-secret
+      accessSettings:
+        corsSettings:
+          allowHttpOptions: true
+        gcipSettings:
+          tenantIds: []
+          loginPageUri: "https://admin.fleetingdns.com/login"
+        reauthorizeSettings:
+          maxAge: "3600s"  # 1 hour
+          method: "LOGIN"
+        policyDelegationSettings:
+          iamPermission: "iap.webServiceVersions.accessViaIAP"
+          policyName: "projects/fleetingdns-infra/policies/admin-access-policy"
+          resource:
+            type: "iap_web"
+            service: "admin.fleetingdns.com"
+            version: "v1"
+      applicationSettings:
+        csmSettings:
+          rctokenAud: "admin.fleetingdns.com"
+        cookieDomain: ".fleetingdns.com"
+        attributePropagationSettings:
+          expression: "assertion.email"
+          outputCredentials:
+            - "HEADER"
+            - "JWT"
+            - "RCTOKEN"
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: iap.gcp.crossplane.io/v1alpha1
+kind: WebTypeAppEngineService
+metadata:
+  name: fleetingdns-admin-iap-service
+  labels:
+    app.kubernetes.io/name: fleetingdns-admin-iap-service
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/iap-protected: "true"
+spec:
+  forProvider:
+    projectRef:
+      name: fleetingdns-infra-project
+    appId: "admin-portal"
+    serviceId: "default"
+    iapSettings:
+      enabled: true
+      oauth2ClientIdRef:
+        name: fleetingdns-admin-oauth-client
+      oauth2ClientSecretRef:
+        name: fleetingdns-admin-oauth-secret
+  providerConfigRef:
+    name: gcp-provider-config-infra 

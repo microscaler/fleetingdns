@@ -1,0 +1,165 @@
+apiVersion: binaryauthorization.gcp.crossplane.io/v1alpha1
+kind: Attestor
+metadata:
+  name: fleetingdns-vulnerability-scan-attestor
+  labels:
+    app.kubernetes.io/name: fleetingdns-vulnerability-scan-attestor
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/attestor-type: "vulnerability-scan"
+spec:
+  forProvider:
+    name: "fleetingdns-vulnerability-scan"
+    projectRef:
+      name: fleetingdns-security-project
+    description: "Attestor for vulnerability scanning of FleetingDNS containers"
+    attestationAuthorityNote:
+      noteReference: "projects/fleetingdns-security/notes/vulnerability-scan-note"
+      publicKeys:
+        - asciiArmoredPgpPublicKey: |
+            -----BEGIN PGP PUBLIC KEY BLOCK-----
+            # Replace with actual PGP public key for vulnerability scanning
+            -----END PGP PUBLIC KEY BLOCK-----
+          comment: "Vulnerability scan attestor public key"
+      delegationServiceAccountEmail: "vulnerability-scanner@fleetingdns-security.iam.gserviceaccount.com"
+  providerConfigRef:
+    name: gcp-provider-config-security
+---
+apiVersion: binaryauthorization.gcp.crossplane.io/v1alpha1
+kind: Attestor
+metadata:
+  name: fleetingdns-code-review-attestor
+  labels:
+    app.kubernetes.io/name: fleetingdns-code-review-attestor
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/attestor-type: "code-review"
+spec:
+  forProvider:
+    name: "fleetingdns-code-review"
+    projectRef:
+      name: fleetingdns-security-project
+    description: "Attestor for code review approval of FleetingDNS containers"
+    attestationAuthorityNote:
+      noteReference: "projects/fleetingdns-security/notes/code-review-note"
+      publicKeys:
+        - asciiArmoredPgpPublicKey: |
+            -----BEGIN PGP PUBLIC KEY BLOCK-----
+            # Replace with actual PGP public key for code review
+            -----END PGP PUBLIC KEY BLOCK-----
+          comment: "Code review attestor public key"
+      delegationServiceAccountEmail: "code-reviewer@fleetingdns-security.iam.gserviceaccount.com"
+  providerConfigRef:
+    name: gcp-provider-config-security
+---
+apiVersion: binaryauthorization.gcp.crossplane.io/v1alpha1
+kind: Attestor
+metadata:
+  name: fleetingdns-security-scan-attestor
+  labels:
+    app.kubernetes.io/name: fleetingdns-security-scan-attestor
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/attestor-type: "security-scan"
+spec:
+  forProvider:
+    name: "fleetingdns-security-scan"
+    projectRef:
+      name: fleetingdns-security-project
+    description: "Attestor for security scanning of FleetingDNS containers"
+    attestationAuthorityNote:
+      noteReference: "projects/fleetingdns-security/notes/security-scan-note"
+      publicKeys:
+        - asciiArmoredPgpPublicKey: |
+            -----BEGIN PGP PUBLIC KEY BLOCK-----
+            # Replace with actual PGP public key for security scanning
+            -----END PGP PUBLIC KEY BLOCK-----
+          comment: "Security scan attestor public key"
+      delegationServiceAccountEmail: "security-scanner@fleetingdns-security.iam.gserviceaccount.com"
+  providerConfigRef:
+    name: gcp-provider-config-security
+---
+apiVersion: binaryauthorization.gcp.crossplane.io/v1alpha1
+kind: Attestor
+metadata:
+  name: fleetingdns-compliance-check-attestor
+  labels:
+    app.kubernetes.io/name: fleetingdns-compliance-check-attestor
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/attestor-type: "compliance-check"
+spec:
+  forProvider:
+    name: "fleetingdns-compliance-check"
+    projectRef:
+      name: fleetingdns-security-project
+    description: "Attestor for compliance checking of FleetingDNS containers"
+    attestationAuthorityNote:
+      noteReference: "projects/fleetingdns-security/notes/compliance-check-note"
+      publicKeys:
+        - asciiArmoredPgpPublicKey: |
+            -----BEGIN PGP PUBLIC KEY BLOCK-----
+            # Replace with actual PGP public key for compliance checking
+            -----END PGP PUBLIC KEY BLOCK-----
+          comment: "Compliance check attestor public key"
+      delegationServiceAccountEmail: "compliance-checker@fleetingdns-security.iam.gserviceaccount.com"
+  providerConfigRef:
+    name: gcp-provider-config-security
+---
+# Container Analysis Notes for attestors
+apiVersion: containeranalysis.gcp.crossplane.io/v1alpha1
+kind: Note
+metadata:
+  name: fleetingdns-vulnerability-scan-note
+  labels:
+    app.kubernetes.io/name: fleetingdns-vulnerability-scan-note
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    name: "projects/fleetingdns-security/notes/vulnerability-scan-note"
+    shortDescription: "Vulnerability scan attestation note"
+    longDescription: "Container Analysis note for vulnerability scan attestations"
+    attestationAuthority:
+      hint:
+        humanReadableName: "FleetingDNS Vulnerability Scanner"
+  providerConfigRef:
+    name: gcp-provider-config-security
+---
+apiVersion: containeranalysis.gcp.crossplane.io/v1alpha1
+kind: Note
+metadata:
+  name: fleetingdns-code-review-note
+  labels:
+    app.kubernetes.io/name: fleetingdns-code-review-note
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    name: "projects/fleetingdns-security/notes/code-review-note"
+    shortDescription: "Code review attestation note"
+    longDescription: "Container Analysis note for code review attestations"
+    attestationAuthority:
+      hint:
+        humanReadableName: "FleetingDNS Code Reviewer"
+  providerConfigRef:
+    name: gcp-provider-config-security
+---
+apiVersion: containeranalysis.gcp.crossplane.io/v1alpha1
+kind: Note
+metadata:
+  name: fleetingdns-security-scan-note
+  labels:
+    app.kubernetes.io/name: fleetingdns-security-scan-note
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    name: "projects/fleetingdns-security/notes/security-scan-note"
+    shortDescription: "Security scan attestation note"
+    longDescription: "Container Analysis note for security scan attestations"
+    attestationAuthority:
+      hint:
+        humanReadableName: "FleetingDNS Security Scanner"
+  providerConfigRef:
+    name: gcp-provider-config-security 

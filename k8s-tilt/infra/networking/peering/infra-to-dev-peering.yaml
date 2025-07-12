@@ -1,0 +1,43 @@
+apiVersion: compute.gcp.crossplane.io/v1beta1
+kind: NetworkPeering
+metadata:
+  name: infra-to-dev-peering
+  labels:
+    app.kubernetes.io/name: infra-to-dev-peering
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: infrastructure
+    fleetingdns.com/region: global
+spec:
+  forProvider:
+    name: infra-to-dev-peering
+    networkRef:
+      name: fleetingdns-infra-vpc
+    peerNetwork: "projects/fleetingdns-dev/global/networks/fleetingdns-dev-vpc"
+    autoCreateRoutes: true
+    importCustomRoutes: true
+    exportCustomRoutes: true
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: compute.gcp.crossplane.io/v1beta1
+kind: NetworkPeering
+metadata:
+  name: dev-to-infra-peering
+  labels:
+    app.kubernetes.io/name: dev-to-infra-peering
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: development
+    fleetingdns.com/region: global
+spec:
+  forProvider:
+    name: dev-to-infra-peering
+    networkRef:
+      name: fleetingdns-dev-vpc
+    peerNetwork: "projects/fleetingdns-infra/global/networks/fleetingdns-infra-vpc"
+    autoCreateRoutes: true
+    importCustomRoutes: true
+    exportCustomRoutes: true
+  providerConfigRef:
+    name: gcp-provider-config-dev 

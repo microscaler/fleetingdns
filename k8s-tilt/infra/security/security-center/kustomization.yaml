@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: security-center
+  annotations:
+    config.kubernetes.io/local-config: "true"
+
+resources:
+  - security-center-settings.yaml
+  - notification-configs.yaml
+  - finding-filters.yaml
+  - custom-modules.yaml
+  - threat-detection-rules.yaml
+
+commonLabels:
+  app.kubernetes.io/name: fleetingdns-security-center
+  app.kubernetes.io/component: security
+  app.kubernetes.io/part-of: fleetingdns-infrastructure 

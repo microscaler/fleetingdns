@@ -1,0 +1,101 @@
+apiVersion: binaryauthorization.gcp.crossplane.io/v1alpha1
+kind: Policy
+metadata:
+  name: fleetingdns-binary-auth-policy
+  labels:
+    app.kubernetes.io/name: fleetingdns-binary-auth-policy
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/security-policy: "container-security"
+spec:
+  forProvider:
+    projectRef:
+      name: fleetingdns-infra-project
+    description: "Binary Authorization policy for FleetingDNS containers"
+    globalPolicyEvaluationMode: "ENABLE"
+    defaultAdmissionRule:
+      evaluationMode: "REQUIRE_ATTESTATION"
+      enforcementMode: "ENFORCED_BLOCK_AND_AUDIT_LOG"
+      requireAttestationsBy:
+        - "projects/fleetingdns-security/attestors/fleetingdns-vulnerability-scan"
+        - "projects/fleetingdns-security/attestors/fleetingdns-code-review"
+        - "projects/fleetingdns-security/attestors/fleetingdns-security-scan"
+    clusterAdmissionRules:
+      # Production EU cluster - strictest policy
+      "projects/fleetingdns-prod-eu/locations/europe-west1/clusters/fleetingdns-prod-eu":
+        evaluationMode: "REQUIRE_ATTESTATION"
+        enforcementMode: "ENFORCED_BLOCK_AND_AUDIT_LOG"
+        requireAttestationsBy:
+          - "projects/fleetingdns-security/attestors/fleetingdns-vulnerability-scan"
+          - "projects/fleetingdns-security/attestors/fleetingdns-code-review"
+          - "projects/fleetingdns-security/attestors/fleetingdns-security-scan"
+          - "projects/fleetingdns-security/attestors/fleetingdns-compliance-check"
+      # Production US cluster - strict policy
+      "projects/fleetingdns-prod-us/locations/us-central1/clusters/fleetingdns-prod-us":
+        evaluationMode: "REQUIRE_ATTESTATION"
+        enforcementMode: "ENFORCED_BLOCK_AND_AUDIT_LOG"
+        requireAttestationsBy:
+          - "projects/fleetingdns-security/attestors/fleetingdns-vulnerability-scan"
+          - "projects/fleetingdns-security/attestors/fleetingdns-code-review"
+          - "projects/fleetingdns-security/attestors/fleetingdns-security-scan"
+      # Production APAC cluster - strict policy
+      "projects/fleetingdns-prod-apac/locations/asia-southeast1/clusters/fleetingdns-prod-apac":
+        evaluationMode: "REQUIRE_ATTESTATION"
+        enforcementMode: "ENFORCED_BLOCK_AND_AUDIT_LOG"
+        requireAttestationsBy:
+          - "projects/fleetingdns-security/attestors/fleetingdns-vulnerability-scan"
+          - "projects/fleetingdns-security/attestors/fleetingdns-code-review"
+          - "projects/fleetingdns-security/attestors/fleetingdns-security-scan"
+      # Staging cluster - moderate policy
+      "projects/fleetingdns-staging/locations/europe-west1/clusters/fleetingdns-staging":
+        evaluationMode: "REQUIRE_ATTESTATION"
+        enforcementMode: "ENFORCED_BLOCK_AND_AUDIT_LOG"
+        requireAttestationsBy:
+          - "projects/fleetingdns-security/attestors/fleetingdns-vulnerability-scan"
+          - "projects/fleetingdns-security/attestors/fleetingdns-code-review"
+      # Development cluster - basic policy
+      "projects/fleetingdns-dev/locations/europe-west1/clusters/fleetingdns-dev":
+        evaluationMode: "REQUIRE_ATTESTATION"
+        enforcementMode: "DRYRUN_AUDIT_LOG_ONLY"  # Non-blocking for dev
+        requireAttestationsBy:
+          - "projects/fleetingdns-security/attestors/fleetingdns-vulnerability-scan"
+    istioServiceIdentityAdmissionRules:
+      "*":
+        evaluationMode: "REQUIRE_ATTESTATION"
+        enforcementMode: "ENFORCED_BLOCK_AND_AUDIT_LOG"
+        requireAttestationsBy:
+          - "projects/fleetingdns-security/attestors/fleetingdns-vulnerability-scan"
+    kubernetesNamespaceAdmissionRules:
+      # FleetingDNS application namespaces
+      "fleetingdns-system":
+        evaluationMode: "REQUIRE_ATTESTATION"
+        enforcementMode: "ENFORCED_BLOCK_AND_AUDIT_LOG"
+        requireAttestationsBy:
+          - "projects/fleetingdns-security/attestors/fleetingdns-vulnerability-scan"
+          - "projects/fleetingdns-security/attestors/fleetingdns-code-review"
+          - "projects/fleetingdns-security/attestors/fleetingdns-security-scan"
+      "fleetingdns-api":
+        evaluationMode: "REQUIRE_ATTESTATION"
+        enforcementMode: "ENFORCED_BLOCK_AND_AUDIT_LOG"
+        requireAttestationsBy:
+          - "projects/fleetingdns-security/attestors/fleetingdns-vulnerability-scan"
+          - "projects/fleetingdns-security/attestors/fleetingdns-code-review"
+      "fleetingdns-dns":
+        evaluationMode: "REQUIRE_ATTESTATION"
+        enforcementMode: "ENFORCED_BLOCK_AND_AUDIT_LOG"
+        requireAttestationsBy:
+          - "projects/fleetingdns-security/attestors/fleetingdns-vulnerability-scan"
+          - "projects/fleetingdns-security/attestors/fleetingdns-security-scan"
+      # System namespaces - allow Google images
+      "kube-system":
+        evaluationMode: "ALWAYS_ALLOW"
+      "gke-system":
+        evaluationMode: "ALWAYS_ALLOW"
+      # Monitoring namespaces
+      "monitoring":
+        evaluationMode: "REQUIRE_ATTESTATION"
+        enforcementMode: "ENFORCED_BLOCK_AND_AUDIT_LOG"
+        requireAttestationsBy:
+          - "projects/fleetingdns-security/attestors/fleetingdns-vulnerability-scan"
+  providerConfigRef:
+    name: gcp-provider-config-infra 

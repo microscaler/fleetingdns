@@ -1,0 +1,43 @@
+apiVersion: compute.gcp.crossplane.io/v1beta1
+kind: NetworkPeering
+metadata:
+  name: infra-to-staging-peering
+  labels:
+    app.kubernetes.io/name: infra-to-staging-peering
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: infrastructure
+    fleetingdns.com/region: global
+spec:
+  forProvider:
+    name: infra-to-staging-peering
+    networkRef:
+      name: fleetingdns-infra-vpc
+    peerNetwork: "projects/fleetingdns-staging/global/networks/fleetingdns-staging-vpc"
+    autoCreateRoutes: true
+    importCustomRoutes: true
+    exportCustomRoutes: true
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: compute.gcp.crossplane.io/v1beta1
+kind: NetworkPeering
+metadata:
+  name: staging-to-infra-peering
+  labels:
+    app.kubernetes.io/name: staging-to-infra-peering
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: staging
+    fleetingdns.com/region: global
+spec:
+  forProvider:
+    name: staging-to-infra-peering
+    networkRef:
+      name: fleetingdns-staging-vpc
+    peerNetwork: "projects/fleetingdns-infra/global/networks/fleetingdns-infra-vpc"
+    autoCreateRoutes: true
+    importCustomRoutes: true
+    exportCustomRoutes: true
+  providerConfigRef:
+    name: gcp-provider-config-staging 

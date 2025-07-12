@@ -1,0 +1,140 @@
+apiVersion: compute.gcp.crossplane.io/v1beta1
+kind: Firewall
+metadata:
+  name: workload-allow-dns
+  labels:
+    app.kubernetes.io/name: workload-allow-dns
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: workload
+spec:
+  forProvider:
+    name: workload-allow-dns
+    networkRef:
+      name: fleetingdns-dev-vpc
+    description: "Allow DNS traffic from internet to FleetingDNS service"
+    direction: INGRESS
+    priority: 1000
+    sourceRanges:
+      - "0.0.0.0/0"
+    targetTags:
+      - "fleetingdns-dnsd"
+    allow:
+      - protocol: udp
+        ports:
+          - "53"
+      - protocol: tcp
+        ports:
+          - "53"
+          - "853"  # DNS over TLS
+  providerConfigRef:
+    name: gcp-provider-config-dev
+---
+apiVersion: compute.gcp.crossplane.io/v1beta1
+kind: Firewall
+metadata:
+  name: workload-allow-api
+  labels:
+    app.kubernetes.io/name: workload-allow-api
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: workload
+spec:
+  forProvider:
+    name: workload-allow-api
+    networkRef:
+      name: fleetingdns-dev-vpc
+    description: "Allow HTTPS API traffic through Cloud Armor"
+    direction: INGRESS
+    priority: 1100
+    sourceRanges:
+      - "0.0.0.0/0"
+    targetTags:
+      - "fleetingdns-api"
+    allow:
+      - protocol: tcp
+        ports:
+          - "443"
+          - "80"
+  providerConfigRef:
+    name: gcp-provider-config-dev
+---
+apiVersion: compute.gcp.crossplane.io/v1beta1
+kind: Firewall
+metadata:
+  name: workload-allow-edgehub
+  labels:
+    app.kubernetes.io/name: workload-allow-edgehub
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: workload
+spec:
+  forProvider:
+    name: workload-allow-edgehub
+    networkRef:
+      name: fleetingdns-dev-vpc
+    description: "Allow EdgeHub tunnel connections"
+    direction: INGRESS
+    priority: 1200
+    sourceRanges:
+      - "0.0.0.0/0"
+    targetTags:
+      - "fleetingdns-edgehub"
+    allow:
+      - protocol: tcp
+        ports:
+          - "8080"
+          - "8443"
+  providerConfigRef:
+    name: gcp-provider-config-dev
+---
+apiVersion: compute.gcp.crossplane.io/v1beta1
+kind: Firewall
+metadata:
+  name: workload-allow-internal
+  labels:
+    app.kubernetes.io/name: workload-allow-internal
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: workload
+spec:
+  forProvider:
+    name: workload-allow-internal
+    networkRef:
+      name: fleetingdns-dev-vpc
+    description: "Allow internal pod-to-pod communication"
+    direction: INGRESS
+    priority: 1300
+    sourceRanges:
+      - "10.16.0.0/16"  # Pod CIDR
+    allow:
+      - protocol: tcp
+      - protocol: udp
+      - protocol: icmp
+  providerConfigRef:
+    name: gcp-provider-config-dev
+---
+apiVersion: compute.gcp.crossplane.io/v1beta1
+kind: Firewall
+metadata:
+  name: workload-allow-health-checks
+  labels:
+    app.kubernetes.io/name: workload-allow-health-checks
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: workload
+spec:
+  forProvider:
+    name: workload-allow-health-checks
+    networkRef:
+      name: fleetingdns-dev-vpc
+    description: "Allow GCP load balancer health checks"
+    direction: INGRESS
+    priority: 1400
+    sourceRanges:
+      - "35.191.0.0/16"  # GCP health check ranges
+      - "130.211.0.0/22"
+    allow:
+      - protocol: tcp
+  providerConfigRef:
+    name: gcp-provider-config-dev 
