@@ -1,0 +1,192 @@
+# Primary Redis Instance for Production
+apiVersion: redis.gcp.upbound.io/v1beta1
+kind: Instance
+metadata:
+  name: fleetingdns-redis-primary
+  labels:
+    app.kubernetes.io/name: fleetingdns-redis-primary
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-redis-primary
+    project: fleetingdns-infra
+    region: europe-west1
+    tier: STANDARD_HA  # High availability
+    memorySizeGb: 4
+    redisVersion: REDIS_7_0
+    displayName: "FleetingDNS Primary Redis"
+    authorizedNetwork: "projects/fleetingdns-infra/global/networks/fleetingdns-infra-vpc"
+    connectMode: PRIVATE_SERVICE_ACCESS
+    authEnabled: true
+    transitEncryptionMode: SERVER_AUTHENTICATION
+    redisConfigs:
+      maxmemory-policy: "allkeys-lru"
+      notify-keyspace-events: "Ex"
+      timeout: "300"
+    maintenancePolicy:
+    - weeklyMaintenanceWindow:
+      - day: SUNDAY
+        startTime:
+        - hours: 3
+          minutes: 0
+    labels:
+      environment: production
+      service: fleetingdns
+      role: primary
+      managed-by: crossplane
+  providerConfigRef:
+    name: default
+---
+# Redis Instance for US Region
+apiVersion: redis.gcp.upbound.io/v1beta1
+kind: Instance
+metadata:
+  name: fleetingdns-redis-us
+  labels:
+    app.kubernetes.io/name: fleetingdns-redis-us
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-redis-us
+    project: fleetingdns-prod-us
+    region: us-central1
+    tier: STANDARD_HA
+    memorySizeGb: 4
+    redisVersion: REDIS_7_0
+    displayName: "FleetingDNS US Redis"
+    authorizedNetwork: "projects/fleetingdns-prod-us/global/networks/fleetingdns-prod-us-vpc"
+    connectMode: PRIVATE_SERVICE_ACCESS
+    authEnabled: true
+    transitEncryptionMode: SERVER_AUTHENTICATION
+    redisConfigs:
+      maxmemory-policy: "allkeys-lru"
+      notify-keyspace-events: "Ex"
+      timeout: "300"
+    maintenancePolicy:
+    - weeklyMaintenanceWindow:
+      - day: SUNDAY
+        startTime:
+        - hours: 9  # 3 AM PST
+          minutes: 0
+    labels:
+      environment: production
+      service: fleetingdns
+      role: regional
+      region: us-central1
+      managed-by: crossplane
+  providerConfigRef:
+    name: us-central1
+---
+# Redis Instance for APAC Region
+apiVersion: redis.gcp.upbound.io/v1beta1
+kind: Instance
+metadata:
+  name: fleetingdns-redis-apac
+  labels:
+    app.kubernetes.io/name: fleetingdns-redis-apac
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-redis-apac
+    project: fleetingdns-prod-apac
+    region: asia-southeast1
+    tier: STANDARD_HA
+    memorySizeGb: 4
+    redisVersion: REDIS_7_0
+    displayName: "FleetingDNS APAC Redis"
+    authorizedNetwork: "projects/fleetingdns-prod-apac/global/networks/fleetingdns-prod-apac-vpc"
+    connectMode: PRIVATE_SERVICE_ACCESS
+    authEnabled: true
+    transitEncryptionMode: SERVER_AUTHENTICATION
+    redisConfigs:
+      maxmemory-policy: "allkeys-lru"
+      notify-keyspace-events: "Ex"
+      timeout: "300"
+    maintenancePolicy:
+    - weeklyMaintenanceWindow:
+      - day: SUNDAY
+        startTime:
+        - hours: 19  # 3 AM JST
+          minutes: 0
+    labels:
+      environment: production
+      service: fleetingdns
+      role: regional
+      region: asia-southeast1
+      managed-by: crossplane
+  providerConfigRef:
+    name: asia-southeast1
+---
+# Development Redis Instance
+apiVersion: redis.gcp.upbound.io/v1beta1
+kind: Instance
+metadata:
+  name: fleetingdns-redis-dev
+  labels:
+    app.kubernetes.io/name: fleetingdns-redis-dev
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-redis-dev
+    project: fleetingdns-dev
+    region: europe-west1
+    tier: BASIC  # Single node for dev
+    memorySizeGb: 1
+    redisVersion: REDIS_7_0
+    displayName: "FleetingDNS Development Redis"
+    authorizedNetwork: "projects/fleetingdns-dev/global/networks/fleetingdns-dev-vpc"
+    connectMode: PRIVATE_SERVICE_ACCESS
+    authEnabled: false  # Simplified for dev
+    transitEncryptionMode: DISABLED
+    redisConfigs:
+      maxmemory-policy: "allkeys-lru"
+      timeout: "300"
+    labels:
+      environment: development
+      service: fleetingdns
+      managed-by: crossplane
+  providerConfigRef:
+    name: development
+---
+# Staging Redis Instance
+apiVersion: redis.gcp.upbound.io/v1beta1
+kind: Instance
+metadata:
+  name: fleetingdns-redis-staging
+  labels:
+    app.kubernetes.io/name: fleetingdns-redis-staging
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-redis-staging
+    project: fleetingdns-staging
+    region: europe-west1
+    tier: STANDARD_HA
+    memorySizeGb: 2
+    redisVersion: REDIS_7_0
+    displayName: "FleetingDNS Staging Redis"
+    authorizedNetwork: "projects/fleetingdns-staging/global/networks/fleetingdns-staging-vpc"
+    connectMode: PRIVATE_SERVICE_ACCESS
+    authEnabled: true
+    transitEncryptionMode: SERVER_AUTHENTICATION
+    redisConfigs:
+      maxmemory-policy: "allkeys-lru"
+      notify-keyspace-events: "Ex"
+      timeout: "300"
+    maintenancePolicy:
+    - weeklyMaintenanceWindow:
+      - day: SATURDAY
+        startTime:
+        - hours: 2
+          minutes: 0
+    labels:
+      environment: staging
+      service: fleetingdns
+      managed-by: crossplane
+  providerConfigRef:
+    name: staging 

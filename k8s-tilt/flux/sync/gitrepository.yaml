@@ -1,0 +1,23 @@
+---
+# This is the git repository for the fleetingdns project.
+# Do not create more than one of these.
+# Do not change the name of this file.
+# Do not edit this directly, its values should be patched out.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: fleetingdns
+  namespace: flux-system
+  labels:
+    app.kubernetes.io/name: fleetingdns
+    app.kubernetes.io/component: gitops
+    app.kubernetes.io/part-of: flux-system
+spec:
+  interval: 1m0s
+  ref:
+    branch: main  # PATCH: Override per environment (main/staging/dev)
+  timeout: 60s
+  url: https://github.com/microscaler/fleetingdns  # PATCH: Override per cluster
+  secretRef:
+    name: flux-system  # PATCH: Override with cluster-specific secret
+

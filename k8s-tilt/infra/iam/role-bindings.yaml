@@ -1,0 +1,262 @@
+# API Service Account Bindings
+apiVersion: iam.gcp.upbound.io/v1beta1
+kind: ProjectIAMBinding
+metadata:
+  name: fleetingdns-api-secret-accessor
+  labels:
+    app.kubernetes.io/name: fleetingdns-api-secret-accessor
+    app.kubernetes.io/component: iam
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    project: fleetingdns-infra
+    role: roles/secretmanager.secretAccessor
+    members:
+    - "serviceAccount:fleetingdns-api@fleetingdns-infra.iam.gserviceaccount.com"
+  providerConfigRef:
+    name: default
+---
+apiVersion: iam.gcp.upbound.io/v1beta1
+kind: ProjectIAMBinding
+metadata:
+  name: fleetingdns-api-cloudsql-client
+  labels:
+    app.kubernetes.io/name: fleetingdns-api-cloudsql-client
+    app.kubernetes.io/component: iam
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    project: fleetingdns-infra
+    role: roles/cloudsql.client
+    members:
+    - "serviceAccount:fleetingdns-api@fleetingdns-infra.iam.gserviceaccount.com"
+  providerConfigRef:
+    name: default
+---
+# DNS Service Account Bindings
+apiVersion: iam.gcp.upbound.io/v1beta1
+kind: ProjectIAMBinding
+metadata:
+  name: fleetingdns-dns-dns-admin
+  labels:
+    app.kubernetes.io/name: fleetingdns-dns-dns-admin
+    app.kubernetes.io/component: iam
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    project: fleetingdns-infra
+    role: roles/dns.admin
+    members:
+    - "serviceAccount:fleetingdns-dns@fleetingdns-infra.iam.gserviceaccount.com"
+  providerConfigRef:
+    name: default
+---
+apiVersion: iam.gcp.upbound.io/v1beta1
+kind: ProjectIAMBinding
+metadata:
+  name: fleetingdns-dns-monitoring-writer
+  labels:
+    app.kubernetes.io/name: fleetingdns-dns-monitoring-writer
+    app.kubernetes.io/component: iam
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    project: fleetingdns-infra
+    role: roles/monitoring.metricWriter
+    members:
+    - "serviceAccount:fleetingdns-dns@fleetingdns-infra.iam.gserviceaccount.com"
+  providerConfigRef:
+    name: default
+---
+# EdgeHub Service Account Bindings
+apiVersion: iam.gcp.upbound.io/v1beta1
+kind: ProjectIAMBinding
+metadata:
+  name: fleetingdns-edgehub-redis-editor
+  labels:
+    app.kubernetes.io/name: fleetingdns-edgehub-redis-editor
+    app.kubernetes.io/component: iam
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    project: fleetingdns-infra
+    role: roles/redis.editor
+    members:
+    - "serviceAccount:fleetingdns-edgehub@fleetingdns-infra.iam.gserviceaccount.com"
+  providerConfigRef:
+    name: default
+---
+# Analytics Service Account Bindings
+apiVersion: iam.gcp.upbound.io/v1beta1
+kind: ProjectIAMBinding
+metadata:
+  name: fleetingdns-analytics-bigquery-admin
+  labels:
+    app.kubernetes.io/name: fleetingdns-analytics-bigquery-admin
+    app.kubernetes.io/component: iam
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    project: fleetingdns-analytics
+    role: roles/bigquery.admin
+    members:
+    - "serviceAccount:fleetingdns-analytics@fleetingdns-analytics.iam.gserviceaccount.com"
+  providerConfigRef:
+    name: analytics
+---
+apiVersion: iam.gcp.upbound.io/v1beta1
+kind: ProjectIAMBinding
+metadata:
+  name: fleetingdns-analytics-storage-admin
+  labels:
+    app.kubernetes.io/name: fleetingdns-analytics-storage-admin
+    app.kubernetes.io/component: iam
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    project: fleetingdns-analytics
+    role: roles/storage.admin
+    members:
+    - "serviceAccount:fleetingdns-analytics@fleetingdns-analytics.iam.gserviceaccount.com"
+  providerConfigRef:
+    name: analytics
+---
+# Monitoring Service Account Bindings
+apiVersion: iam.gcp.upbound.io/v1beta1
+kind: ProjectIAMBinding
+metadata:
+  name: fleetingdns-monitoring-monitoring-admin
+  labels:
+    app.kubernetes.io/name: fleetingdns-monitoring-monitoring-admin
+    app.kubernetes.io/component: iam
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    project: fleetingdns-infra
+    role: roles/monitoring.admin
+    members:
+    - "serviceAccount:fleetingdns-monitoring@fleetingdns-infra.iam.gserviceaccount.com"
+  providerConfigRef:
+    name: default
+---
+apiVersion: iam.gcp.upbound.io/v1beta1
+kind: ProjectIAMBinding
+metadata:
+  name: fleetingdns-monitoring-logging-admin
+  labels:
+    app.kubernetes.io/name: fleetingdns-monitoring-logging-admin
+    app.kubernetes.io/component: iam
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    project: fleetingdns-infra
+    role: roles/logging.admin
+    members:
+    - "serviceAccount:fleetingdns-monitoring@fleetingdns-infra.iam.gserviceaccount.com"
+  providerConfigRef:
+    name: default
+---
+# CI/CD Service Account Bindings
+apiVersion: iam.gcp.upbound.io/v1beta1
+kind: ProjectIAMBinding
+metadata:
+  name: fleetingdns-cicd-container-developer
+  labels:
+    app.kubernetes.io/name: fleetingdns-cicd-container-developer
+    app.kubernetes.io/component: iam
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    project: fleetingdns-infra
+    role: roles/container.developer
+    members:
+    - "serviceAccount:fleetingdns-cicd@fleetingdns-infra.iam.gserviceaccount.com"
+  providerConfigRef:
+    name: default
+---
+apiVersion: iam.gcp.upbound.io/v1beta1
+kind: ProjectIAMBinding
+metadata:
+  name: fleetingdns-cicd-artifactregistry-writer
+  labels:
+    app.kubernetes.io/name: fleetingdns-cicd-artifactregistry-writer
+    app.kubernetes.io/component: iam
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    project: fleetingdns-infra
+    role: roles/artifactregistry.writer
+    members:
+    - "serviceAccount:fleetingdns-cicd@fleetingdns-infra.iam.gserviceaccount.com"
+  providerConfigRef:
+    name: default
+---
+# Security Operations Service Account Bindings
+apiVersion: iam.gcp.upbound.io/v1beta1
+kind: ProjectIAMBinding
+metadata:
+  name: fleetingdns-security-ops-security-admin
+  labels:
+    app.kubernetes.io/name: fleetingdns-security-ops-security-admin
+    app.kubernetes.io/component: iam
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    project: fleetingdns-security
+    role: roles/securitycenter.admin
+    members:
+    - "serviceAccount:fleetingdns-security-ops@fleetingdns-security.iam.gserviceaccount.com"
+  providerConfigRef:
+    name: security
+---
+# Workload Identity Bindings
+apiVersion: iam.gcp.upbound.io/v1beta1
+kind: ServiceAccountIAMBinding
+metadata:
+  name: fleetingdns-api-workload-identity
+  labels:
+    app.kubernetes.io/name: fleetingdns-api-workload-identity
+    app.kubernetes.io/component: iam
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    serviceAccountId: "projects/fleetingdns-infra/serviceAccounts/fleetingdns-api@fleetingdns-infra.iam.gserviceaccount.com"
+    role: roles/iam.workloadIdentityUser
+    members:
+    - "serviceAccount:fleetingdns-infra.svc.id.goog[fleetingdns/fleetingdns-api]"
+  providerConfigRef:
+    name: default
+---
+apiVersion: iam.gcp.upbound.io/v1beta1
+kind: ServiceAccountIAMBinding
+metadata:
+  name: fleetingdns-dns-workload-identity
+  labels:
+    app.kubernetes.io/name: fleetingdns-dns-workload-identity
+    app.kubernetes.io/component: iam
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    serviceAccountId: "projects/fleetingdns-infra/serviceAccounts/fleetingdns-dns@fleetingdns-infra.iam.gserviceaccount.com"
+    role: roles/iam.workloadIdentityUser
+    members:
+    - "serviceAccount:fleetingdns-infra.svc.id.goog[fleetingdns/fleetingdns-dns]"
+  providerConfigRef:
+    name: default
+---
+apiVersion: iam.gcp.upbound.io/v1beta1
+kind: ServiceAccountIAMBinding
+metadata:
+  name: fleetingdns-edgehub-workload-identity
+  labels:
+    app.kubernetes.io/name: fleetingdns-edgehub-workload-identity
+    app.kubernetes.io/component: iam
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    serviceAccountId: "projects/fleetingdns-infra/serviceAccounts/fleetingdns-edgehub@fleetingdns-infra.iam.gserviceaccount.com"
+    role: roles/iam.workloadIdentityUser
+    members:
+    - "serviceAccount:fleetingdns-infra.svc.id.goog[fleetingdns/fleetingdns-edgehub]"
+  providerConfigRef:
+    name: default 

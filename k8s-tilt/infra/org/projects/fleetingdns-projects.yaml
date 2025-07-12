@@ -1,0 +1,197 @@
+# FleetingDNS Infrastructure Project
+apiVersion: cloudresourcemanager.gcp.upbound.io/v1beta1
+kind: Project
+metadata:
+  name: fleetingdns-infra-project
+  labels:
+    app.kubernetes.io/name: fleetingdns-infra
+    app.kubernetes.io/component: infrastructure
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: infrastructure
+spec:
+  forProvider:
+    projectId: fleetingdns-infra
+    name: "FleetingDNS Infrastructure"
+    billingAccount: "0197D9-AD23AA-0EFFBF"  # Replace with actual billing account
+    parent: "folders/fleetingdns-folder"  # Reference to folder created earlier
+    labels:
+      environment: "infrastructure"
+      team: "platform"
+      cost-center: "infrastructure"
+      security-zone: "control-plane"
+  providerConfigRef:
+    name: gcp-provider-config
+---
+# FleetingDNS Analytics Project
+apiVersion: cloudresourcemanager.gcp.upbound.io/v1beta1
+kind: Project
+metadata:
+  name: fleetingdns-analytics-project
+  labels:
+    app.kubernetes.io/name: fleetingdns-analytics
+    app.kubernetes.io/component: analytics
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: production
+spec:
+  forProvider:
+    projectId: fleetingdns-analytics
+    name: "FleetingDNS Analytics & Data Warehouse"
+    billingAccount: "0197D9-AD23AA-0EFFBF"
+    parent: "folders/fleetingdns-analytics-folder"
+    labels:
+      environment: "production"
+      team: "data"
+      cost-center: "analytics"
+      security-zone: "data-processing"
+  providerConfigRef:
+    name: gcp-provider-config
+---
+# FleetingDNS Security Project
+apiVersion: cloudresourcemanager.gcp.upbound.io/v1beta1
+kind: Project
+metadata:
+  name: fleetingdns-security-project
+  labels:
+    app.kubernetes.io/name: fleetingdns-security
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: production
+spec:
+  forProvider:
+    projectId: fleetingdns-security
+    name: "FleetingDNS Security & Compliance"
+    billingAccount: "0197D9-AD23AA-0EFFBF"
+    parent: "folders/fleetingdns-security-folder"
+    labels:
+      environment: "production"
+      team: "security"
+      cost-center: "security"
+      security-zone: "security-monitoring"
+  providerConfigRef:
+    name: gcp-provider-config
+---
+# FleetingDNS Development Project
+apiVersion: cloudresourcemanager.gcp.upbound.io/v1beta1
+kind: Project
+metadata:
+  name: fleetingdns-dev-project
+  labels:
+    app.kubernetes.io/name: fleetingdns-dev
+    app.kubernetes.io/component: development
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: development
+spec:
+  forProvider:
+    projectId: fleetingdns-dev
+    name: "FleetingDNS Development Environment"
+    billingAccount: "0197D9-AD23AA-0EFFBF"
+    parent: "folders/fleetingdns-environments-folder"
+    labels:
+      environment: "development"
+      team: "engineering"
+      cost-center: "development"
+      security-zone: "development"
+  providerConfigRef:
+    name: gcp-provider-config
+---
+# FleetingDNS Staging Project
+apiVersion: cloudresourcemanager.gcp.upbound.io/v1beta1
+kind: Project
+metadata:
+  name: fleetingdns-staging-project
+  labels:
+    app.kubernetes.io/name: fleetingdns-staging
+    app.kubernetes.io/component: staging
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: staging
+spec:
+  forProvider:
+    projectId: fleetingdns-staging
+    name: "FleetingDNS Staging Environment"
+    billingAccount: "0197D9-AD23AA-0EFFBF"
+    parent: "folders/fleetingdns-environments-folder"
+    labels:
+      environment: "staging"
+      team: "engineering"
+      cost-center: "staging"
+      security-zone: "pre-production"
+  providerConfigRef:
+    name: gcp-provider-config
+---
+# FleetingDNS Production EU Project
+apiVersion: cloudresourcemanager.gcp.upbound.io/v1beta1
+kind: Project
+metadata:
+  name: fleetingdns-prod-eu-project
+  labels:
+    app.kubernetes.io/name: fleetingdns-prod-eu
+    app.kubernetes.io/component: production
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: production
+    fleetingdns.com/region: europe-west1
+spec:
+  forProvider:
+    projectId: fleetingdns-prod-eu
+    name: "FleetingDNS Production Europe"
+    billingAccount: "0197D9-AD23AA-0EFFBF"
+    parent: "folders/fleetingdns-environments-folder"
+    labels:
+      environment: "production"
+      team: "engineering"
+      cost-center: "production"
+      security-zone: "production"
+      region: "europe"
+  providerConfigRef:
+    name: gcp-provider-config
+---
+# FleetingDNS Production US Project
+apiVersion: cloudresourcemanager.gcp.upbound.io/v1beta1
+kind: Project
+metadata:
+  name: fleetingdns-prod-us-project
+  labels:
+    app.kubernetes.io/name: fleetingdns-prod-us
+    app.kubernetes.io/component: production
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: production
+    fleetingdns.com/region: us-central1
+spec:
+  forProvider:
+    projectId: fleetingdns-prod-us
+    name: "FleetingDNS Production United States"
+    billingAccount: "0197D9-AD23AA-0EFFBF"
+    parent: "folders/fleetingdns-environments-folder"
+    labels:
+      environment: "production"
+      team: "engineering"
+      cost-center: "production"
+      security-zone: "production"
+      region: "americas"
+  providerConfigRef:
+    name: gcp-provider-config
+---
+# FleetingDNS Production APAC Project
+apiVersion: cloudresourcemanager.gcp.upbound.io/v1beta1
+kind: Project
+metadata:
+  name: fleetingdns-prod-apac-project
+  labels:
+    app.kubernetes.io/name: fleetingdns-prod-apac
+    app.kubernetes.io/component: production
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: production
+    fleetingdns.com/region: asia-southeast1
+spec:
+  forProvider:
+    projectId: fleetingdns-prod-apac
+    name: "FleetingDNS Production Asia Pacific"
+    billingAccount: "0197D9-AD23AA-0EFFBF"
+    parent: "folders/fleetingdns-environments-folder"
+    labels:
+      environment: "production"
+      team: "engineering"
+      cost-center: "production"
+      security-zone: "production"
+      region: "asia-pacific"
+  providerConfigRef:
+    name: gcp-provider-config 

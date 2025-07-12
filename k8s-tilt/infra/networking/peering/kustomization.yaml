@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: vpc-peering
+  annotations:
+    config.kubernetes.io/local-config: "true"
+
+resources:
+  - infra-to-dev-peering.yaml
+  - infra-to-staging-peering.yaml
+  - infra-to-prod-eu-peering.yaml
+  - infra-to-prod-us-peering.yaml
+  - infra-to-prod-apac-peering.yaml
+  - infra-to-analytics-peering.yaml
+  - infra-to-security-peering.yaml
+
+commonLabels:
+  app.kubernetes.io/name: fleetingdns-vpc-peering
+  app.kubernetes.io/component: networking
+  app.kubernetes.io/part-of: fleetingdns-infrastructure 

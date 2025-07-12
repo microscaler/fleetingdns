@@ -1,0 +1,64 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Reference the base kustomization
+resources:
+  # NOTE: alocal uses Tilt for deployment, NOT Flux!
+  # Flux is only installed in production/staging clusters via GitOps
+  - ../../../base/
+
+patches:
+  # Remove Crossplane components (not needed for local development)
+  - path: patches/remove-crossplane.yaml
+  - path: patches/remove-crossplane-helmrelease.yaml
+  - path: patches/remove-crossplane-helmrepository.yaml
+  - path: patches/remove-crossplane-flux-healthchecks.yaml
+  - path: patches/remove-crossplane-flux-components.yaml
+
+  # Infrastructure NodePort patches for Kind
+  - path: patches/redis.patch.yaml
+    target:
+      kind: Service
+      name: redis
+  
+  - path: patches/postgresql.patch.yaml
+    target:
+      kind: Service
+      name: postgres
+  
+  # Observability NodePort patches for Kind
+  - path: patches/prometheus.patch.yaml
+    target:
+      kind: Service
+      name: prometheus
+  
+  - path: patches/grafana.patch.yaml
+    target:
+      kind: Service
+      name: grafana
+  
+  - path: patches/loki.patch.yaml
+    target:
+      kind: Service
+      name: loki
+  
+  - path: patches/otel-collector.patch.yaml
+    target:
+      kind: Service
+      name: otel-collector
+  
+  # FleetingDNS service NodePort patches for Kind
+  - path: patches/dnsd.patch.yaml
+    target:
+      kind: Service
+      name: dnsd
+  
+  - path: patches/edgehub.patch.yaml
+    target:
+      kind: Service
+      name: edgehub
+  
+  - path: patches/api.patch.yaml
+    target:
+      kind: Service
+      name: api 

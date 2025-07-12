@@ -1,9 +1,0 @@
-# Autopilot workload cluster in us-central1
-# Should: Crossplane XR to create gke autopilot cluster for us region
-apiVersion: container.gcp.crossplane.io/v1beta2
-kind: GKECluster
-metadata:
-  name: workload-us
-spec:
-  location: us-central1
-  autopilot: true

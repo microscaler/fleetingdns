@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edgehub
+  namespace: fleetingdns
+  labels:
+    app: edgehub
+    component: core
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: edgehub
+  template:
+    metadata:
+      labels:
+        app: edgehub
+        component: core
+    spec:
+      containers:
+        - name: edgehub
+          image: fleetingdns/edgehub:dev
+          ports:
+            - containerPort: 2222
+              protocol: TCP
+              name: tunnel
+            - containerPort: 8080
+              protocol: TCP
+              name: metrics
+          args:
+            - "--addr"
+            - "0.0.0.0:2222"
+            - "--redis"
+            - "redis://redis:6379"
+          env:
+            - name: RUST_LOG
+              value: "info"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
+            - name: OTEL_SERVICE_NAME
+              value: "edgehub"
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5 

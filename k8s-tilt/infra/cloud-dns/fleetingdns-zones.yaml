@@ -1,0 +1,275 @@
+# Main FleetingDNS DNS Zone
+apiVersion: dns.gcp.upbound.io/v1beta1
+kind: ManagedZone
+metadata:
+  name: fleetingdns-com-zone
+  labels:
+    app.kubernetes.io/name: fleetingdns-com-zone
+    app.kubernetes.io/component: cloud-dns
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-com
+    project: fleetingdns-infra
+    dnsName: "fleetingdns.com."
+    description: "Main DNS zone for fleetingdns.com"
+    visibility: public
+    labels:
+      environment: production
+      domain: primary
+      managed-by: crossplane
+  providerConfigRef:
+    name: default
+---
+# A Record for Main Domain
+apiVersion: dns.gcp.upbound.io/v1beta1
+kind: RecordSet
+metadata:
+  name: fleetingdns-com-a
+  labels:
+    app.kubernetes.io/name: fleetingdns-com-a
+    app.kubernetes.io/component: cloud-dns
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: "fleetingdns.com."
+    project: fleetingdns-infra
+    managedZone: fleetingdns-com
+    type: A
+    ttl: 300
+    rrdatas:
+    - "34.102.136.180"  # Replace with actual global IP
+  providerConfigRef:
+    name: default
+---
+# AAAA Record for IPv6
+apiVersion: dns.gcp.upbound.io/v1beta1
+kind: RecordSet
+metadata:
+  name: fleetingdns-com-aaaa
+  labels:
+    app.kubernetes.io/name: fleetingdns-com-aaaa
+    app.kubernetes.io/component: cloud-dns
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: "fleetingdns.com."
+    project: fleetingdns-infra
+    managedZone: fleetingdns-com
+    type: AAAA
+    ttl: 300
+    rrdatas:
+    - "2600:1900:4000:0000:0000:0000:0000:0001"  # Replace with actual IPv6
+  providerConfigRef:
+    name: default
+---
+# API Subdomain
+apiVersion: dns.gcp.upbound.io/v1beta1
+kind: RecordSet
+metadata:
+  name: api-fleetingdns-com-a
+  labels:
+    app.kubernetes.io/name: api-fleetingdns-com-a
+    app.kubernetes.io/component: cloud-dns
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: "api.fleetingdns.com."
+    project: fleetingdns-infra
+    managedZone: fleetingdns-com
+    type: A
+    ttl: 300
+    rrdatas:
+    - "34.102.136.181"  # API-specific IP
+  providerConfigRef:
+    name: default
+---
+# Portal Subdomain
+apiVersion: dns.gcp.upbound.io/v1beta1
+kind: RecordSet
+metadata:
+  name: portal-fleetingdns-com-a
+  labels:
+    app.kubernetes.io/name: portal-fleetingdns-com-a
+    app.kubernetes.io/component: cloud-dns
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: "portal.fleetingdns.com."
+    project: fleetingdns-infra
+    managedZone: fleetingdns-com
+    type: A
+    ttl: 300
+    rrdatas:
+    - "34.102.136.180"  # Same as main for portal
+  providerConfigRef:
+    name: default
+---
+# Admin Subdomain
+apiVersion: dns.gcp.upbound.io/v1beta1
+kind: RecordSet
+metadata:
+  name: admin-fleetingdns-com-a
+  labels:
+    app.kubernetes.io/name: admin-fleetingdns-com-a
+    app.kubernetes.io/component: cloud-dns
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: "admin.fleetingdns.com."
+    project: fleetingdns-infra
+    managedZone: fleetingdns-com
+    type: A
+    ttl: 300
+    rrdatas:
+    - "34.102.136.180"  # Admin interface
+  providerConfigRef:
+    name: default
+---
+# Monitoring Subdomain
+apiVersion: dns.gcp.upbound.io/v1beta1
+kind: RecordSet
+metadata:
+  name: monitoring-fleetingdns-com-a
+  labels:
+    app.kubernetes.io/name: monitoring-fleetingdns-com-a
+    app.kubernetes.io/component: cloud-dns
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: "monitoring.fleetingdns.com."
+    project: fleetingdns-infra
+    managedZone: fleetingdns-com
+    type: A
+    ttl: 300
+    rrdatas:
+    - "34.102.136.180"  # Monitoring dashboard
+  providerConfigRef:
+    name: default
+---
+# Regional DNS Records
+apiVersion: dns.gcp.upbound.io/v1beta1
+kind: RecordSet
+metadata:
+  name: eu-fleetingdns-com-a
+  labels:
+    app.kubernetes.io/name: eu-fleetingdns-com-a
+    app.kubernetes.io/component: cloud-dns
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: "eu.fleetingdns.com."
+    project: fleetingdns-infra
+    managedZone: fleetingdns-com
+    type: A
+    ttl: 300
+    rrdatas:
+    - "34.102.136.180"  # EU regional endpoint
+  providerConfigRef:
+    name: default
+---
+apiVersion: dns.gcp.upbound.io/v1beta1
+kind: RecordSet
+metadata:
+  name: us-fleetingdns-com-a
+  labels:
+    app.kubernetes.io/name: us-fleetingdns-com-a
+    app.kubernetes.io/component: cloud-dns
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: "us.fleetingdns.com."
+    project: fleetingdns-infra
+    managedZone: fleetingdns-com
+    type: A
+    ttl: 300
+    rrdatas:
+    - "34.102.136.180"  # US regional endpoint
+  providerConfigRef:
+    name: default
+---
+apiVersion: dns.gcp.upbound.io/v1beta1
+kind: RecordSet
+metadata:
+  name: apac-fleetingdns-com-a
+  labels:
+    app.kubernetes.io/name: apac-fleetingdns-com-a
+    app.kubernetes.io/component: cloud-dns
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: "apac.fleetingdns.com."
+    project: fleetingdns-infra
+    managedZone: fleetingdns-com
+    type: A
+    ttl: 300
+    rrdatas:
+    - "34.102.136.180"  # APAC regional endpoint
+  providerConfigRef:
+    name: default
+---
+# MX Records for Email
+apiVersion: dns.gcp.upbound.io/v1beta1
+kind: RecordSet
+metadata:
+  name: fleetingdns-com-mx
+  labels:
+    app.kubernetes.io/name: fleetingdns-com-mx
+    app.kubernetes.io/component: cloud-dns
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: "fleetingdns.com."
+    project: fleetingdns-infra
+    managedZone: fleetingdns-com
+    type: MX
+    ttl: 3600
+    rrdatas:
+    - "10 mail.fleetingdns.com."
+  providerConfigRef:
+    name: default
+---
+# TXT Records for Domain Verification
+apiVersion: dns.gcp.upbound.io/v1beta1
+kind: RecordSet
+metadata:
+  name: fleetingdns-com-txt
+  labels:
+    app.kubernetes.io/name: fleetingdns-com-txt
+    app.kubernetes.io/component: cloud-dns
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: "fleetingdns.com."
+    project: fleetingdns-infra
+    managedZone: fleetingdns-com
+    type: TXT
+    ttl: 300
+    rrdatas:
+    - "\"v=spf1 include:_spf.google.com ~all\""
+    - "\"google-site-verification=ABCD1234567890\""  # Replace with actual verification
+  providerConfigRef:
+    name: default
+---
+# CAA Records for Certificate Authority Authorization
+apiVersion: dns.gcp.upbound.io/v1beta1
+kind: RecordSet
+metadata:
+  name: fleetingdns-com-caa
+  labels:
+    app.kubernetes.io/name: fleetingdns-com-caa
+    app.kubernetes.io/component: cloud-dns
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: "fleetingdns.com."
+    project: fleetingdns-infra
+    managedZone: fleetingdns-com
+    type: CAA
+    ttl: 3600
+    rrdatas:
+    - "0 issue \"pki.goog\""
+    - "0 issue \"letsencrypt.org\""
+    - "0 iodef \"mailto:security@fleetingdns.com\""
+  providerConfigRef:
+    name: default 

@@ -1,0 +1,442 @@
+# Development Autopilot Cluster
+apiVersion: container.gcp.upbound.io/v1beta1
+kind: Cluster
+metadata:
+  name: fleetingdns-dev-cluster
+  labels:
+    app.kubernetes.io/name: fleetingdns-dev-cluster
+    app.kubernetes.io/component: k8s-cluster
+    app.kubernetes.io/part-of: fleetingdns
+    app.kubernetes.io/environment: development
+spec:
+  forProvider:
+    name: fleetingdns-dev-cluster
+    project: fleetingdns-dev
+    location: europe-west1  # Regional cluster for Autopilot
+    description: "Development Autopilot cluster for FleetingDNS workloads"
+    
+    # Enable Autopilot
+    enableAutopilot: true
+    
+    # Network Configuration
+    network: "projects/fleetingdns-dev/global/networks/fleetingdns-dev-vpc"
+    subnetwork: "projects/fleetingdns-dev/regions/europe-west1/subnetworks/fleetingdns-dev-workload"
+    
+    # IP Allocation Policy for Pods and Services
+    ipAllocationPolicy:
+    - clusterSecondaryRangeName: pods
+      servicesSecondaryRangeName: services
+    
+    # Networking Mode
+    networkingMode: VPC_NATIVE
+    
+    # Private Cluster Configuration
+    privateClusterConfig:
+    - enablePrivateNodes: true
+      enablePrivateEndpoint: false
+      masterIpv4CidrBlock: "172.16.1.0/28"
+      masterAuthorizedNetworksConfig:
+      - enabled: true
+        cidrBlocks:
+        - cidrBlock: "0.0.0.0/0"  # Configure specific IPs in production
+          displayName: "Development Access"
+    
+    # Master Auth Configuration
+    masterAuth:
+    - clientCertificateConfig:
+      - issueClientCertificate: false
+    
+    # Workload Identity Configuration
+    workloadIdentityConfig:
+    - workloadPool: "fleetingdns-dev.svc.id.goog"
+    
+    # Maintenance Policy
+    maintenancePolicy:
+    - dailyMaintenanceWindow:
+      - startTime: "02:00"  # 2 AM UTC for dev
+    
+    # Cluster Features
+    enableShieldedNodes: true
+    enableLegacyAbac: false
+    
+    # Logging and Monitoring (simplified for dev)
+    loggingConfig:
+    - enableComponents:
+      - "SYSTEM_COMPONENTS"
+      - "WORKLOADS"
+    
+    monitoringConfig:
+    - enableComponents:
+      - "SYSTEM_COMPONENTS"
+      - "WORKLOADS"
+    
+    # Resource Labels
+    resourceLabels:
+      environment: development
+      cluster-type: autopilot
+      managed-by: crossplane
+      purpose: workload
+  
+  providerConfigRef:
+    name: development
+---
+# Staging Autopilot Cluster
+apiVersion: container.gcp.upbound.io/v1beta1
+kind: Cluster
+metadata:
+  name: fleetingdns-staging-cluster
+  labels:
+    app.kubernetes.io/name: fleetingdns-staging-cluster
+    app.kubernetes.io/component: k8s-cluster
+    app.kubernetes.io/part-of: fleetingdns
+    app.kubernetes.io/environment: staging
+spec:
+  forProvider:
+    name: fleetingdns-staging-cluster
+    project: fleetingdns-staging
+    location: europe-west1
+    description: "Staging Autopilot cluster for FleetingDNS workloads"
+    
+    # Enable Autopilot
+    enableAutopilot: true
+    
+    # Network Configuration
+    network: "projects/fleetingdns-staging/global/networks/fleetingdns-staging-vpc"
+    subnetwork: "projects/fleetingdns-staging/regions/europe-west1/subnetworks/fleetingdns-staging-workload"
+    
+    # IP Allocation Policy for Pods and Services
+    ipAllocationPolicy:
+    - clusterSecondaryRangeName: pods
+      servicesSecondaryRangeName: services
+    
+    # Networking Mode
+    networkingMode: VPC_NATIVE
+    
+    # Private Cluster Configuration
+    privateClusterConfig:
+    - enablePrivateNodes: true
+      enablePrivateEndpoint: false
+      masterIpv4CidrBlock: "172.16.2.0/28"
+      masterAuthorizedNetworksConfig:
+      - enabled: true
+        cidrBlocks:
+        - cidrBlock: "0.0.0.0/0"
+          displayName: "Staging Access"
+    
+    # Master Auth Configuration
+    masterAuth:
+    - clientCertificateConfig:
+      - issueClientCertificate: false
+    
+    # Workload Identity Configuration
+    workloadIdentityConfig:
+    - workloadPool: "fleetingdns-staging.svc.id.goog"
+    
+    # Binary Authorization (enabled for staging)
+    binaryAuthorization:
+    - evaluationMode: PROJECT_SINGLETON_POLICY_ENFORCE
+    
+    # Maintenance Policy
+    maintenancePolicy:
+    - dailyMaintenanceWindow:
+      - startTime: "01:00"  # 1 AM UTC for staging
+    
+    # Cluster Features
+    enableShieldedNodes: true
+    enableLegacyAbac: false
+    
+    # Logging and Monitoring
+    loggingConfig:
+    - enableComponents:
+      - "SYSTEM_COMPONENTS"
+      - "WORKLOADS"
+      - "API_SERVER"
+    
+    monitoringConfig:
+    - enableComponents:
+      - "SYSTEM_COMPONENTS"
+      - "WORKLOADS"
+      - "APISERVER"
+    
+    # Resource Labels
+    resourceLabels:
+      environment: staging
+      cluster-type: autopilot
+      managed-by: crossplane
+      purpose: workload
+  
+  providerConfigRef:
+    name: staging
+---
+# Production EU Autopilot Cluster
+apiVersion: container.gcp.upbound.io/v1beta1
+kind: Cluster
+metadata:
+  name: fleetingdns-prod-eu-cluster
+  labels:
+    app.kubernetes.io/name: fleetingdns-prod-eu-cluster
+    app.kubernetes.io/component: k8s-cluster
+    app.kubernetes.io/part-of: fleetingdns
+    app.kubernetes.io/environment: production
+spec:
+  forProvider:
+    name: fleetingdns-prod-eu-cluster
+    project: fleetingdns-prod-eu
+    location: europe-west1
+    description: "Production EU Autopilot cluster for FleetingDNS workloads"
+    
+    # Enable Autopilot
+    enableAutopilot: true
+    
+    # Network Configuration
+    network: "projects/fleetingdns-prod-eu/global/networks/fleetingdns-prod-eu-vpc"
+    subnetwork: "projects/fleetingdns-prod-eu/regions/europe-west1/subnetworks/fleetingdns-prod-eu-workload"
+    
+    # IP Allocation Policy for Pods and Services
+    ipAllocationPolicy:
+    - clusterSecondaryRangeName: pods
+      servicesSecondaryRangeName: services
+    
+    # Networking Mode
+    networkingMode: VPC_NATIVE
+    
+    # Private Cluster Configuration
+    privateClusterConfig:
+    - enablePrivateNodes: true
+      enablePrivateEndpoint: false
+      masterIpv4CidrBlock: "172.16.3.0/28"
+      masterAuthorizedNetworksConfig:
+      - enabled: true
+        cidrBlocks:
+        - cidrBlock: "203.0.113.0/24"  # Replace with actual admin networks
+          displayName: "Production Admin Access"
+    
+    # Master Auth Configuration
+    masterAuth:
+    - clientCertificateConfig:
+      - issueClientCertificate: false
+    
+    # Workload Identity Configuration
+    workloadIdentityConfig:
+    - workloadPool: "fleetingdns-prod-eu.svc.id.goog"
+    
+    # Binary Authorization (enforced for production)
+    binaryAuthorization:
+    - evaluationMode: PROJECT_SINGLETON_POLICY_ENFORCE
+    
+    # Maintenance Policy
+    maintenancePolicy:
+    - dailyMaintenanceWindow:
+      - startTime: "03:00"  # 3 AM UTC
+    
+    # Cluster Features
+    enableShieldedNodes: true
+    enableLegacyAbac: false
+    
+    # Comprehensive Logging and Monitoring for Production
+    loggingConfig:
+    - enableComponents:
+      - "SYSTEM_COMPONENTS"
+      - "WORKLOADS"
+      - "API_SERVER"
+    
+    monitoringConfig:
+    - enableComponents:
+      - "SYSTEM_COMPONENTS"
+      - "WORKLOADS"
+      - "APISERVER"
+      - "SCHEDULER"
+      - "CONTROLLER_MANAGER"
+    
+    # Resource Labels
+    resourceLabels:
+      environment: production
+      cluster-type: autopilot
+      region: europe-west1
+      managed-by: crossplane
+      purpose: workload
+  
+  providerConfigRef:
+    name: prod-eu
+---
+# Production US Autopilot Cluster
+apiVersion: container.gcp.upbound.io/v1beta1
+kind: Cluster
+metadata:
+  name: fleetingdns-prod-us-cluster
+  labels:
+    app.kubernetes.io/name: fleetingdns-prod-us-cluster
+    app.kubernetes.io/component: k8s-cluster
+    app.kubernetes.io/part-of: fleetingdns
+    app.kubernetes.io/environment: production
+spec:
+  forProvider:
+    name: fleetingdns-prod-us-cluster
+    project: fleetingdns-prod-us
+    location: us-central1
+    description: "Production US Autopilot cluster for FleetingDNS workloads"
+    
+    # Enable Autopilot
+    enableAutopilot: true
+    
+    # Network Configuration
+    network: "projects/fleetingdns-prod-us/global/networks/fleetingdns-prod-us-vpc"
+    subnetwork: "projects/fleetingdns-prod-us/regions/us-central1/subnetworks/fleetingdns-prod-us-workload"
+    
+    # IP Allocation Policy for Pods and Services
+    ipAllocationPolicy:
+    - clusterSecondaryRangeName: pods
+      servicesSecondaryRangeName: services
+    
+    # Networking Mode
+    networkingMode: VPC_NATIVE
+    
+    # Private Cluster Configuration
+    privateClusterConfig:
+    - enablePrivateNodes: true
+      enablePrivateEndpoint: false
+      masterIpv4CidrBlock: "172.16.4.0/28"
+      masterAuthorizedNetworksConfig:
+      - enabled: true
+        cidrBlocks:
+        - cidrBlock: "203.0.113.0/24"  # Replace with actual admin networks
+          displayName: "Production Admin Access"
+    
+    # Master Auth Configuration
+    masterAuth:
+    - clientCertificateConfig:
+      - issueClientCertificate: false
+    
+    # Workload Identity Configuration
+    workloadIdentityConfig:
+    - workloadPool: "fleetingdns-prod-us.svc.id.goog"
+    
+    # Binary Authorization (enforced for production)
+    binaryAuthorization:
+    - evaluationMode: PROJECT_SINGLETON_POLICY_ENFORCE
+    
+    # Maintenance Policy (adjusted for US timezone)
+    maintenancePolicy:
+    - dailyMaintenanceWindow:
+      - startTime: "09:00"  # 3 AM CST
+    
+    # Cluster Features
+    enableShieldedNodes: true
+    enableLegacyAbac: false
+    
+    # Comprehensive Logging and Monitoring for Production
+    loggingConfig:
+    - enableComponents:
+      - "SYSTEM_COMPONENTS"
+      - "WORKLOADS"
+      - "API_SERVER"
+    
+    monitoringConfig:
+    - enableComponents:
+      - "SYSTEM_COMPONENTS"
+      - "WORKLOADS"
+      - "APISERVER"
+      - "SCHEDULER"
+      - "CONTROLLER_MANAGER"
+    
+    # Resource Labels
+    resourceLabels:
+      environment: production
+      cluster-type: autopilot
+      region: us-central1
+      managed-by: crossplane
+      purpose: workload
+  
+  providerConfigRef:
+    name: prod-us
+---
+# Production APAC Autopilot Cluster
+apiVersion: container.gcp.upbound.io/v1beta1
+kind: Cluster
+metadata:
+  name: fleetingdns-prod-apac-cluster
+  labels:
+    app.kubernetes.io/name: fleetingdns-prod-apac-cluster
+    app.kubernetes.io/component: k8s-cluster
+    app.kubernetes.io/part-of: fleetingdns
+    app.kubernetes.io/environment: production
+spec:
+  forProvider:
+    name: fleetingdns-prod-apac-cluster
+    project: fleetingdns-prod-apac
+    location: asia-southeast1
+    description: "Production APAC Autopilot cluster for FleetingDNS workloads"
+    
+    # Enable Autopilot
+    enableAutopilot: true
+    
+    # Network Configuration
+    network: "projects/fleetingdns-prod-apac/global/networks/fleetingdns-prod-apac-vpc"
+    subnetwork: "projects/fleetingdns-prod-apac/regions/asia-southeast1/subnetworks/fleetingdns-prod-apac-workload"
+    
+    # IP Allocation Policy for Pods and Services
+    ipAllocationPolicy:
+    - clusterSecondaryRangeName: pods
+      servicesSecondaryRangeName: services
+    
+    # Networking Mode
+    networkingMode: VPC_NATIVE
+    
+    # Private Cluster Configuration
+    privateClusterConfig:
+    - enablePrivateNodes: true
+      enablePrivateEndpoint: false
+      masterIpv4CidrBlock: "172.16.5.0/28"
+      masterAuthorizedNetworksConfig:
+      - enabled: true
+        cidrBlocks:
+        - cidrBlock: "203.0.113.0/24"  # Replace with actual admin networks
+          displayName: "Production Admin Access"
+    
+    # Master Auth Configuration
+    masterAuth:
+    - clientCertificateConfig:
+      - issueClientCertificate: false
+    
+    # Workload Identity Configuration
+    workloadIdentityConfig:
+    - workloadPool: "fleetingdns-prod-apac.svc.id.goog"
+    
+    # Binary Authorization (enforced for production)
+    binaryAuthorization:
+    - evaluationMode: PROJECT_SINGLETON_POLICY_ENFORCE
+    
+    # Maintenance Policy (adjusted for APAC timezone)
+    maintenancePolicy:
+    - dailyMaintenanceWindow:
+      - startTime: "19:00"  # 3 AM JST
+    
+    # Cluster Features
+    enableShieldedNodes: true
+    enableLegacyAbac: false
+    
+    # Comprehensive Logging and Monitoring for Production
+    loggingConfig:
+    - enableComponents:
+      - "SYSTEM_COMPONENTS"
+      - "WORKLOADS"
+      - "API_SERVER"
+    
+    monitoringConfig:
+    - enableComponents:
+      - "SYSTEM_COMPONENTS"
+      - "WORKLOADS"
+      - "APISERVER"
+      - "SCHEDULER"
+      - "CONTROLLER_MANAGER"
+    
+    # Resource Labels
+    resourceLabels:
+      environment: production
+      cluster-type: autopilot
+      region: asia-southeast1
+      managed-by: crossplane
+      purpose: workload
+  
+  providerConfigRef:
+    name: prod-apac 

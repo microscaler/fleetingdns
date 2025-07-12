@@ -1,0 +1,20 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: fleetingdns-workload-namespaces
+  namespace: flux-system
+spec:
+  interval: 5m0s
+  path: "./k8s-tilt/base/workloads/namespaces"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: fleetingdns
+  timeout: 10m0s
+  wait: true
+  dependsOn:
+    - name: fleetingdns-namespaces
+  healthChecks:
+    - apiVersion: v1
+      kind: Namespace
+      name: fleetingdns 

@@ -1,0 +1,143 @@
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Network
+metadata:
+  name: fleetingdns-infra-vpc
+  labels:
+    app.kubernetes.io/name: fleetingdns-infra-vpc
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-infra-vpc
+    project: fleetingdns-infra
+    description: "Infrastructure VPC for FleetingDNS control plane"
+    autoCreateSubnetworks: false
+    routingMode: REGIONAL
+  providerConfigRef:
+    name: default
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Subnetwork
+metadata:
+  name: fleetingdns-infra-control-plane
+  labels:
+    app.kubernetes.io/name: fleetingdns-infra-control-plane
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-infra-control-plane
+    project: fleetingdns-infra
+    region: europe-west1
+    network: fleetingdns-infra-vpc
+    ipCidrRange: "10.0.0.0/24"
+    description: "Control plane subnet for infrastructure cluster"
+    privateIpGoogleAccess: true
+    secondaryIpRange:
+    - rangeName: pods
+      ipCidrRange: "10.1.0.0/16"
+    - rangeName: services
+      ipCidrRange: "10.2.0.0/20"
+  providerConfigRef:
+    name: default
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Subnetwork
+metadata:
+  name: fleetingdns-infra-management
+  labels:
+    app.kubernetes.io/name: fleetingdns-infra-management
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-infra-management
+    project: fleetingdns-infra
+    region: europe-west1
+    network: fleetingdns-infra-vpc
+    ipCidrRange: "10.0.1.0/24"
+    description: "Management subnet for admin access and monitoring"
+    privateIpGoogleAccess: true
+  providerConfigRef:
+    name: default
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Firewall
+metadata:
+  name: fleetingdns-infra-allow-internal
+  labels:
+    app.kubernetes.io/name: fleetingdns-infra-allow-internal
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-infra-allow-internal
+    project: fleetingdns-infra
+    network: fleetingdns-infra-vpc
+    description: "Allow internal communication within infrastructure VPC"
+    direction: INGRESS
+    priority: 1000
+    sourceRanges:
+    - "10.0.0.0/16"
+    allow:
+    - protocol: tcp
+    - protocol: udp
+    - protocol: icmp
+  providerConfigRef:
+    name: default
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Firewall
+metadata:
+  name: fleetingdns-infra-allow-ssh
+  labels:
+    app.kubernetes.io/name: fleetingdns-infra-allow-ssh
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-infra-allow-ssh
+    project: fleetingdns-infra
+    network: fleetingdns-infra-vpc
+    description: "Allow SSH access from trusted networks"
+    direction: INGRESS
+    priority: 1000
+    sourceRanges:
+    - "203.0.113.0/24"  # Replace with actual admin network
+    targetTags:
+    - "ssh-allowed"
+    allow:
+    - protocol: tcp
+      ports:
+      - "22"
+  providerConfigRef:
+    name: default
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Firewall
+metadata:
+  name: fleetingdns-infra-allow-k8s-api
+  labels:
+    app.kubernetes.io/name: fleetingdns-infra-allow-k8s-api
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-infra-allow-k8s-api
+    project: fleetingdns-infra
+    network: fleetingdns-infra-vpc
+    description: "Allow Kubernetes API server access"
+    direction: INGRESS
+    priority: 1000
+    sourceRanges:
+    - "10.0.0.0/16"
+    - "203.0.113.0/24"  # Admin networks
+    targetTags:
+    - "k8s-control-plane"
+    allow:
+    - protocol: tcp
+      ports:
+      - "443"
+      - "6443"
+  providerConfigRef:
+    name: default 

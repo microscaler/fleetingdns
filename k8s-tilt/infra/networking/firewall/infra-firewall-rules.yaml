@@ -1,0 +1,115 @@
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Firewall
+metadata:
+  name: infra-allow-k8s-api
+  labels:
+    app.kubernetes.io/name: infra-allow-k8s-api
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: infrastructure
+spec:
+  forProvider:
+    name: infra-allow-k8s-api
+    networkRef:
+      name: fleetingdns-infra-vpc
+    description: "Allow Kubernetes API access from workload clusters"
+    direction: INGRESS
+    priority: 1000
+    sourceRanges:
+      - "10.16.0.0/20"  # dev
+      - "10.20.0.0/20"  # staging
+      - "10.24.0.0/20"  # prod-eu
+      - "10.32.0.0/20"  # prod-us
+      - "10.40.0.0/20"  # prod-apac
+    targetTags:
+      - "gke-infra-cluster"
+    allow:
+      - protocol: tcp
+        ports:
+          - "443"
+          - "6443"
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Firewall
+metadata:
+  name: infra-allow-crossplane
+  labels:
+    app.kubernetes.io/name: infra-allow-crossplane
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: infrastructure
+spec:
+  forProvider:
+    name: infra-allow-crossplane
+    networkRef:
+      name: fleetingdns-infra-vpc
+    description: "Allow Crossplane provider communication"
+    direction: INGRESS
+    priority: 1100
+    sourceRanges:
+      - "10.0.0.0/24"  # infra subnet
+    targetTags:
+      - "crossplane-provider"
+    allow:
+      - protocol: tcp
+        ports:
+          - "8080"
+          - "9443"
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Firewall
+metadata:
+  name: infra-allow-flux
+  labels:
+    app.kubernetes.io/name: infra-allow-flux
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: infrastructure
+spec:
+  forProvider:
+    name: infra-allow-flux
+    networkRef:
+      name: fleetingdns-infra-vpc
+    description: "Allow Flux GitOps controller communication"
+    direction: INGRESS
+    priority: 1200
+    sourceRanges:
+      - "10.0.0.0/24"  # infra subnet
+    targetTags:
+      - "flux-controller"
+    allow:
+      - protocol: tcp
+        ports:
+          - "8080"
+          - "9090"
+          - "3000"
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Firewall
+metadata:
+  name: infra-deny-all-default
+  labels:
+    app.kubernetes.io/name: infra-deny-all-default
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: infrastructure
+spec:
+  forProvider:
+    name: infra-deny-all-default
+    networkRef:
+      name: fleetingdns-infra-vpc
+    description: "Default deny all traffic (Zero Trust)"
+    direction: INGRESS
+    priority: 65534
+    sourceRanges:
+      - "0.0.0.0/0"
+    deny:
+      - protocol: all
+  providerConfigRef:
+    name: gcp-provider-config-infra 

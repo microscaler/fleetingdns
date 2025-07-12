@@ -1,0 +1,153 @@
+apiVersion: cloudresourcemanager.gcp.crossplane.io/v1alpha1
+kind: ProjectIAMPolicy
+metadata:
+  name: fleetingdns-admin-iap-policy
+  labels:
+    app.kubernetes.io/name: fleetingdns-admin-iap-policy
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/access-level: admin
+spec:
+  forProvider:
+    projectRef:
+      name: fleetingdns-infra-project
+    policy:
+      bindings:
+        - role: "roles/iap.httpsResourceAccessor"
+          members:
+            - "group:fleetingdns-admins@fleetingdns.com"
+            - "user:admin@fleetingdns.com"
+          condition:
+            title: "Admin Portal Access"
+            description: "Access to admin portal with MFA requirement"
+            expression: |
+              request.auth.access_levels.contains('accessPolicies/fleetingdns-access-policy/accessLevels/admin-level')
+        - role: "roles/iap.webServiceViewer"
+          members:
+            - "group:fleetingdns-support@fleetingdns.com"
+          condition:
+            title: "Support Team Read Access"
+            description: "Read-only access for support team"
+            expression: |
+              request.auth.access_levels.contains('accessPolicies/fleetingdns-access-policy/accessLevels/support-level')
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: cloudresourcemanager.gcp.crossplane.io/v1alpha1
+kind: ProjectIAMPolicy
+metadata:
+  name: fleetingdns-developer-iap-policy
+  labels:
+    app.kubernetes.io/name: fleetingdns-developer-iap-policy
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/access-level: developer
+spec:
+  forProvider:
+    projectRef:
+      name: fleetingdns-infra-project
+    policy:
+      bindings:
+        - role: "roles/iap.httpsResourceAccessor"
+          members:
+            - "group:fleetingdns-developers@fleetingdns.com"
+            - "group:fleetingdns-devops@fleetingdns.com"
+          condition:
+            title: "Developer Portal Access"
+            description: "Access to developer portal for authenticated developers"
+            expression: |
+              request.auth.access_levels.contains('accessPolicies/fleetingdns-access-policy/accessLevels/developer-level')
+        - role: "roles/iap.webServiceViewer"
+          members:
+            - "group:fleetingdns-qa@fleetingdns.com"
+          condition:
+            title: "QA Team Read Access"
+            description: "Read-only access for QA team"
+            expression: |
+              request.auth.access_levels.contains('accessPolicies/fleetingdns-access-policy/accessLevels/qa-level')
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: cloudresourcemanager.gcp.crossplane.io/v1alpha1
+kind: ProjectIAMPolicy
+metadata:
+  name: fleetingdns-monitoring-iap-policy
+  labels:
+    app.kubernetes.io/name: fleetingdns-monitoring-iap-policy
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/access-level: monitoring
+spec:
+  forProvider:
+    projectRef:
+      name: fleetingdns-security-project
+    policy:
+      bindings:
+        - role: "roles/iap.httpsResourceAccessor"
+          members:
+            - "group:fleetingdns-sre@fleetingdns.com"
+            - "group:fleetingdns-security@fleetingdns.com"
+            - "serviceAccount:fleetingdns-monitoring@fleetingdns-security.iam.gserviceaccount.com"
+          condition:
+            title: "Monitoring Dashboard Access"
+            description: "Access to monitoring and security dashboards"
+            expression: |
+              request.auth.access_levels.contains('accessPolicies/fleetingdns-access-policy/accessLevels/sre-level')
+  providerConfigRef:
+    name: gcp-provider-config-security
+---
+apiVersion: accesscontextmanager.gcp.crossplane.io/v1alpha1
+kind: AccessPolicy
+metadata:
+  name: fleetingdns-access-policy
+  labels:
+    app.kubernetes.io/name: fleetingdns-access-policy
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    parent: "organizations/YOUR_ORG_ID"  # Replace with actual organization ID
+    title: "FleetingDNS Access Policy"
+    scopes:
+      - "projects/fleetingdns-infra"
+      - "projects/fleetingdns-security"
+      - "projects/fleetingdns-analytics"
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: accesscontextmanager.gcp.crossplane.io/v1alpha1
+kind: AccessLevel
+metadata:
+  name: fleetingdns-admin-level
+  labels:
+    app.kubernetes.io/name: fleetingdns-admin-level
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/access-level: admin
+spec:
+  forProvider:
+    name: "admin-level"
+    title: "Admin Level Access"
+    policyRef:
+      name: fleetingdns-access-policy
+    basic:
+      conditions:
+        - ipSubnetworks:
+            - "0.0.0.0/0"  # Allow from anywhere with proper auth
+          requireScreenLock: true
+          requireCorpOwned: false
+          devicePolicy:
+            requireAdminApproval: true
+            requireScreenlock: true
+            osConstraints:
+              - osType: "DESKTOP_MAC"
+                minimumVersion: "10.15"
+              - osType: "DESKTOP_WINDOWS"
+                minimumVersion: "10.0.19041"
+              - osType: "DESKTOP_LINUX"
+          regions:
+            - "US"
+            - "EU"
+            - "GB"
+  providerConfigRef:
+    name: gcp-provider-config-infra 

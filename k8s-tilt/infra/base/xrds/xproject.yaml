@@ -1,0 +1,111 @@
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xprojects.fleetingdns.io
+spec:
+  group: fleetingdns.io
+  names:
+    kind: XProject
+    plural: xprojects
+  claimNames:
+    kind: ProjectClaim
+    plural: projectclaims
+  versions:
+  - name: v1alpha1
+    served: true
+    referenceable: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              parameters:
+                type: object
+                properties:
+                  projectId:
+                    type: string
+                    description: "GCP Project ID"
+                  projectName:
+                    type: string
+                    description: "Human readable project name"
+                  billingAccount:
+                    type: string
+                    description: "GCP Billing Account ID"
+                  organizationId:
+                    type: string
+                    description: "GCP Organization ID"
+                  folderId:
+                    type: string
+                    description: "GCP Folder ID (optional)"
+                  environment:
+                    type: string
+                    description: "Environment type (dev, staging, prod)"
+                    enum: ["dev", "staging", "prod"]
+                  region:
+                    type: string
+                    description: "Primary region for the project"
+                  enabledApis:
+                    type: array
+                    description: "List of APIs to enable"
+                    items:
+                      type: string
+                    default:
+                    - "compute.googleapis.com"
+                    - "container.googleapis.com"
+                    - "dns.googleapis.com"
+                    - "iam.googleapis.com"
+                    - "secretmanager.googleapis.com"
+                    - "sqladmin.googleapis.com"
+                    - "bigquery.googleapis.com"
+                    - "logging.googleapis.com"
+                    - "monitoring.googleapis.com"
+                    - "cloudarmor.googleapis.com"
+                    - "iap.googleapis.com"
+                    - "certificatemanager.googleapis.com"
+                  labels:
+                    type: object
+                    description: "Project labels"
+                    additionalProperties:
+                      type: string
+                    default:
+                      managed-by: "crossplane"
+                      platform: "fleetingdns"
+                required:
+                - projectId
+                - projectName
+                - billingAccount
+                - organizationId
+                - environment
+                - region
+          status:
+            type: object
+            properties:
+              projectNumber:
+                type: string
+                description: "GCP Project Number"
+              projectState:
+                type: string
+                description: "Project lifecycle state"
+              enabledServices:
+                type: array
+                description: "List of enabled services"
+                items:
+                  type: string
+              conditions:
+                type: array
+                description: "Conditions representing the status"
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    status:
+                      type: string
+                    lastTransitionTime:
+                      type: string
+                    reason:
+                      type: string
+                    message:
+                      type: string 

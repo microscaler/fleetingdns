@@ -1,0 +1,18 @@
+apiVersion: cloudresourcemanager.gcp.crossplane.io/v1alpha1
+kind: Folder
+metadata:
+  name: fleetingdns-folder
+  labels:
+    app.kubernetes.io/name: fleetingdns-folder
+    app.kubernetes.io/component: organization
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+  annotations:
+    crossplane.io/external-name: fleetingdns
+spec:
+  forProvider:
+    displayName: "FleetingDNS"
+    parent: "organizations/YOUR_ORG_ID"  # Replace with actual organization ID
+  providerConfigRef:
+    name: gcp-provider-config
+  writeConnectionSecretsToRef:
+    namespace: crossplane-system 

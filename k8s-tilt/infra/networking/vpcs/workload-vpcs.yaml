@@ -1,0 +1,229 @@
+# Development Environment VPC
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Network
+metadata:
+  name: fleetingdns-dev-vpc
+  labels:
+    app.kubernetes.io/name: fleetingdns-dev-vpc
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+    app.kubernetes.io/environment: development
+spec:
+  forProvider:
+    name: fleetingdns-dev-vpc
+    project: fleetingdns-dev
+    description: "Development VPC for FleetingDNS"
+    autoCreateSubnetworks: false
+    routingMode: REGIONAL
+  providerConfigRef:
+    name: default
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Subnetwork
+metadata:
+  name: fleetingdns-dev-workload
+  labels:
+    app.kubernetes.io/name: fleetingdns-dev-workload
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+    app.kubernetes.io/environment: development
+spec:
+  forProvider:
+    name: fleetingdns-dev-workload
+    project: fleetingdns-dev
+    region: europe-west1
+    network: fleetingdns-dev-vpc
+    ipCidrRange: "10.16.0.0/20"
+    description: "Development workload subnet"
+    privateIpGoogleAccess: true
+    secondaryIpRange:
+    - rangeName: pods
+      ipCidrRange: "10.32.0.0/16"
+    - rangeName: services
+      ipCidrRange: "10.48.0.0/20"
+  providerConfigRef:
+    name: default
+---
+# Staging Environment VPC
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Network
+metadata:
+  name: fleetingdns-staging-vpc
+  labels:
+    app.kubernetes.io/name: fleetingdns-staging-vpc
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+    app.kubernetes.io/environment: staging
+spec:
+  forProvider:
+    name: fleetingdns-staging-vpc
+    project: fleetingdns-staging
+    description: "Staging VPC for FleetingDNS"
+    autoCreateSubnetworks: false
+    routingMode: REGIONAL
+  providerConfigRef:
+    name: default
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Subnetwork
+metadata:
+  name: fleetingdns-staging-workload
+  labels:
+    app.kubernetes.io/name: fleetingdns-staging-workload
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+    app.kubernetes.io/environment: staging
+spec:
+  forProvider:
+    name: fleetingdns-staging-workload
+    project: fleetingdns-staging
+    region: europe-west1
+    network: fleetingdns-staging-vpc
+    ipCidrRange: "10.20.0.0/20"
+    description: "Staging workload subnet"
+    privateIpGoogleAccess: true
+    secondaryIpRange:
+    - rangeName: pods
+      ipCidrRange: "10.36.0.0/16"
+    - rangeName: services
+      ipCidrRange: "10.52.0.0/20"
+  providerConfigRef:
+    name: default
+---
+# Production EU VPC
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Network
+metadata:
+  name: fleetingdns-prod-eu-vpc
+  labels:
+    app.kubernetes.io/name: fleetingdns-prod-eu-vpc
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+    app.kubernetes.io/environment: production
+spec:
+  forProvider:
+    name: fleetingdns-prod-eu-vpc
+    project: fleetingdns-prod-eu
+    description: "Production EU VPC for FleetingDNS"
+    autoCreateSubnetworks: false
+    routingMode: REGIONAL
+  providerConfigRef:
+    name: default
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Subnetwork
+metadata:
+  name: fleetingdns-prod-eu-workload
+  labels:
+    app.kubernetes.io/name: fleetingdns-prod-eu-workload
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+    app.kubernetes.io/environment: production
+spec:
+  forProvider:
+    name: fleetingdns-prod-eu-workload
+    project: fleetingdns-prod-eu
+    region: europe-west1
+    network: fleetingdns-prod-eu-vpc
+    ipCidrRange: "10.24.0.0/20"
+    description: "Production EU workload subnet"
+    privateIpGoogleAccess: true
+    secondaryIpRange:
+    - rangeName: pods
+      ipCidrRange: "10.40.0.0/16"
+    - rangeName: services
+      ipCidrRange: "10.56.0.0/20"
+  providerConfigRef:
+    name: default
+---
+# Production US VPC
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Network
+metadata:
+  name: fleetingdns-prod-us-vpc
+  labels:
+    app.kubernetes.io/name: fleetingdns-prod-us-vpc
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+    app.kubernetes.io/environment: production
+spec:
+  forProvider:
+    name: fleetingdns-prod-us-vpc
+    project: fleetingdns-prod-us
+    description: "Production US VPC for FleetingDNS"
+    autoCreateSubnetworks: false
+    routingMode: REGIONAL
+  providerConfigRef:
+    name: default
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Subnetwork
+metadata:
+  name: fleetingdns-prod-us-workload
+  labels:
+    app.kubernetes.io/name: fleetingdns-prod-us-workload
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+    app.kubernetes.io/environment: production
+spec:
+  forProvider:
+    name: fleetingdns-prod-us-workload
+    project: fleetingdns-prod-us
+    region: us-central1
+    network: fleetingdns-prod-us-vpc
+    ipCidrRange: "10.64.0.0/20"
+    description: "Production US workload subnet"
+    privateIpGoogleAccess: true
+    secondaryIpRange:
+    - rangeName: pods
+      ipCidrRange: "10.80.0.0/16"
+    - rangeName: services
+      ipCidrRange: "10.96.0.0/20"
+  providerConfigRef:
+    name: default
+---
+# Production APAC VPC
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Network
+metadata:
+  name: fleetingdns-prod-apac-vpc
+  labels:
+    app.kubernetes.io/name: fleetingdns-prod-apac-vpc
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+    app.kubernetes.io/environment: production
+spec:
+  forProvider:
+    name: fleetingdns-prod-apac-vpc
+    project: fleetingdns-prod-apac
+    description: "Production APAC VPC for FleetingDNS"
+    autoCreateSubnetworks: false
+    routingMode: REGIONAL
+  providerConfigRef:
+    name: default
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: Subnetwork
+metadata:
+  name: fleetingdns-prod-apac-workload
+  labels:
+    app.kubernetes.io/name: fleetingdns-prod-apac-workload
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns
+    app.kubernetes.io/environment: production
+spec:
+  forProvider:
+    name: fleetingdns-prod-apac-workload
+    project: fleetingdns-prod-apac
+    region: asia-southeast1
+    network: fleetingdns-prod-apac-vpc
+    ipCidrRange: "10.128.0.0/20"
+    description: "Production APAC workload subnet"
+    privateIpGoogleAccess: true
+    secondaryIpRange:
+    - rangeName: pods
+      ipCidrRange: "10.144.0.0/16"
+    - rangeName: services
+      ipCidrRange: "10.160.0.0/20"
+  providerConfigRef:
+    name: default 

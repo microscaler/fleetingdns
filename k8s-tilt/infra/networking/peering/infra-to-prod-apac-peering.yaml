@@ -1,0 +1,43 @@
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: NetworkPeering
+metadata:
+  name: infra-to-prod-apac-peering
+  labels:
+    app.kubernetes.io/name: infra-to-prod-apac-peering
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: infrastructure
+    fleetingdns.com/region: global
+spec:
+  forProvider:
+    name: infra-to-prod-apac-peering
+    networkRef:
+      name: fleetingdns-infra-vpc
+    peerNetwork: "projects/fleetingdns-prod-apac/global/networks/fleetingdns-prod-apac-vpc"
+    autoCreateRoutes: true
+    importCustomRoutes: true
+    exportCustomRoutes: true
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: NetworkPeering
+metadata:
+  name: prod-apac-to-infra-peering
+  labels:
+    app.kubernetes.io/name: prod-apac-to-infra-peering
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/environment: production
+    fleetingdns.com/region: asia-southeast1
+spec:
+  forProvider:
+    name: prod-apac-to-infra-peering
+    networkRef:
+      name: fleetingdns-prod-apac-vpc
+    peerNetwork: "projects/fleetingdns-infra/global/networks/fleetingdns-infra-vpc"
+    autoCreateRoutes: true
+    importCustomRoutes: true
+    exportCustomRoutes: true
+  providerConfigRef:
+    name: gcp-provider-config-prod-apac 

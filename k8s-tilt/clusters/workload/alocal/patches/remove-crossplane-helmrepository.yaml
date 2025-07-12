@@ -1,0 +1,6 @@
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: HelmRepository
+metadata:
+  name: crossplane-stable
+  namespace: crossplane-system
+$patch: delete 

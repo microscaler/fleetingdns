@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: cloud-trace
+  annotations:
+    config.kubernetes.io/local-config: "true"
+
+resources:
+  - trace-config.yaml
+  - error-reporting-config.yaml
+  - sampling-policies.yaml
+  - trace-sinks.yaml
+
+commonLabels:
+  app.kubernetes.io/name: fleetingdns-tracing
+  app.kubernetes.io/component: observability
+  app.kubernetes.io/part-of: fleetingdns-infrastructure 

@@ -1,9 +1,0 @@
-# Root kustomization aggregating all sub-dirs for infra cluster
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - providers/
-  - gcp-core/
-  - clusters/
-  - iam-oidc/
-  - observability/

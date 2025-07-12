@@ -1,0 +1,56 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Reference the base kustomization
+resources:
+  # Flux kustomization, this is the only location where flux must be installed into a cluster.
+  - flux/
+  - ../../../../../base/
+
+patches:
+  # Infrastructure LoadBalancer patches for GKE
+  - path: patches/redis.patch.yaml
+    target:
+      kind: Service
+      name: redis
+  
+  - path: patches/postgresql.patch.yaml
+    target:
+      kind: Service
+      name: postgres
+  
+  - path: patches/otel-collector.patch.yaml
+    target:
+      kind: Service
+      name: otel-collector
+  
+  # External LoadBalancer patches for public services
+  - path: patches/grafana.patch.yaml
+    target:
+      kind: Service
+      name: grafana
+  
+  - path: patches/prometheus.patch.yaml
+    target:
+      kind: Service
+      name: prometheus
+  
+  - path: patches/loki.patch.yaml
+    target:
+      kind: Service
+      name: loki
+  
+  - path: patches/edgehub.patch.yaml
+    target:
+      kind: Service
+      name: edgehub
+  
+  - path: patches/api.patch.yaml
+    target:
+      kind: Service
+      name: api
+  
+  - path: patches/dnsd.patch.yaml
+    target:
+      kind: Service
+      name: dnsd 

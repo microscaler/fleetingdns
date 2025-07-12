@@ -1,0 +1,96 @@
+apiVersion: securitycenter.gcp.crossplane.io/v1alpha1
+kind: OrganizationSettings
+metadata:
+  name: fleetingdns-security-center-settings
+  labels:
+    app.kubernetes.io/name: fleetingdns-security-center-settings
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/security-monitoring: "enabled"
+spec:
+  forProvider:
+    name: "organizations/YOUR_ORG_ID/organizationSettings"  # Replace with actual org ID
+    enableAssetDiscovery: true
+    assetDiscoveryConfig:
+      projectIds:
+        - "fleetingdns-infra"
+        - "fleetingdns-dev"
+        - "fleetingdns-staging"
+        - "fleetingdns-prod-eu"
+        - "fleetingdns-prod-us"
+        - "fleetingdns-prod-apac"
+        - "fleetingdns-analytics"
+        - "fleetingdns-security"
+      inclusionMode: "INCLUDE_SPECIFIED"
+      folderIds:
+        - "folders/fleetingdns"
+  providerConfigRef:
+    name: gcp-provider-config-security
+---
+apiVersion: securitycenter.gcp.crossplane.io/v1alpha1
+kind: Source
+metadata:
+  name: fleetingdns-custom-security-source
+  labels:
+    app.kubernetes.io/name: fleetingdns-custom-security-source
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/source-type: "custom"
+spec:
+  forProvider:
+    organization: "organizations/YOUR_ORG_ID"  # Replace with actual org ID
+    displayName: "FleetingDNS Custom Security Source"
+    description: "Custom security source for FleetingDNS threat intelligence and honeypot data"
+    canonicalName: "fleetingdns-threat-intel"
+  providerConfigRef:
+    name: gcp-provider-config-security
+---
+apiVersion: securitycenter.gcp.crossplane.io/v1alpha1
+kind: NotificationConfig
+metadata:
+  name: fleetingdns-critical-findings-notification
+  labels:
+    app.kubernetes.io/name: fleetingdns-critical-findings-notification
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/severity: "critical"
+spec:
+  forProvider:
+    organization: "organizations/YOUR_ORG_ID"  # Replace with actual org ID
+    configId: "fleetingdns-critical-findings"
+    description: "Notification for critical security findings in FleetingDNS infrastructure"
+    pubsubTopic: "projects/fleetingdns-security/topics/critical-security-findings"
+    streamingConfig:
+      filter: |
+        (severity="CRITICAL" OR severity="HIGH") AND 
+        (category="MALWARE" OR category="SUSPICIOUS_ACTIVITY" OR 
+         category="UNAUTHORIZED_ACCESS" OR category="DATA_EXFILTRATION" OR
+         category="VULNERABILITY" OR category="POLICY_VIOLATION")
+      allowEmptyFilter: false
+  providerConfigRef:
+    name: gcp-provider-config-security
+---
+apiVersion: securitycenter.gcp.crossplane.io/v1alpha1
+kind: NotificationConfig
+metadata:
+  name: fleetingdns-dns-threat-notification
+  labels:
+    app.kubernetes.io/name: fleetingdns-dns-threat-notification
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/threat-type: "dns"
+spec:
+  forProvider:
+    organization: "organizations/YOUR_ORG_ID"  # Replace with actual org ID
+    configId: "fleetingdns-dns-threats"
+    description: "Notification for DNS-related security threats and tunneling attempts"
+    pubsubTopic: "projects/fleetingdns-security/topics/dns-threat-intel"
+    streamingConfig:
+      filter: |
+        (resource.type="gce_instance" OR resource.type="gke_cluster" OR 
+         resource.type="dns_zone" OR resource.type="load_balancer") AND
+        (finding.category="DNS_TUNNELING" OR finding.category="SUSPICIOUS_DNS" OR
+         finding.category="DOMAIN_GENERATION" OR finding.category="C2_COMMUNICATION")
+      allowEmptyFilter: false
+  providerConfigRef:
+    name: gcp-provider-config-security 

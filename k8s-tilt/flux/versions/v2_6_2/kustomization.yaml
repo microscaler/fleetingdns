@@ -1,0 +1,38 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # Official Flux v2.6.2 release
+  - https://github.com/fluxcd/flux2/releases/download/v2.6.2/install.yaml
+
+namespace: flux-system
+
+commonLabels:
+  app.kubernetes.io/part-of: flux-system
+  app.kubernetes.io/version: v2.6.2
+
+patches:
+  # Patch to enable multi-tenancy and security
+  - target:
+      kind: Deployment
+      name: source-controller
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --watch-all-namespaces=false
+  
+  - target:
+      kind: Deployment
+      name: kustomize-controller
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --watch-all-namespaces=false
+  
+  - target:
+      kind: Deployment
+      name: helm-controller
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/args/-
+        value: --watch-all-namespaces=false 

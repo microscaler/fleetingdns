@@ -1,0 +1,97 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: redis
+  namespace: redis
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/component: infrastructure
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  interval: 10m0s
+  timeout: 5m0s
+  chart:
+    spec:
+      chart: redis
+      version: "20.5.0"
+      sourceRef:
+        kind: HelmRepository
+        name: bitnami
+        namespace: redis
+      interval: 5m0s
+  values:
+    # Architecture
+    architecture: standalone
+    
+    # Image configuration
+    image:
+      tag: "7-alpine"
+    
+    # Authentication
+    auth:
+      enabled: false  # Disable auth for development
+    
+    # Master configuration
+    master:
+      service:
+        type: ClusterIP
+        ports:
+          redis: 6379
+      
+      resources:
+        requests:
+          memory: "64Mi"
+          cpu: "50m"
+        limits:
+          memory: "256Mi"
+          cpu: "200m"
+      
+      persistence:
+        enabled: false  # Using emptyDir for development
+      
+      securityContext:
+        enabled: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        runAsNonRoot: true
+      
+      containerSecurityContext:
+        enabled: true
+        runAsUser: 999
+        runAsGroup: 999
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: false
+        capabilities:
+          drop:
+            - ALL
+      
+      # Redis configuration
+      configuration: |-
+        # Disable persistence for development
+        save ""
+        appendonly no
+        # Performance settings
+        maxmemory 200mb
+        maxmemory-policy allkeys-lru
+        # Network settings
+        tcp-keepalive 300
+        timeout 0
+    
+    # Disable replica for standalone mode
+    replica:
+      replicaCount: 0
+    
+    # Disable sentinel
+    sentinel:
+      enabled: false
+    
+    # Metrics configuration
+    metrics:
+      enabled: false  # Disable for simplicity
+    
+    # Common labels
+    commonLabels:
+      app: redis
+      component: infrastructure 

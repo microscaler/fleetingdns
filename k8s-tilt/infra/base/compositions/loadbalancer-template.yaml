@@ -1,0 +1,218 @@
+# Standard HTTPS Load Balancer Template for FleetingDNS
+# This file contains the standard components needed for an HTTPS load balancer
+# Copy and customize these resources for specific load balancers
+
+# Global IP Address
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: GlobalAddress
+metadata:
+  name: fleetingdns-global-ip-template
+  labels:
+    app.kubernetes.io/name: fleetingdns-global-ip
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/template: "load-balancer"
+spec:
+  forProvider:
+    name: fleetingdns-global-ip
+    description: "Global IP address for FleetingDNS load balancer"
+    addressType: "EXTERNAL"
+    ipVersion: "IPV4"
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+# SSL Certificate (Google-managed)
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: ManagedSslCertificate
+metadata:
+  name: fleetingdns-ssl-cert-template
+  labels:
+    app.kubernetes.io/name: fleetingdns-ssl-cert
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/template: "load-balancer"
+spec:
+  forProvider:
+    name: fleetingdns-ssl-cert
+    description: "SSL certificate for FleetingDNS"
+    managed:
+      domains:
+        - "fleetingdns.com"
+        - "*.fleetingdns.com"
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+# Health Check for HTTPS Backend
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: HealthCheck
+metadata:
+  name: fleetingdns-health-check-template
+  labels:
+    app.kubernetes.io/name: fleetingdns-health-check
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/template: "load-balancer"
+spec:
+  forProvider:
+    name: fleetingdns-health-check
+    description: "Health check for FleetingDNS backend services"
+    timeoutSec: 5
+    checkIntervalSec: 10
+    healthyThreshold: 2
+    unhealthyThreshold: 3
+    httpsHealthCheck:
+      port: 443
+      requestPath: "/health"
+      portSpecification: "USE_FIXED_PORT"
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+# Backend Service (HTTPS)
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: BackendService
+metadata:
+  name: fleetingdns-backend-service-template
+  labels:
+    app.kubernetes.io/name: fleetingdns-backend-service
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/template: "load-balancer"
+spec:
+  forProvider:
+    name: fleetingdns-backend-service
+    description: "Backend service for FleetingDNS"
+    protocol: "HTTPS"
+    portName: "https"
+    timeoutSec: 30
+    enableCdn: false
+    loadBalancingScheme: "EXTERNAL"
+    healthChecks:
+      - "projects/fleetingdns-infra/global/healthChecks/fleetingdns-health-check"
+    # Add actual backend instance groups here
+    backends: []
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+# URL Map for HTTPS Load Balancer
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: URLMap
+metadata:
+  name: fleetingdns-url-map-template
+  labels:
+    app.kubernetes.io/name: fleetingdns-url-map
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/template: "load-balancer"
+spec:
+  forProvider:
+    name: fleetingdns-url-map
+    description: "URL map for FleetingDNS routing"
+    defaultServiceRef:
+      name: fleetingdns-backend-service-template
+    # Add host rules and path matchers as needed
+    hostRule: []
+    pathMatcher: []
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+# HTTPS Proxy
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: TargetHTTPSProxy
+metadata:
+  name: fleetingdns-https-proxy-template
+  labels:
+    app.kubernetes.io/name: fleetingdns-https-proxy
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/template: "load-balancer"
+spec:
+  forProvider:
+    name: fleetingdns-https-proxy
+    description: "HTTPS proxy for FleetingDNS"
+    urlMapRef:
+      name: fleetingdns-url-map-template
+    sslCertificates:
+      - "projects/fleetingdns-infra/global/sslCertificates/fleetingdns-ssl-cert"
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+# Global Forwarding Rule for HTTPS
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: GlobalForwardingRule
+metadata:
+  name: fleetingdns-https-forwarding-rule-template
+  labels:
+    app.kubernetes.io/name: fleetingdns-https-forwarding-rule
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/template: "load-balancer"
+spec:
+  forProvider:
+    name: fleetingdns-https-forwarding-rule
+    description: "HTTPS forwarding rule for FleetingDNS"
+    target: "projects/fleetingdns-infra/global/targetHttpsProxies/fleetingdns-https-proxy"
+    portRange: "443"
+    ipAddress: "fleetingdns-global-ip"
+    loadBalancingScheme: "EXTERNAL"
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+# HTTP to HTTPS Redirect URL Map
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: URLMap
+metadata:
+  name: fleetingdns-http-redirect-template
+  labels:
+    app.kubernetes.io/name: fleetingdns-http-redirect
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/template: "load-balancer"
+spec:
+  forProvider:
+    name: fleetingdns-http-redirect
+    description: "HTTP to HTTPS redirect for FleetingDNS"
+    defaultUrlRedirect:
+      httpsRedirect: true
+      redirectResponseCode: "MOVED_PERMANENTLY_DEFAULT"
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+# HTTP Proxy for Redirect
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: TargetHTTPProxy
+metadata:
+  name: fleetingdns-http-proxy-template
+  labels:
+    app.kubernetes.io/name: fleetingdns-http-proxy
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/template: "load-balancer"
+spec:
+  forProvider:
+    name: fleetingdns-http-proxy
+    description: "HTTP proxy for redirect to HTTPS"
+    urlMapRef:
+      name: fleetingdns-http-redirect-template
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+# Global Forwarding Rule for HTTP (Redirect)
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: GlobalForwardingRule
+metadata:
+  name: fleetingdns-http-forwarding-rule-template
+  labels:
+    app.kubernetes.io/name: fleetingdns-http-forwarding-rule
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/template: "load-balancer"
+spec:
+  forProvider:
+    name: fleetingdns-http-forwarding-rule
+    description: "HTTP forwarding rule for redirect to HTTPS"
+    target: "projects/fleetingdns-infra/global/targetHttpProxies/fleetingdns-http-proxy"
+    portRange: "80"
+    ipAddress: "fleetingdns-global-ip"
+    loadBalancingScheme: "EXTERNAL"
+  providerConfigRef:
+    name: gcp-provider-config-infra 

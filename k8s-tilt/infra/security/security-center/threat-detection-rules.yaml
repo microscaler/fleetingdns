@@ -1,0 +1,197 @@
+apiVersion: securitycenter.gcp.crossplane.io/v1alpha1
+kind: CustomModule
+metadata:
+  name: fleetingdns-dns-tunneling-detection
+  labels:
+    app.kubernetes.io/name: fleetingdns-dns-tunneling-detection
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/threat-type: "dns-tunneling"
+spec:
+  forProvider:
+    organization: "organizations/YOUR_ORG_ID"  # Replace with actual org ID
+    displayName: "FleetingDNS DNS Tunneling Detection"
+    description: "Custom module to detect DNS tunneling attempts against FleetingDNS infrastructure"
+    enablementState: "ENABLED"
+    customConfig:
+      predicate:
+        expression: |
+          // Detect suspicious DNS patterns indicating tunneling
+          (resource.type == "dns_zone" || resource.type == "gce_instance") &&
+          (
+            // High frequency DNS queries
+            metric.dns_query_rate > 1000 ||
+            // Unusual subdomain patterns
+            has(resource.data.subdomain_entropy) && resource.data.subdomain_entropy > 4.5 ||
+            // Base64-like patterns in DNS queries
+            has(resource.data.query_pattern) && resource.data.query_pattern.matches(".*[A-Za-z0-9+/]{20,}.*") ||
+            // Long DNS query names (potential data exfiltration)
+            has(resource.data.query_length) && resource.data.query_length > 200 ||
+            // Suspicious TXT record patterns
+            has(resource.data.txt_record_size) && resource.data.txt_record_size > 512
+          )
+        title: "DNS Tunneling Detection"
+        description: "Detects potential DNS tunneling attempts"
+      severity: "HIGH"
+      recommendation: |
+        Investigate the detected DNS patterns for potential tunneling activity:
+        1. Review DNS query logs for the affected domain
+        2. Analyze query patterns and frequency
+        3. Check for data exfiltration indicators
+        4. Implement rate limiting if necessary
+        5. Consider blocking suspicious domains
+      resourceSelector:
+        resourceTypes:
+          - "dns_zone"
+          - "gce_instance"
+          - "gke_cluster"
+  providerConfigRef:
+    name: gcp-provider-config-security
+---
+apiVersion: securitycenter.gcp.crossplane.io/v1alpha1
+kind: CustomModule
+metadata:
+  name: fleetingdns-honeypot-threat-intel
+  labels:
+    app.kubernetes.io/name: fleetingdns-honeypot-threat-intel
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/threat-type: "honeypot-intel"
+spec:
+  forProvider:
+    organization: "organizations/YOUR_ORG_ID"  # Replace with actual org ID
+    displayName: "FleetingDNS Honeypot Threat Intelligence"
+    description: "Custom module leveraging FleetingDNS honeypot data for threat detection"
+    enablementState: "ENABLED"
+    customConfig:
+      predicate:
+        expression: |
+          // Detect threats based on honeypot intelligence
+          (
+            // Known malicious IPs from honeypot data
+            has(source.ip) && source.ip in resource.data.honeypot_malicious_ips ||
+            // Suspicious connection patterns
+            has(network.connection_count) && network.connection_count > 100 ||
+            // Known attack signatures from honeypot
+            has(request.signature) && request.signature in resource.data.attack_signatures ||
+            // Geolocation anomalies
+            has(source.geo.country) && source.geo.country in ["CN", "RU", "KP", "IR"] &&
+            has(request.type) && request.type == "administrative_access"
+          )
+        title: "Honeypot Threat Intelligence"
+        description: "Detects threats using FleetingDNS honeypot intelligence"
+      severity: "CRITICAL"
+      recommendation: |
+        Threat detected based on FleetingDNS honeypot intelligence:
+        1. Immediately block the source IP address
+        2. Review all recent activity from this source
+        3. Check for lateral movement indicators
+        4. Update threat intelligence feeds
+        5. Consider implementing additional monitoring
+      resourceSelector:
+        resourceTypes:
+          - "gce_instance"
+          - "gke_cluster"
+          - "load_balancer"
+          - "dns_zone"
+  providerConfigRef:
+    name: gcp-provider-config-security
+---
+apiVersion: securitycenter.gcp.crossplane.io/v1alpha1
+kind: CustomModule
+metadata:
+  name: fleetingdns-dot-pinning-attacks
+  labels:
+    app.kubernetes.io/name: fleetingdns-dot-pinning-attacks
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/threat-type: "dot-pinning"
+spec:
+  forProvider:
+    organization: "organizations/YOUR_ORG_ID"  # Replace with actual org ID
+    displayName: "FleetingDNS DoT Certificate Pinning Attacks"
+    description: "Detects attacks against DNS over TLS certificate pinning mechanisms"
+    enablementState: "ENABLED"
+    customConfig:
+      predicate:
+        expression: |
+          // Detect DoT pinning bypass attempts
+          (resource.type == "ssl_certificate" || resource.type == "dns_zone") &&
+          (
+            // Certificate validation failures
+            has(tls.cert_validation_failures) && tls.cert_validation_failures > 10 ||
+            // Suspicious certificate requests
+            has(tls.cert_request_anomalies) && tls.cert_request_anomalies == true ||
+            // Pin validation bypass attempts
+            has(tls.pin_bypass_attempts) && tls.pin_bypass_attempts > 0 ||
+            // Unusual DoT connection patterns
+            has(dns.dot_connection_anomalies) && dns.dot_connection_anomalies > 5
+          )
+        title: "DoT Certificate Pinning Attack Detection"
+        description: "Detects attacks against DNS over TLS certificate pinning"
+      severity: "HIGH"
+      recommendation: |
+        DNS over TLS certificate pinning attack detected:
+        1. Review TLS certificate validation logs
+        2. Check for certificate replacement attempts
+        3. Verify certificate pinning configuration
+        4. Monitor for man-in-the-middle attacks
+        5. Update certificate pinning policies if needed
+      resourceSelector:
+        resourceTypes:
+          - "ssl_certificate"
+          - "dns_zone"
+          - "load_balancer"
+  providerConfigRef:
+    name: gcp-provider-config-security
+---
+apiVersion: securitycenter.gcp.crossplane.io/v1alpha1
+kind: CustomModule
+metadata:
+  name: fleetingdns-infrastructure-anomalies
+  labels:
+    app.kubernetes.io/name: fleetingdns-infrastructure-anomalies
+    app.kubernetes.io/component: security
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/threat-type: "infrastructure"
+spec:
+  forProvider:
+    organization: "organizations/YOUR_ORG_ID"  # Replace with actual org ID
+    displayName: "FleetingDNS Infrastructure Anomaly Detection"
+    description: "Detects anomalies in FleetingDNS infrastructure behavior"
+    enablementState: "ENABLED"
+    customConfig:
+      predicate:
+        expression: |
+          // Detect infrastructure anomalies
+          (
+            // Unusual resource scaling patterns
+            has(compute.scaling_events) && compute.scaling_events > 20 ||
+            // Suspicious network traffic patterns
+            has(network.traffic_anomaly_score) && network.traffic_anomaly_score > 0.8 ||
+            // Unexpected resource creation/deletion
+            has(resource.lifecycle_anomalies) && resource.lifecycle_anomalies == true ||
+            // Performance degradation indicators
+            has(performance.degradation_score) && performance.degradation_score > 0.7 ||
+            // Unauthorized configuration changes
+            has(config.unauthorized_changes) && config.unauthorized_changes > 0
+          )
+        title: "Infrastructure Anomaly Detection"
+        description: "Detects anomalies in FleetingDNS infrastructure"
+      severity: "MEDIUM"
+      recommendation: |
+        Infrastructure anomaly detected:
+        1. Review recent configuration changes
+        2. Check resource utilization patterns
+        3. Analyze network traffic for anomalies
+        4. Verify autoscaling configurations
+        5. Investigate potential security incidents
+      resourceSelector:
+        resourceTypes:
+          - "gce_instance"
+          - "gke_cluster"
+          - "load_balancer"
+          - "dns_zone"
+          - "storage_bucket"
+  providerConfigRef:
+    name: gcp-provider-config-security 

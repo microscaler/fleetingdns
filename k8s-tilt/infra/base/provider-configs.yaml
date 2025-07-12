@@ -1,0 +1,165 @@
+# Additional Provider Configurations for Multi-Project Setup
+
+# Development Environment Provider Config
+apiVersion: gcp.upbound.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: development
+  labels:
+    app.kubernetes.io/name: development-provider-config
+    app.kubernetes.io/component: crossplane-config
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  projectID: fleetingdns-dev
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: gcp-secret
+      key: creds
+---
+# Staging Environment Provider Config
+apiVersion: gcp.upbound.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: staging
+  labels:
+    app.kubernetes.io/name: staging-provider-config
+    app.kubernetes.io/component: crossplane-config
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  projectID: fleetingdns-staging
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: gcp-secret
+      key: creds
+---
+# Production EU Provider Config
+apiVersion: gcp.upbound.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: prod-eu
+  labels:
+    app.kubernetes.io/name: prod-eu-provider-config
+    app.kubernetes.io/component: crossplane-config
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  projectID: fleetingdns-prod-eu
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: gcp-secret
+      key: creds
+---
+# Production US Provider Config
+apiVersion: gcp.upbound.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: prod-us
+  labels:
+    app.kubernetes.io/name: prod-us-provider-config
+    app.kubernetes.io/component: crossplane-config
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  projectID: fleetingdns-prod-us
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: gcp-secret
+      key: creds
+---
+# Production APAC Provider Config
+apiVersion: gcp.upbound.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: prod-apac
+  labels:
+    app.kubernetes.io/name: prod-apac-provider-config
+    app.kubernetes.io/component: crossplane-config
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  projectID: fleetingdns-prod-apac
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: gcp-secret
+      key: creds
+---
+# Analytics Project Provider Config
+apiVersion: gcp.upbound.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: analytics
+  labels:
+    app.kubernetes.io/name: analytics-provider-config
+    app.kubernetes.io/component: crossplane-config
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  projectID: fleetingdns-analytics
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: gcp-secret
+      key: creds
+---
+# Security Project Provider Config
+apiVersion: gcp.upbound.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: security
+  labels:
+    app.kubernetes.io/name: security-provider-config
+    app.kubernetes.io/component: crossplane-config
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  projectID: fleetingdns-security
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: gcp-secret
+      key: creds
+---
+# Regional Provider Configs for specific operations
+
+# US Central 1 Provider Config
+apiVersion: gcp.upbound.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: us-central1
+  labels:
+    app.kubernetes.io/name: us-central1-provider-config
+    app.kubernetes.io/component: crossplane-config
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  projectID: fleetingdns-prod-us
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: gcp-secret
+      key: creds
+---
+# Asia Southeast 1 Provider Config
+apiVersion: gcp.upbound.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: asia-southeast1
+  labels:
+    app.kubernetes.io/name: asia-southeast1-provider-config
+    app.kubernetes.io/component: crossplane-config
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  projectID: fleetingdns-prod-apac
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: gcp-secret
+      key: creds 

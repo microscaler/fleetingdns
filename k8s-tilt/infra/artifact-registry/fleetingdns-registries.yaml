@@ -1,0 +1,161 @@
+# Container Registry for FleetingDNS Images
+apiVersion: artifactregistry.gcp.upbound.io/v1beta1
+kind: Repository
+metadata:
+  name: fleetingdns-containers
+  labels:
+    app.kubernetes.io/name: fleetingdns-containers
+    app.kubernetes.io/component: artifact-registry
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    repositoryId: fleetingdns-containers
+    project: fleetingdns-infra
+    location: europe-west1
+    description: "Container images for FleetingDNS services"
+    format: DOCKER
+    labels:
+      environment: multi
+      content-type: containers
+      managed-by: crossplane
+  providerConfigRef:
+    name: default
+---
+# Development Container Registry
+apiVersion: artifactregistry.gcp.upbound.io/v1beta1
+kind: Repository
+metadata:
+  name: fleetingdns-dev-containers
+  labels:
+    app.kubernetes.io/name: fleetingdns-dev-containers
+    app.kubernetes.io/component: artifact-registry
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    repositoryId: fleetingdns-dev-containers
+    project: fleetingdns-dev
+    location: europe-west1
+    description: "Development container images for FleetingDNS"
+    format: DOCKER
+    labels:
+      environment: development
+      content-type: containers
+      managed-by: crossplane
+  providerConfigRef:
+    name: default
+---
+# Helm Chart Registry
+apiVersion: artifactregistry.gcp.upbound.io/v1beta1
+kind: Repository
+metadata:
+  name: fleetingdns-helm-charts
+  labels:
+    app.kubernetes.io/name: fleetingdns-helm-charts
+    app.kubernetes.io/component: artifact-registry
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    repositoryId: fleetingdns-helm-charts
+    project: fleetingdns-infra
+    location: europe-west1
+    description: "Helm charts for FleetingDNS applications"
+    format: DOCKER  # Helm charts use OCI format
+    labels:
+      environment: multi
+      content-type: helm-charts
+      managed-by: crossplane
+  providerConfigRef:
+    name: default
+---
+# Python Package Registry
+apiVersion: artifactregistry.gcp.upbound.io/v1beta1
+kind: Repository
+metadata:
+  name: fleetingdns-python-packages
+  labels:
+    app.kubernetes.io/name: fleetingdns-python-packages
+    app.kubernetes.io/component: artifact-registry
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    repositoryId: fleetingdns-python-packages
+    project: fleetingdns-infra
+    location: europe-west1
+    description: "Python packages and libraries for FleetingDNS"
+    format: PYTHON
+    labels:
+      environment: multi
+      content-type: python-packages
+      managed-by: crossplane
+  providerConfigRef:
+    name: default
+---
+# Generic Artifacts Registry (for binaries, configs, etc.)
+apiVersion: artifactregistry.gcp.upbound.io/v1beta1
+kind: Repository
+metadata:
+  name: fleetingdns-artifacts
+  labels:
+    app.kubernetes.io/name: fleetingdns-artifacts
+    app.kubernetes.io/component: artifact-registry
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    repositoryId: fleetingdns-artifacts
+    project: fleetingdns-infra
+    location: europe-west1
+    description: "Generic artifacts and binaries for FleetingDNS"
+    format: GENERIC
+    labels:
+      environment: multi
+      content-type: generic-artifacts
+      managed-by: crossplane
+  providerConfigRef:
+    name: default
+---
+# Multi-region Container Registry for Production
+apiVersion: artifactregistry.gcp.upbound.io/v1beta1
+kind: Repository
+metadata:
+  name: fleetingdns-prod-us-containers
+  labels:
+    app.kubernetes.io/name: fleetingdns-prod-us-containers
+    app.kubernetes.io/component: artifact-registry
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    repositoryId: fleetingdns-prod-containers
+    project: fleetingdns-prod-us
+    location: us-central1
+    description: "Production container images for FleetingDNS US region"
+    format: DOCKER
+    labels:
+      environment: production
+      region: us-central1
+      content-type: containers
+      managed-by: crossplane
+  providerConfigRef:
+    name: default
+---
+apiVersion: artifactregistry.gcp.upbound.io/v1beta1
+kind: Repository
+metadata:
+  name: fleetingdns-prod-apac-containers
+  labels:
+    app.kubernetes.io/name: fleetingdns-prod-apac-containers
+    app.kubernetes.io/component: artifact-registry
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    repositoryId: fleetingdns-prod-containers
+    project: fleetingdns-prod-apac
+    location: asia-southeast1
+    description: "Production container images for FleetingDNS APAC region"
+    format: DOCKER
+    labels:
+      environment: production
+      region: asia-southeast1
+      content-type: containers
+      managed-by: crossplane
+  providerConfigRef:
+    name: default 

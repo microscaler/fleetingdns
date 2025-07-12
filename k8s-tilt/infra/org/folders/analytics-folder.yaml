@@ -1,0 +1,19 @@
+apiVersion: cloudresourcemanager.gcp.crossplane.io/v1alpha1
+kind: Folder
+metadata:
+  name: fleetingdns-analytics-folder
+  labels:
+    app.kubernetes.io/name: fleetingdns-analytics
+    app.kubernetes.io/component: organization
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+  annotations:
+    crossplane.io/external-name: fleetingdns-analytics
+spec:
+  forProvider:
+    displayName: "Analytics & Data"
+    parentRef:
+      name: fleetingdns-folder
+  providerConfigRef:
+    name: gcp-provider-config
+  writeConnectionSecretsToRef:
+    namespace: crossplane-system 

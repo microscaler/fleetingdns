@@ -1,0 +1,214 @@
+apiVersion: dataflow.gcp.crossplane.io/v1alpha1
+kind: Job
+metadata:
+  name: fleetingdns-threat-intel-pipeline
+  labels:
+    app.kubernetes.io/name: fleetingdns-threat-intel-pipeline
+    app.kubernetes.io/component: analytics
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/pipeline-type: "threat-intelligence"
+spec:
+  forProvider:
+    name: "fleetingdns-threat-intel-pipeline"
+    projectRef:
+      name: fleetingdns-analytics-project
+    region: "europe-west1"
+    zone: "europe-west1-b"
+    templateGcsPath: "gs://fleetingdns-ml-templates-eu/threat-intelligence-pipeline.json"
+    tempGcsLocation: "gs://fleetingdns-temp-eu/dataflow-temp"
+    parameters:
+      inputSubscription: "projects/fleetingdns-security/subscriptions/threat-intel-stream"
+      outputTable: "fleetingdns-analytics:threat_intelligence.processed_threats"
+      modelPath: "gs://fleetingdns-ml-models-eu/threat-detection/v1.0/model"
+      featureStoreProject: "fleetingdns-analytics"
+      featureStoreLocation: "europe-west1"
+      featureStore: "fleetingdns-features"
+      threatThreshold: "0.7"
+      batchSize: "1000"
+      windowSizeMinutes: "5"
+    jobName: "fleetingdns-threat-intel-${BUILD_ID}"
+    serviceAccountEmail: "threat-intel-pipeline@fleetingdns-analytics.iam.gserviceaccount.com"
+    network: "projects/fleetingdns-analytics/global/networks/fleetingdns-analytics-vpc"
+    subnetwork: "projects/fleetingdns-analytics/regions/europe-west1/subnetworks/analytics-subnet"
+    maxWorkers: 10
+    numWorkers: 2
+    machineType: "n1-standard-2"
+    ipConfiguration: "WORKER_IP_PRIVATE"
+    additionalExperiments:
+      - "enable_streaming_engine"
+      - "use_runner_v2"
+  providerConfigRef:
+    name: gcp-provider-config-analytics
+---
+apiVersion: dataflow.gcp.crossplane.io/v1alpha1
+kind: Job
+metadata:
+  name: fleetingdns-dns-anomaly-pipeline
+  labels:
+    app.kubernetes.io/name: fleetingdns-dns-anomaly-pipeline
+    app.kubernetes.io/component: analytics
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/pipeline-type: "dns-anomaly-detection"
+spec:
+  forProvider:
+    name: "fleetingdns-dns-anomaly-pipeline"
+    projectRef:
+      name: fleetingdns-analytics-project
+    region: "europe-west1"
+    zone: "europe-west1-b"
+    templateGcsPath: "gs://fleetingdns-ml-templates-eu/dns-anomaly-detection.json"
+    tempGcsLocation: "gs://fleetingdns-temp-eu/dataflow-temp"
+    parameters:
+      inputTopic: "projects/fleetingdns-analytics/topics/dns-query-stream"
+      outputTable: "fleetingdns-analytics:dns_analytics.anomaly_scores"
+      modelPath: "gs://fleetingdns-ml-models-eu/dns-anomaly/v2.1/model"
+      anomalyThreshold: "0.8"
+      windowSizeMinutes: "10"
+      slidingWindowMinutes: "1"
+      featureColumns: "query_length,subdomain_count,entropy_score,frequency_score,geo_score"
+      alertTopic: "projects/fleetingdns-security/topics/dns-anomaly-alerts"
+    jobName: "fleetingdns-dns-anomaly-${BUILD_ID}"
+    serviceAccountEmail: "dns-analytics-pipeline@fleetingdns-analytics.iam.gserviceaccount.com"
+    network: "projects/fleetingdns-analytics/global/networks/fleetingdns-analytics-vpc"
+    subnetwork: "projects/fleetingdns-analytics/regions/europe-west1/subnetworks/analytics-subnet"
+    maxWorkers: 20
+    numWorkers: 5
+    machineType: "n1-standard-4"
+    ipConfiguration: "WORKER_IP_PRIVATE"
+    additionalExperiments:
+      - "enable_streaming_engine"
+      - "use_runner_v2"
+      - "enable_prime"
+  providerConfigRef:
+    name: gcp-provider-config-analytics
+---
+apiVersion: aiplatform.gcp.crossplane.io/v1alpha1
+kind: FeatureStore
+metadata:
+  name: fleetingdns-feature-store
+  labels:
+    app.kubernetes.io/name: fleetingdns-feature-store
+    app.kubernetes.io/component: analytics
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    name: "fleetingdns-features"
+    projectRef:
+      name: fleetingdns-analytics-project
+    region: "europe-west1"
+    labels:
+      environment: "production"
+      team: "ml-engineering"
+      purpose: "threat-intelligence"
+    onlineServingConfig:
+      fixedNodeCount: 2
+      scaling:
+        minNodeCount: 1
+        maxNodeCount: 10
+        cpuUtilizationTarget: 70
+    encryptionSpec:
+      kmsKeyName: "projects/fleetingdns-security/locations/europe-west1/keyRings/ml-encryption/cryptoKeys/feature-store-key"
+  providerConfigRef:
+    name: gcp-provider-config-analytics
+---
+apiVersion: aiplatform.gcp.crossplane.io/v1alpha1
+kind: EntityType
+metadata:
+  name: fleetingdns-dns-query-entity
+  labels:
+    app.kubernetes.io/name: fleetingdns-dns-query-entity
+    app.kubernetes.io/component: analytics
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    name: "dns_query"
+    featurestoreRef:
+      name: fleetingdns-feature-store
+    description: "DNS query entity for threat detection features"
+    monitoringConfig:
+      snapshotAnalysis:
+        disabled: false
+        monitoringIntervalDays: 1
+      categoricalThresholdConfig:
+        value: 0.1
+      numericalThresholdConfig:
+        value: 0.3
+      importFeaturesAnalysis:
+        state: "ENABLED"
+        anomalyDetectionBaseline: "PREVIOUS_IMPORT_FEATURES_STATS"
+  providerConfigRef:
+    name: gcp-provider-config-analytics
+---
+apiVersion: aiplatform.gcp.crossplane.io/v1alpha1
+kind: Feature
+metadata:
+  name: fleetingdns-query-entropy-feature
+  labels:
+    app.kubernetes.io/name: fleetingdns-query-entropy-feature
+    app.kubernetes.io/component: analytics
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    name: "query_entropy"
+    entityTypeRef:
+      name: fleetingdns-dns-query-entity
+    description: "Entropy score of DNS query indicating potential tunneling"
+    valueType: "DOUBLE"
+    monitoringConfig:
+      snapshotAnalysis:
+        disabled: false
+        monitoringIntervalDays: 1
+      numericalThresholdConfig:
+        value: 0.2
+      importFeaturesAnalysis:
+        state: "ENABLED"
+  providerConfigRef:
+    name: gcp-provider-config-analytics
+---
+apiVersion: aiplatform.gcp.crossplane.io/v1alpha1
+kind: Feature
+metadata:
+  name: fleetingdns-query-frequency-feature
+  labels:
+    app.kubernetes.io/name: fleetingdns-query-frequency-feature
+    app.kubernetes.io/component: analytics
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    name: "query_frequency"
+    entityTypeRef:
+      name: fleetingdns-dns-query-entity
+    description: "Frequency of DNS queries from source IP"
+    valueType: "INT64"
+    monitoringConfig:
+      snapshotAnalysis:
+        disabled: false
+        monitoringIntervalDays: 1
+      numericalThresholdConfig:
+        value: 0.15
+  providerConfigRef:
+    name: gcp-provider-config-analytics
+---
+apiVersion: aiplatform.gcp.crossplane.io/v1alpha1
+kind: Feature
+metadata:
+  name: fleetingdns-geo-anomaly-feature
+  labels:
+    app.kubernetes.io/name: fleetingdns-geo-anomaly-feature
+    app.kubernetes.io/component: analytics
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    name: "geo_anomaly_score"
+    entityTypeRef:
+      name: fleetingdns-dns-query-entity
+    description: "Geographic anomaly score based on IP location"
+    valueType: "DOUBLE"
+    monitoringConfig:
+      snapshotAnalysis:
+        disabled: false
+        monitoringIntervalDays: 1
+      numericalThresholdConfig:
+        value: 0.25
+  providerConfigRef:
+    name: gcp-provider-config-analytics 

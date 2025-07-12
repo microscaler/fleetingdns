@@ -1,0 +1,258 @@
+# Main HTTPS Load Balancer for FleetingDNS Web Services
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: GlobalForwardingRule
+metadata:
+  name: fleetingdns-main-lb-forwarding-rule
+  labels:
+    app.kubernetes.io/name: fleetingdns-main-lb
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    name: fleetingdns-main-lb-forwarding-rule
+    description: "Main HTTPS forwarding rule for FleetingDNS"
+    ipAddress: "fleetingdns-global-ip"
+    ipProtocol: "TCP"
+    portRange: "443"
+    target: "projects/fleetingdns-infra/global/targetHttpsProxies/fleetingdns-main-https-proxy"
+    loadBalancingScheme: "EXTERNAL"
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: TargetHTTPSProxy
+metadata:
+  name: fleetingdns-main-https-proxy
+  labels:
+    app.kubernetes.io/name: fleetingdns-main-https-proxy
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    name: fleetingdns-main-https-proxy
+    description: "Main HTTPS proxy for FleetingDNS"
+    urlMapRef:
+      name: fleetingdns-main-url-map
+    sslCertificates:
+      - "projects/fleetingdns-infra/global/sslCertificates/fleetingdns-com-cert"
+      - "projects/fleetingdns-infra/global/sslCertificates/fleetingdns-wildcard-cert"
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: URLMap
+metadata:
+  name: fleetingdns-main-url-map
+  labels:
+    app.kubernetes.io/name: fleetingdns-main-url-map
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    name: fleetingdns-main-url-map
+    description: "Main URL map for FleetingDNS routing"
+    defaultServiceRef:
+      name: fleetingdns-portal-backend-service
+    hostRule:
+      - hosts:
+          - "api.fleetingdns.com"
+        pathMatcher: "api-matcher"
+      - hosts:
+          - "portal.fleetingdns.com"
+          - "admin.fleetingdns.com"
+        pathMatcher: "portal-matcher"
+      - hosts:
+          - "monitoring.fleetingdns.com"
+        pathMatcher: "monitoring-matcher"
+    pathMatcher:
+      - name: "api-matcher"
+        defaultServiceRef:
+          name: fleetingdns-api-backend-service
+        pathRule:
+          - paths:
+              - "/api/v1/*"
+              - "/api/v2/*"
+            serviceRef:
+              name: fleetingdns-api-backend-service
+      - name: "portal-matcher"
+        defaultServiceRef:
+          name: fleetingdns-portal-backend-service
+        pathRule:
+          - paths:
+              - "/admin/*"
+            serviceRef:
+              name: fleetingdns-admin-backend-service
+      - name: "monitoring-matcher"
+        defaultServiceRef:
+          name: fleetingdns-monitoring-backend-service
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+# Backend Services
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: BackendService
+metadata:
+  name: fleetingdns-api-backend-service
+  labels:
+    app.kubernetes.io/name: fleetingdns-api-backend
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    name: fleetingdns-api-backend
+    description: "Backend service for FleetingDNS API"
+    protocol: "HTTPS"
+    timeoutSec: 30
+    enableCdn: false  # No CDN for API endpoints
+    healthChecks:
+      - "projects/fleetingdns-infra/global/healthChecks/fleetingdns-api-health"
+    securityPolicy: "projects/fleetingdns-infra/global/securityPolicies/fleetingdns-bot-protection"
+    backends:
+      - group: "projects/fleetingdns-prod-eu/zones/europe-west1-b/instanceGroups/fleetingdns-api-ig"
+        balancingMode: "UTILIZATION"
+        maxUtilization: 0.8
+        capacityScaler: 1.0
+      - group: "projects/fleetingdns-prod-us/zones/us-central1-a/instanceGroups/fleetingdns-api-ig"
+        balancingMode: "UTILIZATION"
+        maxUtilization: 0.8
+        capacityScaler: 1.0
+      - group: "projects/fleetingdns-prod-apac/zones/asia-southeast1-a/instanceGroups/fleetingdns-api-ig"
+        balancingMode: "UTILIZATION"
+        maxUtilization: 0.8
+        capacityScaler: 1.0
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: BackendService
+metadata:
+  name: fleetingdns-portal-backend-service
+  labels:
+    app.kubernetes.io/name: fleetingdns-portal-backend
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    name: fleetingdns-portal-backend
+    description: "Backend service for FleetingDNS portal"
+    protocol: "HTTPS"
+    timeoutSec: 30
+    enableCdn: true
+    cdnPolicy:
+      cacheMode: "CACHE_ALL_STATIC"
+      defaultTtl: 3600
+      negativeCaching: true
+      compressionMode: "AUTOMATIC"
+    healthChecks:
+      - "projects/fleetingdns-infra/global/healthChecks/fleetingdns-portal-health"
+    securityPolicy: "projects/fleetingdns-infra/global/securityPolicies/fleetingdns-main-armor"
+    backends:
+      - group: "projects/fleetingdns-prod-eu/zones/europe-west1-b/instanceGroups/fleetingdns-portal-ig"
+        balancingMode: "UTILIZATION"
+        maxUtilization: 0.8
+        capacityScaler: 1.0
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: BackendService
+metadata:
+  name: fleetingdns-admin-backend-service
+  labels:
+    app.kubernetes.io/name: fleetingdns-admin-backend
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    name: fleetingdns-admin-backend
+    description: "Backend service for FleetingDNS admin interface"
+    protocol: "HTTPS"
+    timeoutSec: 30
+    enableCdn: false  # No CDN for admin interfaces
+    healthChecks:
+      - "projects/fleetingdns-infra/global/healthChecks/fleetingdns-admin-health"
+    securityPolicy: "projects/fleetingdns-infra/global/securityPolicies/fleetingdns-admin-armor"
+    iap:
+      enabled: true
+      oauth2ClientIdRef:
+        name: fleetingdns-admin-oauth-client
+      oauth2ClientSecretRef:
+        name: fleetingdns-admin-oauth-secret
+    backends:
+      - group: "projects/fleetingdns-infra/zones/europe-west1-b/instanceGroups/fleetingdns-admin-ig"
+        balancingMode: "UTILIZATION"
+        maxUtilization: 0.8
+        capacityScaler: 1.0
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+# DNS TCP Load Balancer
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: GlobalForwardingRule
+metadata:
+  name: fleetingdns-dns-tcp-forwarding-rule
+  labels:
+    app.kubernetes.io/name: fleetingdns-dns-lb
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    name: fleetingdns-dns-tcp-forwarding-rule
+    description: "TCP forwarding rule for DNS traffic"
+    ipAddress: "fleetingdns-dns-ip"
+    ipProtocol: "TCP"
+    portRange: "53"
+    target: "projects/fleetingdns-infra/global/targetTcpProxies/fleetingdns-dns-tcp-proxy"
+    loadBalancingScheme: "EXTERNAL"
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: TargetTCPProxy
+metadata:
+  name: fleetingdns-dns-tcp-proxy
+  labels:
+    app.kubernetes.io/name: fleetingdns-dns-tcp-proxy
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    name: fleetingdns-dns-tcp-proxy
+    description: "TCP proxy for DNS traffic"
+    backendServiceRef:
+      name: fleetingdns-dns-backend-service
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: BackendService
+metadata:
+  name: fleetingdns-dns-backend-service
+  labels:
+    app.kubernetes.io/name: fleetingdns-dns-backend
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+spec:
+  forProvider:
+    name: fleetingdns-dns-backend
+    description: "Backend service for DNS traffic"
+    protocol: "TCP"
+    timeoutSec: 10
+    healthChecks:
+      - "projects/fleetingdns-infra/global/healthChecks/fleetingdns-dns-health"
+    securityPolicy: "projects/fleetingdns-infra/global/securityPolicies/fleetingdns-dns-armor"
+    backends:
+      - group: "projects/fleetingdns-prod-eu/zones/europe-west1-b/instanceGroups/fleetingdns-dns-ig"
+        balancingMode: "UTILIZATION"
+        maxUtilization: 0.8
+        capacityScaler: 1.0
+      - group: "projects/fleetingdns-prod-us/zones/us-central1-a/instanceGroups/fleetingdns-dns-ig"
+        balancingMode: "UTILIZATION"
+        maxUtilization: 0.8
+        capacityScaler: 1.0
+      - group: "projects/fleetingdns-prod-apac/zones/asia-southeast1-a/instanceGroups/fleetingdns-dns-ig"
+        balancingMode: "UTILIZATION"
+        maxUtilization: 0.8
+        capacityScaler: 1.0
+  providerConfigRef:
+    name: gcp-provider-config-infra 

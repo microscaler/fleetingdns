@@ -1,0 +1,123 @@
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: BackendService
+metadata:
+  name: fleetingdns-main-cdn-backend
+  labels:
+    app.kubernetes.io/name: fleetingdns-main-cdn-backend
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/cdn-enabled: "true"
+spec:
+  forProvider:
+    name: fleetingdns-main-cdn-backend
+    description: "Main CDN backend for FleetingDNS portal"
+    protocol: HTTPS
+    timeoutSec: 30
+    enableCdn: true
+    cdnPolicy:
+      cacheMode: "CACHE_ALL_STATIC"
+      defaultTtl: 3600  # 1 hour
+      maxTtl: 86400     # 24 hours
+      clientTtl: 3600   # 1 hour
+      negativeCaching: true
+      negativeCachingPolicy:
+        - code: 404
+          ttl: 120
+        - code: 403
+          ttl: 60
+      cacheKeyPolicy:
+        includeHost: true
+        includeProtocol: true
+        includeQueryString: false
+        queryStringWhitelist: []
+        queryStringBlacklist: []
+      bypassCacheOnRequestHeaders:
+        - headerName: "Cache-Control"
+          value: "no-cache"
+        - headerName: "Pragma"
+          value: "no-cache"
+      serveWhileStale: 86400  # 24 hours
+    compressionMode: "AUTOMATIC"
+    customRequestHeaders:
+      - "X-CDN-Cache: {cdn_cache_status}"
+      - "X-CDN-ID: {cdn_cache_id}"
+    customResponseHeaders:
+      - "X-Cache-Status: {cdn_cache_status}"
+      - "X-Edge-Location: {pop}"
+    backends:
+      - group: "projects/fleetingdns-prod-eu/zones/europe-west1-b/instanceGroups/fleetingdns-portal-ig"
+        balancingMode: "UTILIZATION"
+        maxUtilization: 0.8
+        capacityScaler: 1.0
+      - group: "projects/fleetingdns-prod-us/zones/us-central1-a/instanceGroups/fleetingdns-portal-ig"
+        balancingMode: "UTILIZATION"
+        maxUtilization: 0.8
+        capacityScaler: 1.0
+      - group: "projects/fleetingdns-prod-apac/zones/asia-southeast1-a/instanceGroups/fleetingdns-portal-ig"
+        balancingMode: "UTILIZATION"
+        maxUtilization: 0.8
+        capacityScaler: 1.0
+    healthChecks:
+      - "projects/fleetingdns-infra/global/healthChecks/fleetingdns-portal-health"
+    iap:
+      enabled: true
+      oauth2ClientIdRef:
+        name: fleetingdns-admin-oauth-client
+      oauth2ClientSecretRef:
+        name: fleetingdns-admin-oauth-secret
+    securityPolicy: "projects/fleetingdns-infra/global/securityPolicies/fleetingdns-main-armor"
+  providerConfigRef:
+    name: gcp-provider-config-infra
+---
+apiVersion: compute.gcp.upbound.io/v1beta1
+kind: URLMap
+metadata:
+  name: fleetingdns-main-cdn-urlmap
+  labels:
+    app.kubernetes.io/name: fleetingdns-main-cdn-urlmap
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/part-of: fleetingdns-infrastructure
+    fleetingdns.com/cdn-enabled: "true"
+spec:
+  forProvider:
+    name: fleetingdns-main-cdn-urlmap
+    description: "URL map for FleetingDNS CDN with caching rules"
+    defaultServiceRef:
+      name: fleetingdns-main-cdn-backend
+    hostRule:
+      - hosts:
+          - "portal.fleetingdns.com"
+          - "www.fleetingdns.com"
+          - "fleetingdns.com"
+        pathMatcher: "main-portal-matcher"
+      - hosts:
+          - "admin.fleetingdns.com"
+        pathMatcher: "admin-portal-matcher"
+    pathMatcher:
+      - name: "main-portal-matcher"
+        defaultServiceRef:
+          name: fleetingdns-main-cdn-backend
+        pathRule:
+          - paths:
+              - "/static/*"
+              - "/assets/*"
+              - "/css/*"
+              - "/js/*"
+              - "/images/*"
+            serviceRef:
+              name: fleetingdns-static-cdn-backend
+          - paths:
+              - "/api/v1/*"
+            serviceRef:
+              name: fleetingdns-api-cdn-backend
+      - name: "admin-portal-matcher"
+        defaultServiceRef:
+          name: fleetingdns-admin-cdn-backend
+        pathRule:
+          - paths:
+              - "/static/*"
+              - "/assets/*"
+            serviceRef:
+              name: fleetingdns-static-cdn-backend
+  providerConfigRef:
+    name: gcp-provider-config-infra 

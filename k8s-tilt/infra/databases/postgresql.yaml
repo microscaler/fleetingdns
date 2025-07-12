@@ -1,0 +1,209 @@
+# Primary PostgreSQL Instance
+apiVersion: sql.gcp.upbound.io/v1beta1
+kind: DatabaseInstance
+metadata:
+  name: fleetingdns-postgres-primary
+  labels:
+    app.kubernetes.io/name: fleetingdns-postgres-primary
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-postgres-primary
+    project: fleetingdns-infra
+    region: europe-west1
+    databaseVersion: POSTGRES_15
+    deletionProtection: true
+    settings:
+    - tier: db-custom-2-8192  # 2 vCPU, 8GB RAM
+      availabilityType: REGIONAL  # High availability
+      diskType: PD_SSD
+      diskSize: 100
+      diskAutoresize: true
+      diskAutoresizeLimit: 500
+      backupConfiguration:
+      - enabled: true
+        startTime: "02:00"  # 2 AM UTC
+        pointInTimeRecoveryEnabled: true
+        transactionLogRetentionDays: 7
+        backupRetentionSettings:
+        - retainedBackups: 30
+          retentionUnit: COUNT
+      ipConfiguration:
+      - ipv4Enabled: false
+        privateNetwork: "projects/fleetingdns-infra/global/networks/fleetingdns-infra-vpc"
+        requireSsl: true
+      maintenanceWindow:
+      - day: 7  # Sunday
+        hour: 3  # 3 AM UTC
+        updateTrack: stable
+      databaseFlags:
+      - name: log_statement
+        value: "all"
+      - name: log_min_duration_statement
+        value: "1000"  # Log queries > 1 second
+      - name: shared_preload_libraries
+        value: "pg_stat_statements"
+    labels:
+      environment: production
+      service: fleetingdns
+      managed-by: crossplane
+  providerConfigRef:
+    name: default
+---
+# Read Replica in US
+apiVersion: sql.gcp.upbound.io/v1beta1
+kind: DatabaseInstance
+metadata:
+  name: fleetingdns-postgres-us-replica
+  labels:
+    app.kubernetes.io/name: fleetingdns-postgres-us-replica
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-postgres-us-replica
+    project: fleetingdns-prod-us
+    region: us-central1
+    databaseVersion: POSTGRES_15
+    deletionProtection: true
+    masterInstanceName: "projects/fleetingdns-infra/instances/fleetingdns-postgres-primary"
+    replicaConfiguration:
+    - failoverTarget: false
+    settings:
+    - tier: db-custom-2-8192
+      availabilityType: ZONAL  # Replica doesn't need HA
+      diskType: PD_SSD
+      diskAutoresize: true
+      diskAutoresizeLimit: 500
+      ipConfiguration:
+      - ipv4Enabled: false
+        privateNetwork: "projects/fleetingdns-prod-us/global/networks/fleetingdns-prod-us-vpc"
+        requireSsl: true
+    labels:
+      environment: production
+      service: fleetingdns
+      role: read-replica
+      region: us-central1
+      managed-by: crossplane
+  providerConfigRef:
+    name: us-central1
+---
+# Read Replica in APAC
+apiVersion: sql.gcp.upbound.io/v1beta1
+kind: DatabaseInstance
+metadata:
+  name: fleetingdns-postgres-apac-replica
+  labels:
+    app.kubernetes.io/name: fleetingdns-postgres-apac-replica
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-postgres-apac-replica
+    project: fleetingdns-prod-apac
+    region: asia-southeast1
+    databaseVersion: POSTGRES_15
+    deletionProtection: true
+    masterInstanceName: "projects/fleetingdns-infra/instances/fleetingdns-postgres-primary"
+    replicaConfiguration:
+    - failoverTarget: false
+    settings:
+    - tier: db-custom-2-8192
+      availabilityType: ZONAL
+      diskType: PD_SSD
+      diskAutoresize: true
+      diskAutoresizeLimit: 500
+      ipConfiguration:
+      - ipv4Enabled: false
+        privateNetwork: "projects/fleetingdns-prod-apac/global/networks/fleetingdns-prod-apac-vpc"
+        requireSsl: true
+    labels:
+      environment: production
+      service: fleetingdns
+      role: read-replica
+      region: asia-southeast1
+      managed-by: crossplane
+  providerConfigRef:
+    name: asia-southeast1
+---
+# Database for FleetingDNS
+apiVersion: sql.gcp.upbound.io/v1beta1
+kind: Database
+metadata:
+  name: fleetingdns-main-db
+  labels:
+    app.kubernetes.io/name: fleetingdns-main-db
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns
+    instance: fleetingdns-postgres-primary
+    project: fleetingdns-infra
+    charset: UTF8
+    collation: en_US.UTF8
+  providerConfigRef:
+    name: default
+---
+# Database User
+apiVersion: sql.gcp.upbound.io/v1beta1
+kind: User
+metadata:
+  name: fleetingdns-app-user
+  labels:
+    app.kubernetes.io/name: fleetingdns-app-user
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns_app
+    instance: fleetingdns-postgres-primary
+    project: fleetingdns-infra
+    passwordSecretRef:
+      namespace: crossplane-system
+      name: fleetingdns-db-password
+      key: password
+  providerConfigRef:
+    name: default
+---
+# Development Database Instance
+apiVersion: sql.gcp.upbound.io/v1beta1
+kind: DatabaseInstance
+metadata:
+  name: fleetingdns-postgres-dev
+  labels:
+    app.kubernetes.io/name: fleetingdns-postgres-dev
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-postgres-dev
+    project: fleetingdns-dev
+    region: europe-west1
+    databaseVersion: POSTGRES_15
+    deletionProtection: false  # Dev can be deleted
+    settings:
+    - tier: db-f1-micro  # Minimal for dev
+      availabilityType: ZONAL
+      diskType: PD_STANDARD
+      diskSize: 20
+      diskAutoresize: true
+      diskAutoresizeLimit: 100
+      backupConfiguration:
+      - enabled: true
+        startTime: "03:00"
+        pointInTimeRecoveryEnabled: false
+        backupRetentionSettings:
+        - retainedBackups: 7
+          retentionUnit: COUNT
+      ipConfiguration:
+      - ipv4Enabled: false
+        privateNetwork: "projects/fleetingdns-dev/global/networks/fleetingdns-dev-vpc"
+        requireSsl: false  # Simplified for dev
+    labels:
+      environment: development
+      service: fleetingdns
+      managed-by: crossplane
+  providerConfigRef:
+    name: development 

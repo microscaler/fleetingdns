@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fleetingdns
+  labels:
+    name: fleetingdns
+    app.kubernetes.io/part-of: fleetingdns
+    app.kubernetes.io/component: workload 

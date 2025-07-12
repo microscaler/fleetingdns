@@ -1,0 +1,287 @@
+# Primary Data Storage Bucket
+apiVersion: storage.gcp.upbound.io/v1beta1
+kind: Bucket
+metadata:
+  name: fleetingdns-data-primary
+  labels:
+    app.kubernetes.io/name: fleetingdns-data-primary
+    app.kubernetes.io/component: cloud-storage
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-data-primary-eu
+    project: fleetingdns-infra
+    location: EUROPE-WEST1
+    storageClass: STANDARD
+    uniformBucketLevelAccess: true
+    publicAccessPrevention: enforced
+    versioning:
+    - enabled: true
+    lifecycleRule:
+    - action:
+      - type: SetStorageClass
+        storageClass: NEARLINE
+      condition:
+      - age: 30
+    - action:
+      - type: SetStorageClass
+        storageClass: COLDLINE
+      condition:
+      - age: 90
+    - action:
+      - type: SetStorageClass
+        storageClass: ARCHIVE
+      condition:
+      - age: 365
+    - action:
+      - type: Delete
+      condition:
+      - age: 2555  # 7 years
+    labels:
+      environment: production
+      purpose: primary-data
+      managed-by: crossplane
+  providerConfigRef:
+    name: default
+---
+# Backup Storage Bucket
+apiVersion: storage.gcp.upbound.io/v1beta1
+kind: Bucket
+metadata:
+  name: fleetingdns-backups
+  labels:
+    app.kubernetes.io/name: fleetingdns-backups
+    app.kubernetes.io/component: cloud-storage
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-backups-eu
+    project: fleetingdns-infra
+    location: EUROPE-WEST1
+    storageClass: NEARLINE
+    uniformBucketLevelAccess: true
+    publicAccessPrevention: enforced
+    versioning:
+    - enabled: true
+    lifecycleRule:
+    - action:
+      - type: SetStorageClass
+        storageClass: COLDLINE
+      condition:
+      - age: 30
+    - action:
+      - type: SetStorageClass
+        storageClass: ARCHIVE
+      condition:
+      - age: 90
+    - action:
+      - type: Delete
+      condition:
+      - age: 2555  # 7 years for compliance
+    labels:
+      environment: production
+      purpose: backups
+      managed-by: crossplane
+  providerConfigRef:
+    name: default
+---
+# Analytics Data Bucket
+apiVersion: storage.gcp.upbound.io/v1beta1
+kind: Bucket
+metadata:
+  name: fleetingdns-analytics-data
+  labels:
+    app.kubernetes.io/name: fleetingdns-analytics-data
+    app.kubernetes.io/component: cloud-storage
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-analytics-data-eu
+    project: fleetingdns-analytics
+    location: EUROPE-WEST1
+    storageClass: STANDARD
+    uniformBucketLevelAccess: true
+    publicAccessPrevention: enforced
+    versioning:
+    - enabled: false  # Not needed for analytics data
+    lifecycleRule:
+    - action:
+      - type: SetStorageClass
+        storageClass: NEARLINE
+      condition:
+      - age: 7
+    - action:
+      - type: SetStorageClass
+        storageClass: COLDLINE
+      condition:
+      - age: 30
+    - action:
+      - type: Delete
+      condition:
+      - age: 365  # 1 year retention for analytics
+    labels:
+      environment: production
+      purpose: analytics
+      managed-by: crossplane
+  providerConfigRef:
+    name: analytics
+---
+# Logs Storage Bucket
+apiVersion: storage.gcp.upbound.io/v1beta1
+kind: Bucket
+metadata:
+  name: fleetingdns-logs
+  labels:
+    app.kubernetes.io/name: fleetingdns-logs
+    app.kubernetes.io/component: cloud-storage
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-logs-eu
+    project: fleetingdns-infra
+    location: EUROPE-WEST1
+    storageClass: STANDARD
+    uniformBucketLevelAccess: true
+    publicAccessPrevention: enforced
+    versioning:
+    - enabled: false
+    lifecycleRule:
+    - action:
+      - type: SetStorageClass
+        storageClass: NEARLINE
+      condition:
+      - age: 1
+    - action:
+      - type: SetStorageClass
+        storageClass: COLDLINE
+      condition:
+      - age: 7
+    - action:
+      - type: Delete
+      condition:
+      - age: 90  # 90 days for operational logs
+    labels:
+      environment: production
+      purpose: logs
+      managed-by: crossplane
+  providerConfigRef:
+    name: default
+---
+# Security Logs Bucket
+apiVersion: storage.gcp.upbound.io/v1beta1
+kind: Bucket
+metadata:
+  name: fleetingdns-security-logs
+  labels:
+    app.kubernetes.io/name: fleetingdns-security-logs
+    app.kubernetes.io/component: cloud-storage
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-security-logs-eu
+    project: fleetingdns-security
+    location: EUROPE-WEST1
+    storageClass: STANDARD
+    uniformBucketLevelAccess: true
+    publicAccessPrevention: enforced
+    versioning:
+    - enabled: true
+    lifecycleRule:
+    - action:
+      - type: SetStorageClass
+        storageClass: NEARLINE
+      condition:
+      - age: 7
+    - action:
+      - type: SetStorageClass
+        storageClass: COLDLINE
+      condition:
+      - age: 30
+    - action:
+      - type: SetStorageClass
+        storageClass: ARCHIVE
+      condition:
+      - age: 365
+    - action:
+      - type: Delete
+      condition:
+      - age: 2555  # 7 years for security compliance
+    labels:
+      environment: production
+      purpose: security-logs
+      managed-by: crossplane
+  providerConfigRef:
+    name: security
+---
+# Multi-region Backup Bucket (US)
+apiVersion: storage.gcp.upbound.io/v1beta1
+kind: Bucket
+metadata:
+  name: fleetingdns-backups-us
+  labels:
+    app.kubernetes.io/name: fleetingdns-backups-us
+    app.kubernetes.io/component: cloud-storage
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-backups-us-central1
+    project: fleetingdns-prod-us
+    location: US-CENTRAL1
+    storageClass: NEARLINE
+    uniformBucketLevelAccess: true
+    publicAccessPrevention: enforced
+    versioning:
+    - enabled: true
+    lifecycleRule:
+    - action:
+      - type: SetStorageClass
+        storageClass: COLDLINE
+      condition:
+      - age: 30
+    - action:
+      - type: SetStorageClass
+        storageClass: ARCHIVE
+      condition:
+      - age: 90
+    - action:
+      - type: Delete
+      condition:
+      - age: 2555  # 7 years
+    labels:
+      environment: production
+      purpose: regional-backups
+      region: us-central1
+      managed-by: crossplane
+  providerConfigRef:
+    name: us-central1
+---
+# Development Storage Bucket
+apiVersion: storage.gcp.upbound.io/v1beta1
+kind: Bucket
+metadata:
+  name: fleetingdns-dev-data
+  labels:
+    app.kubernetes.io/name: fleetingdns-dev-data
+    app.kubernetes.io/component: cloud-storage
+    app.kubernetes.io/part-of: fleetingdns
+spec:
+  forProvider:
+    name: fleetingdns-dev-data-eu
+    project: fleetingdns-dev
+    location: EUROPE-WEST1
+    storageClass: STANDARD
+    uniformBucketLevelAccess: true
+    publicAccessPrevention: enforced
+    versioning:
+    - enabled: false
+    lifecycleRule:
+    - action:
+      - type: Delete
+      condition:
+      - age: 30  # Short retention for dev
+    labels:
+      environment: development
+      purpose: development-data
+      managed-by: crossplane
+  providerConfigRef:
+    name: development 
