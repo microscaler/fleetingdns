@@ -9,3 +9,8 @@ common = { path = "../../common" }
 dnsd = { path = "../../dnsd" }
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
+redis = { workspace = true }
+
+[dev-dependencies]
+testcontainers = { workspace = true }
+testcontainers-modules = { workspace = true }

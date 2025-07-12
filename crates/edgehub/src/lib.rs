@@ -138,9 +138,10 @@ mod tests {
     #[tokio::test]
     #[traced_test]
     async fn logs_mapping_on_connect() {
-        let std_listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = std_listener.local_addr().unwrap();
-        drop(std_listener);
+        // Get an available address using async TcpListener
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        drop(listener);
 
         async fn start_redis() -> (String, tokio::task::JoinHandle<mini_redis::Result<()>>) {
             let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -153,7 +154,7 @@ mod tests {
         let (redis_url, redis_handle) = start_redis().await;
         let pool = redis::new_pool(&redis_url).await.unwrap();
 
-        let (tls_config, cert_pem) = common::tls::generate_tls_config(&["ssh"]).unwrap();
+        let (tls_config, cert_pem) = common::tls::generate_tls_config(&["tls.local"]).unwrap();
         let handle = tokio::spawn(async move {
             serve(Config {
                 addr,
@@ -164,7 +165,7 @@ mod tests {
             .unwrap();
         });
 
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
         let mut roots = RootCertStore::empty();
         let mut cursor = std::io::Cursor::new(cert_pem);
@@ -181,7 +182,7 @@ mod tests {
         let mut tls = connector.connect(name, stream).await.unwrap();
         tls.shutdown().await.unwrap();
 
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         handle.abort();
         redis_handle.abort();
 

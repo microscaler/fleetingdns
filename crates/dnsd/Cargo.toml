@@ -22,3 +22,5 @@ dot = ["tokio-rustls", "rustls"]
 [dev-dependencies]
 tracing-test = "0.2"
 mini-redis = "0.4"
+testcontainers = { workspace = true }
+testcontainers-modules = { workspace = true }

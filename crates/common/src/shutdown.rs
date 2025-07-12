@@ -792,6 +792,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_socket_path_different_components() {
+        // Make sure environment variable is not set
+        unsafe { std::env::remove_var("FLEETINGDNS_CONTROL_SOCKET"); }
+        
         let path1 = get_default_socket_path("component1");
         let path2 = get_default_socket_path("component2");
         
