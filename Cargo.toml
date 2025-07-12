@@ -25,10 +25,4 @@ tokio-rustls = "0.26"
 rand = "0.8"
 clap = { version = "4", features = ["derive"] }
 rustls-pemfile = "1"
-# The `parking_lot` crate is used for more efficient locking.
-parking_lot = "0.12.1"
-# asm is used for generating assembly code.
-asm = { version = "0.11", features = ["std"] }
-# The `llvm_assembly` crate is used for generating LLVM assembly code.
-llvm_assembly = { version = "0.11", features = ["std"] }
-# remaining deps
+
