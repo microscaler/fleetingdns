@@ -57,7 +57,7 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         let handle =
             tokio::spawn(async move { server::run(listener, tokio::signal::ctrl_c()).await });
-        (format!("redis://{}", addr), handle)
+        (format!("redis://{addr}"), handle)
     }
 
     #[tokio::test]
