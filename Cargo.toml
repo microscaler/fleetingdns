@@ -14,8 +14,9 @@ exclude = [
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "1"
-metrics = "0.21"
+metrics = "0.24"
 metrics-exporter-prometheus = "0.12"
+metrics-exporter-opentelemetry = "0.1"
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 bb8 = "0.9"

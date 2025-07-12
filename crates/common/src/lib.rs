@@ -5,10 +5,34 @@
 
 use tracing_subscriber::{EnvFilter, fmt};
 
-pub use metrics::{counter, gauge, histogram};
+/// Emit a counter metric.
+#[macro_export]
+macro_rules! counter {
+    ($($t:tt)*) => {
+        ::metrics::counter!($($t)*)
+    };
+}
 
+/// Emit a gauge metric.
+#[macro_export]
+macro_rules! gauge {
+    ($($t:tt)*) => {
+        ::metrics::gauge!($($t)*)
+    };
+}
+
+/// Emit a histogram metric.
+#[macro_export]
+macro_rules! histogram {
+    ($($t:tt)*) => {
+        ::metrics::histogram!($($t)*)
+    };
+}
+
+pub mod metrics;
 pub mod shutdown;
 pub mod tls;
+pub use crate::metrics::init_metrics;
 
 use thiserror::Error;
 
