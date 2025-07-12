@@ -253,8 +253,8 @@ mod tests {
         assert_eq!(response.id(), 12345);
         assert_eq!(response.message_type(), MessageType::Response);
         assert_eq!(response.response_code(), ResponseCode::NoError);
-        assert_eq!(response.recursion_desired(), true);
-        assert_eq!(response.recursion_available(), true);
+        assert!(response.recursion_desired());
+        assert!(response.recursion_available());
 
         // Verify the answer
         let answers = response.answers();
@@ -343,8 +343,8 @@ mod tests {
         let response = Message::from_vec(&response_packet).unwrap();
 
         // Verify response preserves recursion desired flag
-        assert_eq!(response.recursion_desired(), false);
-        assert_eq!(response.recursion_available(), true);
+        assert!(!response.recursion_desired());
+        assert!(response.recursion_available());
 
         redis_handle.abort();
     }
@@ -641,7 +641,7 @@ mod tests {
         }
 
         // Create a DNS query with the long label
-        let domain_name = format!("{}.example.com.", long_label);
+        let domain_name = format!("{long_label}.example.com.");
         let query_packet = create_dns_query(&domain_name, RecordType::A);
 
         let result = handle_packet(&query_packet, &pool).await;
@@ -711,11 +711,11 @@ mod tests {
                 .await
                 .is_err()
             {
-                eprintln!("skipping test: redis set failed for {}", label);
+                eprintln!("skipping test: redis set failed for {label}");
                 continue;
             }
 
-            let domain_name = format!("{}.example.com.", label);
+            let domain_name = format!("{label}.example.com.");
             let query_packet = create_dns_query(&domain_name, RecordType::A);
 
             let result = handle_packet(&query_packet, &pool).await;
@@ -822,7 +822,7 @@ mod tests {
 
         let result = handle_packet(&buffer, &pool).await;
         if let Err(e) = &result {
-            eprintln!("Error handling packet with multiple queries: {}", e);
+            eprintln!("Error handling packet with multiple queries: {e}");
             // If Redis connection fails, skip the test
             if e.to_string().contains("Timed out") || e.to_string().contains("bb8") {
                 eprintln!("skipping test: redis connection timeout");

@@ -45,7 +45,7 @@ enum Commands {
     Reload,
 }
 
-#[derive(clap::ValueEnum, Clone)]
+#[derive(clap::ValueEnum, Clone, PartialEq, Debug)]
 enum ShutdownSignalArg {
     Graceful,
     Immediate,
@@ -199,42 +199,51 @@ mod tests {
         use clap::Parser;
 
         // Test basic parsing
-        let cli = Cli::try_parse_from(&["fleetingdns-ctl", "status"]).unwrap();
+        let cli = Cli::try_parse_from(["fleetingdns-ctl", "status"]).unwrap();
         assert_eq!(cli.component, "dnsd");
         assert!(cli.socket.is_none());
         assert!(matches!(cli.command, Commands::Status));
 
-        // Test with custom component
+        // Test with component flag
         let cli =
-            Cli::try_parse_from(&["fleetingdns-ctl", "--component", "edgehub", "ping"]).unwrap();
+            Cli::try_parse_from(["fleetingdns-ctl", "--component", "edgehub", "ping"]).unwrap();
         assert_eq!(cli.component, "edgehub");
         assert!(matches!(cli.command, Commands::Ping));
 
-        // Test with custom socket path
-        let cli = Cli::try_parse_from(&["fleetingdns-ctl", "--socket", "/tmp/test.sock", "status"])
+        // Test with socket flag
+        let cli = Cli::try_parse_from(["fleetingdns-ctl", "--socket", "/tmp/test.sock", "status"])
             .unwrap();
         assert_eq!(cli.socket.unwrap(), PathBuf::from("/tmp/test.sock"));
 
         // Test shutdown with signal
         let cli =
-            Cli::try_parse_from(&["fleetingdns-ctl", "shutdown", "--signal", "immediate"]).unwrap();
-        if let Commands::Shutdown { signal } = cli.command {
-            assert!(matches!(signal, ShutdownSignalArg::Immediate));
-        } else {
-            panic!("Expected shutdown command");
+            Cli::try_parse_from(["fleetingdns-ctl", "shutdown", "--signal", "immediate"]).unwrap();
+        match cli.command {
+            Commands::Shutdown { signal } => {
+                assert_eq!(signal, ShutdownSignalArg::Immediate);
+            }
+            _ => panic!("Expected shutdown command"),
         }
+
+        // Test version flag
+        let result = Cli::try_parse_from(["fleetingdns-ctl", "--version"]);
+        assert!(result.is_err()); // Should exit with version info
+
+        // Test help flag
+        let result = Cli::try_parse_from(["fleetingdns-ctl", "--help"]);
+        assert!(result.is_err()); // Should exit with help info
     }
 
     #[test]
     fn test_cli_version() {
-        let result = Cli::try_parse_from(&["fleetingdns-ctl", "--version"]);
+        let result = Cli::try_parse_from(["fleetingdns-ctl", "--version"]);
         // This will fail because --version exits, but we can test that it's recognized
         assert!(result.is_err());
     }
 
     #[test]
     fn test_cli_help() {
-        let result = Cli::try_parse_from(&["fleetingdns-ctl", "--help"]);
+        let result = Cli::try_parse_from(["fleetingdns-ctl", "--help"]);
         // This will fail because --help exits, but we can test that it's recognized
         assert!(result.is_err());
     }

@@ -78,7 +78,7 @@ mod tests {
         use testcontainers_modules::redis::Redis;
 
         let docker = Box::leak(Box::new(Cli::default()));
-        let redis_image = RunnableImage::from(Redis::default());
+        let redis_image = RunnableImage::from(Redis);
         let redis_container = docker.run(redis_image);
 
         // Get the mapped port with retry logic
@@ -93,7 +93,7 @@ mod tests {
             }
         };
 
-        let redis_url = format!("redis://127.0.0.1:{}", redis_port);
+        let redis_url = format!("redis://127.0.0.1:{redis_port}");
 
         // Wait for Redis to be ready with retry logic
         let pool = loop {
@@ -131,14 +131,14 @@ mod tests {
 
         let ip = Ipv4Addr::new(1, 2, 3, 4);
         if let Err(e) = set_slot(&pool, "slot1", ip, 1).await {
-            eprintln!("skipping test: redis set failed - {}", e);
+            eprintln!("skipping test: redis set failed - {e}");
             return;
         }
 
         let got = match get_slot(&pool, "slot1").await {
             Ok(ip) => ip,
             Err(e) => {
-                eprintln!("skipping test: redis get failed - {}", e);
+                eprintln!("skipping test: redis get failed - {e}");
                 return;
             }
         };
@@ -156,10 +156,7 @@ mod tests {
 
         let err = match get_slot(&pool, "nonexistent").await {
             Ok(ip) => {
-                eprintln!(
-                    "test failed: expected error but got success with IP: {}",
-                    ip
-                );
+                eprintln!("test failed: expected error but got success with IP: {ip}");
                 return;
             }
             Err(e) => e,
@@ -168,8 +165,7 @@ mod tests {
         // Check if it's a timeout error vs NXDomain
         match err {
             CacheError::NXDomain => {
-                // This is what we expect
-                assert!(true);
+                // This is what we expect - test passed
             }
             CacheError::Pool(_) => {
                 eprintln!("skipping test: Redis pool timeout");
@@ -233,7 +229,7 @@ mod tests {
         let got1 = match get_slot(&pool, "slot1").await {
             Ok(ip) => ip,
             Err(e) => {
-                eprintln!("skipping test: redis get failed - {}", e);
+                eprintln!("skipping test: redis get failed - {e}");
                 return;
             }
         };
@@ -248,7 +244,7 @@ mod tests {
         let got2 = match get_slot(&pool, "slot1").await {
             Ok(ip) => ip,
             Err(e) => {
-                eprintln!("skipping test: redis get after overwrite failed - {}", e);
+                eprintln!("skipping test: redis get after overwrite failed - {e}");
                 return;
             }
         };
@@ -266,7 +262,7 @@ mod tests {
         for i in 0..10 {
             let pool_clone = pool.clone();
             let handle = tokio::spawn(async move {
-                let slot = format!("slot{}", i);
+                let slot = format!("slot{i}");
                 let ip = Ipv4Addr::new(192, 168, 1, i as u8);
 
                 set_slot(&pool_clone, &slot, ip, 300).await.unwrap();
@@ -292,7 +288,7 @@ mod tests {
             match pool.get().await {
                 Ok(conn) => connections.push(conn),
                 Err(e) => {
-                    eprintln!("skipping test: failed to get connection {}: {}", i, e);
+                    eprintln!("skipping test: failed to get connection {i}: {e}");
                     return;
                 }
             }
@@ -310,7 +306,7 @@ mod tests {
         let mut conn = match pool.get().await {
             Ok(conn) => conn,
             Err(e) => {
-                eprintln!("skipping test: failed to get connection: {}", e);
+                eprintln!("skipping test: failed to get connection: {e}");
                 return;
             }
         };
@@ -321,7 +317,7 @@ mod tests {
             .query_async::<()>(&mut *conn)
             .await
         {
-            eprintln!("skipping test: failed to set invalid IP: {}", e);
+            eprintln!("skipping test: failed to set invalid IP: {e}");
             return;
         }
 
@@ -346,7 +342,7 @@ mod tests {
 
         let ip = Ipv4Addr::new(1, 2, 3, 4);
         if let Err(e) = set_slot(&pool, "large_ttl_slot", ip, 86400).await {
-            eprintln!("skipping test: redis error - {}", e);
+            eprintln!("skipping test: redis error - {e}");
             return;
         }
 
@@ -369,7 +365,7 @@ mod tests {
 
         for slot in special_slots {
             if let Err(e) = set_slot(&pool, slot, ip, 300).await {
-                eprintln!("skipping test for slot '{}': redis error - {}", slot, e);
+                eprintln!("skipping test for slot '{slot}': redis error - {e}");
                 continue;
             }
             let retrieved = get_slot(&pool, slot).await.unwrap();
@@ -381,7 +377,8 @@ mod tests {
     async fn test_edge_case_ip_addresses() {
         let (pool, _container) = setup_redis().await;
 
-        let edge_ips = vec![
+        // Test edge case IP addresses
+        let edge_ips = [
             Ipv4Addr::new(0, 0, 0, 0),         // All zeros
             Ipv4Addr::new(255, 255, 255, 255), // All ones
             Ipv4Addr::new(127, 0, 0, 1),       // Localhost
@@ -391,16 +388,16 @@ mod tests {
         ];
 
         for (i, ip) in edge_ips.iter().enumerate() {
-            let slot = format!("edge_ip_{}", i);
+            let slot = format!("edge_ip_{i}");
             if let Err(e) = set_slot(&pool, &slot, *ip, 300).await {
-                eprintln!("skipping test for IP {}: redis set failed - {}", ip, e);
+                eprintln!("skipping test for IP {ip}: redis set failed - {e}");
                 continue;
             }
 
             let retrieved = match get_slot(&pool, &slot).await {
                 Ok(ip) => ip,
                 Err(e) => {
-                    eprintln!("skipping test for IP {}: redis get failed - {}", ip, e);
+                    eprintln!("skipping test for IP {ip}: redis get failed - {e}");
                     continue;
                 }
             };
@@ -414,18 +411,18 @@ mod tests {
 
         // Test rapid operations
         for i in 0..10 {
-            let slot = format!("rapid_slot_{}", i);
+            let slot = format!("rapid_slot_{i}");
             let ip = Ipv4Addr::new(192, 168, 1, i as u8);
 
             if let Err(e) = set_slot(&pool, &slot, ip, 300).await {
-                eprintln!("skipping test iteration {}: set failed - {}", i, e);
+                eprintln!("skipping test iteration {i}: set failed - {e}");
                 continue;
             }
 
             let retrieved = match get_slot(&pool, &slot).await {
                 Ok(ip) => ip,
                 Err(e) => {
-                    eprintln!("skipping test iteration {}: get failed - {}", i, e);
+                    eprintln!("skipping test iteration {i}: get failed - {e}");
                     continue;
                 }
             };
@@ -441,52 +438,51 @@ mod tests {
         let _conn = match pool.get().await {
             Ok(conn) => conn,
             Err(e) => {
-                eprintln!("skipping test: failed to get connection - {}", e);
+                eprintln!("skipping test: failed to get connection - {e}");
                 return;
             }
         };
 
         // If we got here, the connection is valid
-        assert!(true);
+        // Test passed successfully
     }
 
     #[tokio::test]
     async fn test_connection_pool_reuse() {
         let (pool, _container) = setup_redis().await;
 
-        // Test that connections are reused
         let conn1 = match pool.get().await {
             Ok(conn) => conn,
             Err(e) => {
-                eprintln!("skipping test: failed to get first connection: {}", e);
+                eprintln!("skipping test: failed to get first connection: {e}");
                 return;
             }
         };
-        drop(conn1);
 
         let conn2 = match pool.get().await {
             Ok(conn) => conn,
             Err(e) => {
-                eprintln!("skipping test: failed to get second connection: {}", e);
+                eprintln!("skipping test: failed to get second connection: {e}");
                 return;
             }
         };
-        drop(conn2);
 
-        // Both connections should work
-        assert!(true);
+        // If we got here, both connections were obtained successfully
+        drop(conn1);
+        drop(conn2);
+        // Test passed successfully
     }
 
-    #[tokio::test]
-    async fn test_cache_error_display() {
+    #[test]
+    fn test_cache_error_display() {
         let nxdomain_error = CacheError::NXDomain;
-        assert_eq!(format!("{}", nxdomain_error), "NXDOMAIN");
+        assert_eq!(format!("{nxdomain_error}"), "NXDOMAIN");
 
         let redis_error = CacheError::Redis(redis::RedisError::from((
-            redis::ErrorKind::TypeError,
+            redis::ErrorKind::ResponseError,
             "test error",
         )));
-        assert!(format!("{}", redis_error).contains("test error"));
+        assert!(format!("{redis_error}").contains("test error"));
     }
 
     #[tokio::test]
@@ -510,10 +506,10 @@ mod tests {
         assert!(matches!(cache_error, CacheError::Pool(_)));
     }
 
-    #[tokio::test]
-    async fn test_cache_error_debug() {
+    #[test]
+    fn test_cache_error_debug() {
         let nxdomain_error = CacheError::NXDomain;
-        let debug_str = format!("{:?}", nxdomain_error);
+        let debug_str = format!("{nxdomain_error:?}");
         assert!(debug_str.contains("NXDomain"));
     }
 

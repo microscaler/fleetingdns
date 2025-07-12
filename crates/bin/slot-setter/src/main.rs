@@ -52,22 +52,21 @@ mod tests {
     /// Helper to create a Redis container with ephemeral port
     async fn setup_redis() -> (String, Container<'static, Redis>) {
         let docker = Box::leak(Box::new(Cli::default()));
-        let redis_image = RunnableImage::from(Redis::default());
+        let redis_image = RunnableImage::from(Redis);
         let redis_container = docker.run(redis_image);
         let redis_port = redis_container.get_host_port_ipv4(6379);
-        let redis_url = format!("redis://127.0.0.1:{}", redis_port);
+        let redis_url = format!("redis://127.0.0.1:{redis_port}");
 
         // Wait longer for Redis to start
         sleep(Duration::from_millis(500)).await;
 
         // Test the connection before returning
         for _ in 0..10 {
-            if let Ok(pool) = dnsd::redis_cache::new_pool(&redis_url).await {
-                if let Ok(mut conn) = pool.get().await {
-                    if let Ok(_) = redis::cmd("PING").query_async::<String>(&mut *conn).await {
-                        break;
-                    }
-                }
+            if let Ok(pool) = dnsd::redis_cache::new_pool(&redis_url).await
+                && let Ok(mut conn) = pool.get().await
+                && let Ok(_) = redis::cmd("PING").query_async::<String>(&mut *conn).await
+            {
+                break;
             }
             sleep(Duration::from_millis(100)).await;
         }
@@ -98,7 +97,7 @@ mod tests {
     #[tokio::test]
     async fn test_args_parsing() {
         // Test default values
-        let args = Args::parse_from(&["slot-setter", "test-slot", "192.168.1.1"]);
+        let args = Args::parse_from(["slot-setter", "test-slot", "192.168.1.1"]);
         assert_eq!(args.slot, "test-slot");
         assert_eq!(args.ip, Ipv4Addr::new(192, 168, 1, 1));
         assert_eq!(args.ttl, 1800); // default TTL
@@ -107,7 +106,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_args_parsing_with_custom_ttl() {
-        let args = Args::parse_from(&["slot-setter", "test-slot", "10.0.0.1", "--ttl", "300"]);
+        let args = Args::parse_from(["slot-setter", "test-slot", "10.0.0.1", "--ttl", "300"]);
         assert_eq!(args.slot, "test-slot");
         assert_eq!(args.ip, Ipv4Addr::new(10, 0, 0, 1));
         assert_eq!(args.ttl, 300);
@@ -115,7 +114,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_args_parsing_with_custom_redis_url() {
-        let args = Args::parse_from(&[
+        let args = Args::parse_from([
             "slot-setter",
             "test-slot",
             "172.16.0.1",
@@ -129,7 +128,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_args_parsing_with_all_options() {
-        let args = Args::parse_from(&[
+        let args = Args::parse_from([
             "slot-setter",
             "custom-slot",
             "203.0.113.1",
@@ -164,17 +163,14 @@ mod tests {
             };
 
             if let Err(e) = run(args.clone()).await {
-                eprintln!("skipping test for TTL {}: run failed - {}", ttl, e);
+                eprintln!("skipping test for TTL {ttl}: run failed - {e}");
                 continue;
             }
 
             let pool = match dnsd::redis_cache::new_pool(&redis_url).await {
                 Ok(pool) => pool,
                 Err(e) => {
-                    eprintln!(
-                        "skipping test for TTL {}: pool creation failed - {}",
-                        ttl, e
-                    );
+                    eprintln!("skipping test for TTL {ttl}: pool creation failed - {e}");
                     continue;
                 }
             };
@@ -182,7 +178,7 @@ mod tests {
             let got = match dnsd::redis_cache::get_slot(&pool, &args.slot).await {
                 Ok(ip) => ip,
                 Err(e) => {
-                    eprintln!("skipping test for TTL {}: get_slot failed - {}", ttl, e);
+                    eprintln!("skipping test for TTL {ttl}: get_slot failed - {e}");
                     continue;
                 }
             };
@@ -194,7 +190,7 @@ mod tests {
     async fn test_run_with_different_ip_addresses() {
         let (redis_url, _container) = setup_redis().await;
 
-        let test_ips = vec![
+        let test_ips = [
             Ipv4Addr::new(0, 0, 0, 0),         // All zeros
             Ipv4Addr::new(127, 0, 0, 1),       // Localhost
             Ipv4Addr::new(192, 168, 1, 1),     // Private network
@@ -206,21 +202,21 @@ mod tests {
 
         for (i, ip) in test_ips.iter().enumerate() {
             let args = Args {
-                slot: format!("ip_test_{}", i),
+                slot: format!("ip_test_{i}"),
                 ip: *ip,
                 ttl: 300,
                 redis: redis_url.clone(),
             };
 
             if let Err(e) = run(args.clone()).await {
-                eprintln!("skipping test for IP {}: run failed - {}", ip, e);
+                eprintln!("skipping test for IP {ip}: run failed - {e}");
                 continue;
             }
 
             let pool = match dnsd::redis_cache::new_pool(&redis_url).await {
                 Ok(pool) => pool,
                 Err(e) => {
-                    eprintln!("skipping test for IP {}: pool creation failed - {}", ip, e);
+                    eprintln!("skipping test for IP {ip}: pool creation failed - {e}");
                     continue;
                 }
             };
@@ -228,7 +224,7 @@ mod tests {
             let got = match dnsd::redis_cache::get_slot(&pool, &args.slot).await {
                 Ok(ip) => ip,
                 Err(e) => {
-                    eprintln!("skipping test for IP {}: get_slot failed - {}", ip, e);
+                    eprintln!("skipping test for IP {ip}: get_slot failed - {e}");
                     continue;
                 }
             };
@@ -257,17 +253,14 @@ mod tests {
             };
 
             if let Err(e) = run(args.clone()).await {
-                eprintln!("skipping test for slot '{}': run failed - {}", slot, e);
+                eprintln!("skipping test for slot '{slot}': run failed - {e}");
                 continue;
             }
 
             let pool = match dnsd::redis_cache::new_pool(&redis_url).await {
                 Ok(pool) => pool,
                 Err(e) => {
-                    eprintln!(
-                        "skipping test for slot '{}': pool creation failed - {}",
-                        slot, e
-                    );
+                    eprintln!("skipping test for slot '{slot}': pool creation failed - {e}");
                     continue;
                 }
             };
@@ -275,7 +268,7 @@ mod tests {
             let got = match dnsd::redis_cache::get_slot(&pool, &args.slot).await {
                 Ok(ip) => ip,
                 Err(e) => {
-                    eprintln!("skipping test for slot '{}': get_slot failed - {}", slot, e);
+                    eprintln!("skipping test for slot '{slot}': get_slot failed - {e}");
                     continue;
                 }
             };
@@ -299,7 +292,7 @@ mod tests {
             redis: redis_url.clone(),
         };
         if let Err(e) = run(args1).await {
-            eprintln!("skipping test: initial run failed - {}", e);
+            eprintln!("skipping test: initial run failed - {e}");
             return;
         }
 
@@ -307,7 +300,7 @@ mod tests {
         let pool = match dnsd::redis_cache::new_pool(&redis_url).await {
             Ok(pool) => pool,
             Err(e) => {
-                eprintln!("skipping test: pool creation failed - {}", e);
+                eprintln!("skipping test: pool creation failed - {e}");
                 return;
             }
         };
@@ -315,7 +308,7 @@ mod tests {
         let got = match dnsd::redis_cache::get_slot(&pool, slot).await {
             Ok(ip) => ip,
             Err(e) => {
-                eprintln!("skipping test: initial get_slot failed - {}", e);
+                eprintln!("skipping test: initial get_slot failed - {e}");
                 return;
             }
         };
@@ -329,7 +322,7 @@ mod tests {
             redis: redis_url.clone(),
         };
         if let Err(e) = run(args2).await {
-            eprintln!("skipping test: overwrite run failed - {}", e);
+            eprintln!("skipping test: overwrite run failed - {e}");
             return;
         }
 
@@ -337,7 +330,7 @@ mod tests {
         let got = match dnsd::redis_cache::get_slot(&pool, slot).await {
             Ok(ip) => ip,
             Err(e) => {
-                eprintln!("skipping test: final get_slot failed - {}", e);
+                eprintln!("skipping test: final get_slot failed - {e}");
                 return;
             }
         };
@@ -382,7 +375,7 @@ mod tests {
             redis: "redis://127.0.0.1:6379".to_string(),
         };
 
-        let debug_str = format!("{:?}", args);
+        let debug_str = format!("{args:?}");
         assert!(debug_str.contains("test_slot"));
         assert!(debug_str.contains("192.168.1.1"));
         assert!(debug_str.contains("300"));
@@ -416,7 +409,7 @@ mod tests {
             let redis_url_clone = redis_url.clone();
             let handle = tokio::spawn(async move {
                 let args = Args {
-                    slot: format!("concurrent_slot_{}", i),
+                    slot: format!("concurrent_slot_{i}"),
                     ip: Ipv4Addr::new(192, 168, 1, i as u8),
                     ttl: 300,
                     redis: redis_url_clone,

@@ -187,7 +187,7 @@ mod tests {
                         let _ = tls.shutdown().await;
                     }
                     Err(e) => {
-                        eprintln!("skipping test: TLS handshake failed: {}", e);
+                        eprintln!("skipping test: TLS handshake failed: {e}");
                         handle.abort();
                         redis_handle.abort();
                         return;
@@ -195,7 +195,7 @@ mod tests {
                 }
             }
             Err(e) => {
-                eprintln!("skipping test: TCP connect failed: {}", e);
+                eprintln!("skipping test: TCP connect failed: {e}");
                 handle.abort();
                 redis_handle.abort();
                 return;
@@ -231,7 +231,7 @@ mod tests {
             redis_pool: pool,
         };
 
-        let debug_str = format!("{:?}", config);
+        let debug_str = format!("{config:?}");
         assert!(debug_str.contains("Config"));
         assert!(debug_str.contains("addr"));
         assert!(debug_str.contains("tls_config"));
@@ -313,7 +313,7 @@ mod tests {
                         let _ = tls.shutdown().await;
                     }
                     Err(e) => {
-                        eprintln!("skipping test: TLS handshake failed: {}", e);
+                        eprintln!("skipping test: TLS handshake failed: {e}");
                         shutdown_tx.send(ShutdownSignal::Graceful).unwrap();
                         tokio::time::timeout(std::time::Duration::from_secs(2), handle)
                             .await
@@ -325,7 +325,7 @@ mod tests {
                 }
             }
             Err(e) => {
-                eprintln!("skipping test: TCP connect failed: {}", e);
+                eprintln!("skipping test: TCP connect failed: {e}");
                 shutdown_tx.send(ShutdownSignal::Graceful).unwrap();
                 tokio::time::timeout(std::time::Duration::from_secs(2), handle)
                     .await
@@ -474,7 +474,7 @@ mod tests {
                 let _ = stream.shutdown().await;
             }
             Err(e) => {
-                eprintln!("skipping test: failed to connect to server: {}", e);
+                eprintln!("skipping test: failed to connect to server: {e}");
                 handle.abort();
                 redis_handle.abort();
                 return;
@@ -535,12 +535,12 @@ mod tests {
                                 let _ = tls.shutdown().await;
                             }
                             Err(e) => {
-                                eprintln!("connection {} TLS handshake failed: {}", i, e);
+                                eprintln!("connection {i} TLS handshake failed: {e}");
                             }
                         }
                     }
                     Err(e) => {
-                        eprintln!("connection {} TCP connect failed: {}", i, e);
+                        eprintln!("connection {i} TCP connect failed: {e}");
                     }
                 }
             });
@@ -602,7 +602,7 @@ mod tests {
                         let _ = tls.shutdown().await;
                     }
                     Err(e) => {
-                        eprintln!("skipping test: TLS handshake failed: {}", e);
+                        eprintln!("skipping test: TLS handshake failed: {e}");
                         handle.abort();
                         redis_handle.abort();
                         return;
@@ -610,7 +610,7 @@ mod tests {
                 }
             }
             Err(e) => {
-                eprintln!("skipping test: TCP connect failed: {}", e);
+                eprintln!("skipping test: TCP connect failed: {e}");
                 handle.abort();
                 redis_handle.abort();
                 return;
@@ -675,7 +675,7 @@ mod tests {
                         let _ = tls.shutdown().await;
                     }
                     Err(e) => {
-                        eprintln!("skipping test: TLS handshake failed: {}", e);
+                        eprintln!("skipping test: TLS handshake failed: {e}");
                         handle.abort();
                         redis_handle.abort();
                         return;
@@ -683,7 +683,7 @@ mod tests {
                 }
             }
             Err(e) => {
-                eprintln!("skipping test: TCP connect failed: {}", e);
+                eprintln!("skipping test: TCP connect failed: {e}");
                 handle.abort();
                 redis_handle.abort();
                 return;
