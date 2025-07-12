@@ -24,3 +24,6 @@ Complete these to reach Prototype 0.4: encrypted DNS, Redis-backed stateless map
 For more details take a look at ./tasks/Rust_Codebase_Roadmap_for_FleetingDNS-FDNS_Shield.md
 
 As well as the detailed epics in the ./docs/engineering/Epic_highlevel/E1*-*.md
+
+---
+
