@@ -259,3 +259,9 @@ health:
         echo -n "$service: "; \
         kubectl get pod -n fleetingdns -l app=$service -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "Unknown"; \
     done
+
+# Run nextest for faster test execution
+nextest-test:
+    cargo nextest run --workspace --all-targets --fail-fast --retries 1
+
+alias nt := nextest-test
