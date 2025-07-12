@@ -123,6 +123,7 @@ pub async fn serve_with_shutdown(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use common::shutdown::ShutdownSignal;
     use mini_redis::server;
     use rustls::{
         ClientConfig, RootCertStore,
@@ -134,7 +135,6 @@ mod tests {
     use tokio::net::TcpStream;
     use tokio_rustls::TlsConnector;
     use tracing_test::traced_test;
-    use common::shutdown::ShutdownSignal;
 
     async fn start_redis() -> (String, tokio::task::JoinHandle<mini_redis::Result<()>>) {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -178,7 +178,7 @@ mod tests {
             .with_root_certificates(roots)
             .with_no_client_auth();
         let connector = TlsConnector::from(Arc::new(client_config));
-        
+
         match TcpStream::connect(addr).await {
             Ok(stream) => {
                 let name = ServerName::try_from("tls.local").unwrap();
@@ -224,7 +224,7 @@ mod tests {
         let pool = redis::new_pool(&redis_url).await.unwrap();
 
         let (tls_config, _) = common::tls::generate_tls_config(&["test.local"]).unwrap();
-        
+
         let config = Config {
             addr,
             tls_config,
@@ -251,7 +251,7 @@ mod tests {
         let pool = redis::new_pool(&redis_url).await.unwrap();
 
         let (tls_config, _) = common::tls::generate_tls_config(&["test.local"]).unwrap();
-        
+
         let config = Config {
             addr,
             tls_config,
@@ -275,15 +275,18 @@ mod tests {
         let pool = redis::new_pool(&redis_url).await.unwrap();
 
         let (tls_config, cert_pem) = common::tls::generate_tls_config(&["tls.local"]).unwrap();
-        
+
         let (shutdown_tx, shutdown_rx) = broadcast::channel(1);
-        
+
         let handle = tokio::spawn(async move {
-            serve_with_shutdown(Config {
-                addr,
-                tls_config,
-                redis_pool: pool,
-            }, shutdown_rx)
+            serve_with_shutdown(
+                Config {
+                    addr,
+                    tls_config,
+                    redis_pool: pool,
+                },
+                shutdown_rx,
+            )
             .await
             .unwrap();
         });
@@ -301,7 +304,7 @@ mod tests {
             .with_root_certificates(roots)
             .with_no_client_auth();
         let connector = TlsConnector::from(Arc::new(client_config));
-        
+
         match TcpStream::connect(addr).await {
             Ok(stream) => {
                 let name = ServerName::try_from("tls.local").unwrap();
@@ -312,7 +315,10 @@ mod tests {
                     Err(e) => {
                         eprintln!("skipping test: TLS handshake failed: {}", e);
                         shutdown_tx.send(ShutdownSignal::Graceful).unwrap();
-                        tokio::time::timeout(std::time::Duration::from_secs(2), handle).await.unwrap().unwrap();
+                        tokio::time::timeout(std::time::Duration::from_secs(2), handle)
+                            .await
+                            .unwrap()
+                            .unwrap();
                         redis_handle.abort();
                         return;
                     }
@@ -321,7 +327,10 @@ mod tests {
             Err(e) => {
                 eprintln!("skipping test: TCP connect failed: {}", e);
                 shutdown_tx.send(ShutdownSignal::Graceful).unwrap();
-                tokio::time::timeout(std::time::Duration::from_secs(2), handle).await.unwrap().unwrap();
+                tokio::time::timeout(std::time::Duration::from_secs(2), handle)
+                    .await
+                    .unwrap()
+                    .unwrap();
                 redis_handle.abort();
                 return;
             }
@@ -352,18 +361,21 @@ mod tests {
         let pool = redis::new_pool(&redis_url).await.unwrap();
 
         let (tls_config, _) = common::tls::generate_tls_config(&["tls.local"]).unwrap();
-        
+
         let (shutdown_tx, shutdown_rx) = broadcast::channel(1);
-        
+
         // Send shutdown signal immediately
         shutdown_tx.send(ShutdownSignal::Graceful).unwrap();
-        
+
         let handle = tokio::spawn(async move {
-            serve_with_shutdown(Config {
-                addr,
-                tls_config,
-                redis_pool: pool,
-            }, shutdown_rx)
+            serve_with_shutdown(
+                Config {
+                    addr,
+                    tls_config,
+                    redis_pool: pool,
+                },
+                shutdown_rx,
+            )
             .await
             .unwrap();
         });
@@ -390,7 +402,7 @@ mod tests {
         let pool = redis::new_pool(&redis_url).await.unwrap();
 
         let (tls_config, _) = common::tls::generate_tls_config(&["tls.local"]).unwrap();
-        
+
         // Test different shutdown signals
         let signals = vec![
             ShutdownSignal::Graceful,
@@ -402,13 +414,16 @@ mod tests {
             let (shutdown_tx, shutdown_rx) = broadcast::channel(1);
             let tls_config_clone = tls_config.clone();
             let pool_clone = pool.clone();
-            
+
             let handle = tokio::spawn(async move {
-                serve_with_shutdown(Config {
-                    addr,
-                    tls_config: tls_config_clone,
-                    redis_pool: pool_clone,
-                }, shutdown_rx)
+                serve_with_shutdown(
+                    Config {
+                        addr,
+                        tls_config: tls_config_clone,
+                        redis_pool: pool_clone,
+                    },
+                    shutdown_rx,
+                )
                 .await
                 .unwrap();
             });
@@ -439,7 +454,7 @@ mod tests {
         let pool = redis::new_pool(&redis_url).await.unwrap();
 
         let (tls_config, _) = common::tls::generate_tls_config(&["tls.local"]).unwrap();
-        
+
         let handle = tokio::spawn(async move {
             serve(Config {
                 addr,
@@ -483,7 +498,7 @@ mod tests {
         let pool = redis::new_pool(&redis_url).await.unwrap();
 
         let (tls_config, cert_pem) = common::tls::generate_tls_config(&["tls.local"]).unwrap();
-        
+
         let handle = tokio::spawn(async move {
             serve(Config {
                 addr,
@@ -554,7 +569,7 @@ mod tests {
         let pool = redis::new_pool(&redis_url).await.unwrap();
 
         let (tls_config, cert_pem) = common::tls::generate_tls_config(&["tls.local"]).unwrap();
-        
+
         let handle = tokio::spawn(async move {
             serve(Config {
                 addr,
@@ -619,7 +634,7 @@ mod tests {
         let pool = redis::new_pool(&redis_url).await.unwrap();
 
         let (tls_config, cert_pem) = common::tls::generate_tls_config(&["tls.local"]).unwrap();
-        
+
         let handle = tokio::spawn(async move {
             serve(Config {
                 addr,
@@ -651,12 +666,12 @@ mod tests {
                     Ok(mut tls) => {
                         // Give time for Redis operations to complete
                         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-                        
+
                         // Verify the slot was set in Redis
                         let test_pool = redis::new_pool(&redis_url).await.unwrap();
                         let _result = redis::get_slot(&test_pool, "demo").await;
                         // Should either succeed or fail depending on timing
-                        
+
                         let _ = tls.shutdown().await;
                     }
                     Err(e) => {

@@ -85,16 +85,16 @@ mod tests {
     fn test_hmac_signer_new() {
         let secret = b"test_secret_key";
         let signer = HmacSigner::new(secret);
-        
+
         // Test that the signer can sign data
         let data = b"test_data";
         let signature = signer.sign(data);
         assert!(!signature.is_empty());
-        
+
         // Test that the same data produces the same signature
         let signature2 = signer.sign(data);
         assert_eq!(signature, signature2);
-        
+
         // Test that different data produces different signatures
         let different_data = b"different_data";
         let different_signature = signer.sign(different_data);
@@ -104,19 +104,23 @@ mod tests {
     #[test]
     fn test_hmac_signer_from_env_isolated() {
         // Test with environment variable set
-        unsafe { env::set_var("FDNS_HMAC_KEY_TEST", "test_env_key"); }
-        
+        unsafe {
+            env::set_var("FDNS_HMAC_KEY_TEST", "test_env_key");
+        }
+
         // Test the function directly without using the global static
         let secret = env::var("FDNS_HMAC_KEY_TEST").ok();
         assert!(secret.is_some());
-        
+
         let signer = HmacSigner::new(secret.unwrap().as_bytes());
         let data = b"test_data";
         let signature = signer.sign(data);
         assert!(!signature.is_empty());
-        
+
         // Clean up
-        unsafe { env::remove_var("FDNS_HMAC_KEY_TEST"); }
+        unsafe {
+            env::remove_var("FDNS_HMAC_KEY_TEST");
+        }
     }
 
     #[test]
@@ -149,7 +153,7 @@ mod tests {
             assert_eq!(rrsig.original_ttl(), ttl);
             assert_eq!(rrsig.signer_name(), &name);
             assert!(!rrsig.sig().is_empty());
-            
+
             // Verify signature validity
             let expected_sig = signer.sign(rrset_data);
             assert_eq!(rrsig.sig(), &expected_sig);
@@ -170,11 +174,13 @@ mod tests {
 
         // Different names should produce different records
         assert_ne!(rrsig1.name(), rrsig2.name());
-        
+
         // But signatures should be the same for same rrset data
-        if let (RData::DNSSEC(DNSSECRData::RRSIG(rrsig1_data)), 
-                RData::DNSSEC(DNSSECRData::RRSIG(rrsig2_data))) = 
-                (rrsig1.data().unwrap(), rrsig2.data().unwrap()) {
+        if let (
+            RData::DNSSEC(DNSSECRData::RRSIG(rrsig1_data)),
+            RData::DNSSEC(DNSSECRData::RRSIG(rrsig2_data)),
+        ) = (rrsig1.data().unwrap(), rrsig2.data().unwrap())
+        {
             assert_eq!(rrsig1_data.sig(), rrsig2_data.sig());
         }
     }
@@ -188,9 +194,11 @@ mod tests {
         let rrsig_a = signer.rrsig_record(&name, RecordType::A, 300, rrset_data);
         let rrsig_aaaa = signer.rrsig_record(&name, RecordType::AAAA, 300, rrset_data);
 
-        if let (RData::DNSSEC(DNSSECRData::RRSIG(rrsig_a_data)), 
-                RData::DNSSEC(DNSSECRData::RRSIG(rrsig_aaaa_data))) = 
-                (rrsig_a.data().unwrap(), rrsig_aaaa.data().unwrap()) {
+        if let (
+            RData::DNSSEC(DNSSECRData::RRSIG(rrsig_a_data)),
+            RData::DNSSEC(DNSSECRData::RRSIG(rrsig_aaaa_data)),
+        ) = (rrsig_a.data().unwrap(), rrsig_aaaa.data().unwrap())
+        {
             assert_eq!(rrsig_a_data.type_covered(), RecordType::A);
             assert_eq!(rrsig_aaaa_data.type_covered(), RecordType::AAAA);
             // Signatures should be the same for same rrset data
@@ -212,11 +220,11 @@ mod tests {
         let secret = b"consistent_secret";
         let signer1 = HmacSigner::new(secret);
         let signer2 = HmacSigner::new(secret);
-        
+
         let data = b"test_consistency_data";
         let sig1 = signer1.sign(data);
         let sig2 = signer2.sign(data);
-        
+
         assert_eq!(sig1, sig2);
     }
 
@@ -225,9 +233,9 @@ mod tests {
         let signer = HmacSigner::new(b"test_secret");
         let empty_data = b"";
         let signature = signer.sign(empty_data);
-        
+
         assert!(!signature.is_empty());
-        
+
         // Should be consistent
         let signature2 = signer.sign(empty_data);
         assert_eq!(signature, signature2);
@@ -270,15 +278,20 @@ mod tests {
         let rrsig_short = signer.rrsig_record(&name, RecordType::A, 60, rrset_data);
         let rrsig_long = signer.rrsig_record(&name, RecordType::A, 3600, rrset_data);
 
-        if let (RData::DNSSEC(DNSSECRData::RRSIG(rrsig_short_data)), 
-                RData::DNSSEC(DNSSECRData::RRSIG(rrsig_long_data))) = 
-                (rrsig_short.data().unwrap(), rrsig_long.data().unwrap()) {
+        if let (
+            RData::DNSSEC(DNSSECRData::RRSIG(rrsig_short_data)),
+            RData::DNSSEC(DNSSECRData::RRSIG(rrsig_long_data)),
+        ) = (rrsig_short.data().unwrap(), rrsig_long.data().unwrap())
+        {
             assert_eq!(rrsig_short_data.original_ttl(), 60);
             assert_eq!(rrsig_long_data.original_ttl(), 3600);
-            
+
             // Expiration should be different
-            assert_ne!(rrsig_short_data.sig_expiration(), rrsig_long_data.sig_expiration());
-            
+            assert_ne!(
+                rrsig_short_data.sig_expiration(),
+                rrsig_long_data.sig_expiration()
+            );
+
             // But signatures should be the same for same rrset data
             assert_eq!(rrsig_short_data.sig(), rrsig_long_data.sig());
         }
@@ -288,11 +301,11 @@ mod tests {
     fn test_signer_clone() {
         let signer1 = HmacSigner::new(b"test_secret");
         let signer2 = signer1.clone();
-        
+
         let data = b"test_clone_data";
         let sig1 = signer1.sign(data);
         let sig2 = signer2.sign(data);
-        
+
         assert_eq!(sig1, sig2);
     }
 }

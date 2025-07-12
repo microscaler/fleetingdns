@@ -535,19 +535,19 @@ mod tests {
     #[tokio::test]
     async fn test_connection_tracking() {
         let shutdown = GracefulShutdown::new("test-component").unwrap();
-        
+
         // Test connection tracking
         assert_eq!(shutdown.active_connections(), 0);
-        
+
         shutdown.connection_started();
         assert_eq!(shutdown.active_connections(), 1);
-        
+
         shutdown.connection_started();
         assert_eq!(shutdown.active_connections(), 2);
-        
+
         shutdown.connection_finished();
         assert_eq!(shutdown.active_connections(), 1);
-        
+
         shutdown.connection_finished();
         assert_eq!(shutdown.active_connections(), 0);
     }
@@ -556,7 +556,7 @@ mod tests {
     async fn test_shutdown_signal_broadcast() {
         let shutdown = GracefulShutdown::new("test-component").unwrap();
         let mut receiver = shutdown.subscribe();
-        
+
         // Test graceful shutdown
         shutdown.shutdown(ShutdownSignal::Graceful).await.unwrap();
         let signal = receiver.recv().await.unwrap();
@@ -567,13 +567,17 @@ mod tests {
     #[test]
     fn test_socket_path_generation() {
         // Test with environment variable
-        unsafe { std::env::set_var("FLEETINGDNS_CONTROL_SOCKET", "/tmp/test.sock"); }
+        unsafe {
+            std::env::set_var("FLEETINGDNS_CONTROL_SOCKET", "/tmp/test.sock");
+        }
         let path = get_default_socket_path("test");
         assert_eq!(path, PathBuf::from("/tmp/test.sock"));
-        
+
         // Clean up
-        unsafe { std::env::remove_var("FLEETINGDNS_CONTROL_SOCKET"); }
-        
+        unsafe {
+            std::env::remove_var("FLEETINGDNS_CONTROL_SOCKET");
+        }
+
         // Test default path generation
         let path = get_default_socket_path("test-component");
         assert!(path.to_string_lossy().contains("test-component"));
@@ -598,7 +602,7 @@ mod tests {
             force_timeout: Duration::from_secs(2),
             control_socket_path: PathBuf::from("/tmp/custom.sock"),
         };
-        
+
         let shutdown = GracefulShutdown::with_config(config).unwrap();
         assert_eq!(shutdown.config.component_name, "custom-component");
         assert_eq!(shutdown.config.graceful_timeout, Duration::from_secs(60));
@@ -609,14 +613,14 @@ mod tests {
     #[tokio::test]
     async fn test_shutdown_signal_types() {
         let shutdown = GracefulShutdown::new("test-component").unwrap();
-        
+
         // Test different signal types
         shutdown.shutdown(ShutdownSignal::Graceful).await.unwrap();
         assert_eq!(shutdown.state(), ShutdownState::Draining);
-        
+
         shutdown.shutdown(ShutdownSignal::Immediate).await.unwrap();
         assert_eq!(shutdown.state(), ShutdownState::Draining);
-        
+
         shutdown.shutdown(ShutdownSignal::Force).await.unwrap();
         assert_eq!(shutdown.state(), ShutdownState::Stopping);
     }
@@ -626,13 +630,13 @@ mod tests {
         let shutdown = GracefulShutdown::new("test-component").unwrap();
         let mut receiver1 = shutdown.subscribe();
         let mut receiver2 = shutdown.subscribe();
-        
+
         // Broadcast signal to multiple subscribers
         shutdown.shutdown(ShutdownSignal::Immediate).await.unwrap();
-        
+
         let signal1 = receiver1.recv().await.unwrap();
         let signal2 = receiver2.recv().await.unwrap();
-        
+
         assert_eq!(signal1, ShutdownSignal::Immediate);
         assert_eq!(signal2, ShutdownSignal::Immediate);
     }
@@ -640,10 +644,10 @@ mod tests {
     #[tokio::test]
     async fn test_wait_for_shutdown_no_connections() {
         let shutdown = GracefulShutdown::new("test-component").unwrap();
-        
+
         // Start shutdown
         shutdown.shutdown(ShutdownSignal::Graceful).await.unwrap();
-        
+
         // Should complete immediately with no connections
         let result = shutdown.wait_for_shutdown().await;
         assert!(result.is_ok());
@@ -653,14 +657,14 @@ mod tests {
     #[tokio::test]
     async fn test_wait_for_shutdown_with_connections() {
         let shutdown = GracefulShutdown::new("test-component").unwrap();
-        
+
         // Add some connections
         shutdown.connection_started();
         shutdown.connection_started();
-        
+
         // Start shutdown
         shutdown.shutdown(ShutdownSignal::Graceful).await.unwrap();
-        
+
         // Simulate connections finishing
         let shutdown_clone = shutdown.clone();
         tokio::spawn(async move {
@@ -669,7 +673,7 @@ mod tests {
             sleep(Duration::from_millis(100)).await;
             shutdown_clone.connection_finished();
         });
-        
+
         // Wait for shutdown
         let result = shutdown.wait_for_shutdown().await;
         assert!(result.is_ok());
@@ -684,7 +688,7 @@ mod tests {
         };
         let json = serde_json::to_string(&command).unwrap();
         let deserialized: ControlCommand = serde_json::from_str(&json).unwrap();
-        
+
         match deserialized {
             ControlCommand::Shutdown { signal } => {
                 assert_eq!(signal, ShutdownSignal::Graceful);
@@ -702,10 +706,10 @@ mod tests {
             shutdown_state: ShutdownState::Running,
             component: "test-component".to_string(),
         };
-        
+
         let json = serde_json::to_string(&response).unwrap();
         let deserialized: ControlResponse = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(deserialized.status, "Test status");
         assert_eq!(deserialized.uptime, Duration::from_secs(123));
         assert_eq!(deserialized.active_connections, 42);
@@ -716,18 +720,18 @@ mod tests {
     #[tokio::test]
     async fn test_shutdown_state_transitions() {
         let shutdown = GracefulShutdown::new("test-component").unwrap();
-        
+
         // Initial state
         assert_eq!(shutdown.state(), ShutdownState::Running);
-        
+
         // Graceful shutdown -> Draining
         shutdown.shutdown(ShutdownSignal::Graceful).await.unwrap();
         assert_eq!(shutdown.state(), ShutdownState::Draining);
-        
+
         // Force shutdown -> Stopping
         shutdown.shutdown(ShutdownSignal::Force).await.unwrap();
         assert_eq!(shutdown.state(), ShutdownState::Stopping);
-        
+
         // Wait for shutdown -> Stopped
         shutdown.wait_for_shutdown().await.unwrap();
         assert_eq!(shutdown.state(), ShutdownState::Stopped);
@@ -736,19 +740,19 @@ mod tests {
     #[tokio::test]
     async fn test_connection_counting_edge_cases() {
         let shutdown = GracefulShutdown::new("test-component").unwrap();
-        
+
         // Test multiple increments
         for _ in 0..10 {
             shutdown.connection_started();
         }
         assert_eq!(shutdown.active_connections(), 10);
-        
+
         // Test multiple decrements
         for _ in 0..5 {
             shutdown.connection_finished();
         }
         assert_eq!(shutdown.active_connections(), 5);
-        
+
         // Test decrementing to zero
         for _ in 0..5 {
             shutdown.connection_finished();
@@ -761,7 +765,7 @@ mod tests {
         assert_eq!(ShutdownSignal::Graceful, ShutdownSignal::Graceful);
         assert_eq!(ShutdownSignal::Immediate, ShutdownSignal::Immediate);
         assert_eq!(ShutdownSignal::Force, ShutdownSignal::Force);
-        
+
         assert_ne!(ShutdownSignal::Graceful, ShutdownSignal::Immediate);
         assert_ne!(ShutdownSignal::Immediate, ShutdownSignal::Force);
         assert_ne!(ShutdownSignal::Force, ShutdownSignal::Graceful);
@@ -773,7 +777,7 @@ mod tests {
         assert_eq!(ShutdownState::Draining, ShutdownState::Draining);
         assert_eq!(ShutdownState::Stopping, ShutdownState::Stopping);
         assert_eq!(ShutdownState::Stopped, ShutdownState::Stopped);
-        
+
         assert_ne!(ShutdownState::Running, ShutdownState::Draining);
         assert_ne!(ShutdownState::Draining, ShutdownState::Stopping);
         assert_ne!(ShutdownState::Stopping, ShutdownState::Stopped);
@@ -782,22 +786,28 @@ mod tests {
     #[tokio::test]
     async fn test_environment_variable_socket_path() {
         let test_path = "/tmp/test_fleetingdns.sock";
-        unsafe { std::env::set_var("FLEETINGDNS_CONTROL_SOCKET", test_path); }
-        
+        unsafe {
+            std::env::set_var("FLEETINGDNS_CONTROL_SOCKET", test_path);
+        }
+
         let path = get_default_socket_path("any-component");
         assert_eq!(path, PathBuf::from(test_path));
-        
-        unsafe { std::env::remove_var("FLEETINGDNS_CONTROL_SOCKET"); }
+
+        unsafe {
+            std::env::remove_var("FLEETINGDNS_CONTROL_SOCKET");
+        }
     }
 
     #[tokio::test]
     async fn test_socket_path_different_components() {
         // Make sure environment variable is not set
-        unsafe { std::env::remove_var("FLEETINGDNS_CONTROL_SOCKET"); }
-        
+        unsafe {
+            std::env::remove_var("FLEETINGDNS_CONTROL_SOCKET");
+        }
+
         let path1 = get_default_socket_path("component1");
         let path2 = get_default_socket_path("component2");
-        
+
         assert_ne!(path1, path2);
         assert!(path1.to_string_lossy().contains("component1"));
         assert!(path2.to_string_lossy().contains("component2"));
@@ -806,15 +816,15 @@ mod tests {
     #[tokio::test]
     async fn test_graceful_shutdown_clone() {
         let shutdown = GracefulShutdown::new("test-component").unwrap();
-        
+
         // Add connections
         shutdown.connection_started();
         shutdown.connection_started();
-        
+
         // Clone should share the same state
         let shutdown_clone = shutdown.clone();
         assert_eq!(shutdown_clone.active_connections(), 2);
-        
+
         // Modifications through clone should be visible
         shutdown_clone.connection_finished();
         assert_eq!(shutdown.active_connections(), 1);
@@ -826,11 +836,11 @@ mod tests {
         let signal = ShutdownSignal::Graceful;
         let debug_str = format!("{:?}", signal);
         assert!(debug_str.contains("Graceful"));
-        
+
         let state = ShutdownState::Running;
         let debug_str = format!("{:?}", state);
         assert!(debug_str.contains("Running"));
-        
+
         let command = ControlCommand::Ping;
         let debug_str = format!("{:?}", command);
         assert!(debug_str.contains("Ping"));
@@ -846,7 +856,7 @@ mod tests {
             ControlCommand::Ping,
             ControlCommand::Reload,
         ];
-        
+
         for command in commands {
             let json = serde_json::to_string(&command).unwrap();
             let _: ControlCommand = serde_json::from_str(&json).unwrap();
@@ -859,9 +869,9 @@ mod tests {
         config.graceful_timeout = Duration::from_millis(100);
         config.immediate_timeout = Duration::from_millis(50);
         config.force_timeout = Duration::from_millis(10);
-        
+
         let shutdown = GracefulShutdown::with_config(config).unwrap();
-        
+
         // Test graceful timeout
         shutdown.connection_started();
         shutdown.shutdown(ShutdownSignal::Graceful).await.unwrap();
@@ -873,10 +883,10 @@ mod tests {
     #[tokio::test]
     async fn test_uptime_calculation() {
         let shutdown = GracefulShutdown::new("test-component").unwrap();
-        
+
         // Wait a bit to ensure uptime > 0
         sleep(Duration::from_millis(10)).await;
-        
+
         let uptime = shutdown.start_time.elapsed().unwrap();
         assert!(uptime > Duration::from_millis(5));
     }
@@ -885,7 +895,7 @@ mod tests {
     async fn test_concurrent_connection_tracking() {
         let shutdown = Arc::new(GracefulShutdown::new("test-component").unwrap());
         let mut handles = Vec::new();
-        
+
         // Spawn multiple tasks that increment connections
         for _ in 0..10 {
             let shutdown_clone = shutdown.clone();
@@ -896,12 +906,12 @@ mod tests {
             });
             handles.push(handle);
         }
-        
+
         // Wait for all tasks to complete
         for handle in handles {
             handle.await.unwrap();
         }
-        
+
         // All connections should be finished
         assert_eq!(shutdown.active_connections(), 0);
     }
@@ -913,7 +923,7 @@ mod tests {
             ShutdownSignal::Immediate,
             ShutdownSignal::Force,
         ];
-        
+
         for signal in signals {
             let json = serde_json::to_string(&signal).unwrap();
             let deserialized: ShutdownSignal = serde_json::from_str(&json).unwrap();
@@ -929,7 +939,7 @@ mod tests {
             ShutdownState::Stopping,
             ShutdownState::Stopped,
         ];
-        
+
         for state in states {
             let json = serde_json::to_string(&state).unwrap();
             let deserialized: ShutdownState = serde_json::from_str(&json).unwrap();
@@ -941,7 +951,7 @@ mod tests {
     async fn test_shutdown_config_clone() {
         let config = ShutdownConfig::default();
         let cloned = config.clone();
-        
+
         assert_eq!(config.component_name, cloned.component_name);
         assert_eq!(config.graceful_timeout, cloned.graceful_timeout);
         assert_eq!(config.immediate_timeout, cloned.immediate_timeout);

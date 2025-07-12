@@ -149,10 +149,10 @@ fn format_duration(duration: Duration) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
-    use tokio::net::UnixListener;
-    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
     use common::shutdown::{ControlCommand, ControlResponse, ShutdownState};
+    use std::time::Duration;
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+    use tokio::net::UnixListener;
 
     #[test]
     fn test_format_duration() {
@@ -197,7 +197,7 @@ mod tests {
     #[test]
     fn test_cli_parsing() {
         use clap::Parser;
-        
+
         // Test basic parsing
         let cli = Cli::try_parse_from(&["fleetingdns-ctl", "status"]).unwrap();
         assert_eq!(cli.component, "dnsd");
@@ -205,16 +205,19 @@ mod tests {
         assert!(matches!(cli.command, Commands::Status));
 
         // Test with custom component
-        let cli = Cli::try_parse_from(&["fleetingdns-ctl", "--component", "edgehub", "ping"]).unwrap();
+        let cli =
+            Cli::try_parse_from(&["fleetingdns-ctl", "--component", "edgehub", "ping"]).unwrap();
         assert_eq!(cli.component, "edgehub");
         assert!(matches!(cli.command, Commands::Ping));
 
         // Test with custom socket path
-        let cli = Cli::try_parse_from(&["fleetingdns-ctl", "--socket", "/tmp/test.sock", "status"]).unwrap();
+        let cli = Cli::try_parse_from(&["fleetingdns-ctl", "--socket", "/tmp/test.sock", "status"])
+            .unwrap();
         assert_eq!(cli.socket.unwrap(), PathBuf::from("/tmp/test.sock"));
 
         // Test shutdown with signal
-        let cli = Cli::try_parse_from(&["fleetingdns-ctl", "shutdown", "--signal", "immediate"]).unwrap();
+        let cli =
+            Cli::try_parse_from(&["fleetingdns-ctl", "shutdown", "--signal", "immediate"]).unwrap();
         if let Commands::Shutdown { signal } = cli.command {
             assert!(matches!(signal, ShutdownSignalArg::Immediate));
         } else {
@@ -243,7 +246,9 @@ mod tests {
             Commands::Status,
             Commands::Ping,
             Commands::Reload,
-            Commands::Shutdown { signal: ShutdownSignalArg::Graceful },
+            Commands::Shutdown {
+                signal: ShutdownSignalArg::Graceful,
+            },
         ];
 
         for cmd in commands {
@@ -260,22 +265,22 @@ mod tests {
     async fn test_execute_command_mock_server() {
         // Create a temporary socket path
         let socket_path = std::env::temp_dir().join("test_fleetingdns_ctl.sock");
-        
+
         // Remove socket if it exists
         let _ = std::fs::remove_file(&socket_path);
 
         // Create mock server
         let listener = UnixListener::bind(&socket_path).unwrap();
-        
+
         let server_handle = tokio::spawn(async move {
             let (stream, _) = listener.accept().await.unwrap();
             let mut reader = BufReader::new(stream);
             let mut line = String::new();
             reader.read_line(&mut line).await.unwrap();
-            
+
             // Parse the command
             let _command: ControlCommand = serde_json::from_str(line.trim()).unwrap();
-            
+
             // Send mock response
             let response = ControlResponse {
                 component: "test".to_string(),
@@ -284,7 +289,7 @@ mod tests {
                 active_connections: 5,
                 shutdown_state: ShutdownState::Running,
             };
-            
+
             let response_json = serde_json::to_string(&response).unwrap();
             let mut stream = reader.into_inner();
             stream.write_all(response_json.as_bytes()).await.unwrap();
@@ -295,7 +300,7 @@ mod tests {
         // Test execute_command
         let result = execute_command(&socket_path, &Commands::Status).await;
         assert!(result.is_ok());
-        
+
         let response = result.unwrap();
         assert_eq!(response.component, "test");
         assert_eq!(response.status, "running");
@@ -304,7 +309,7 @@ mod tests {
         assert!(matches!(response.shutdown_state, ShutdownState::Running));
 
         server_handle.await.unwrap();
-        
+
         // Clean up
         let _ = std::fs::remove_file(&socket_path);
     }
@@ -318,36 +323,47 @@ mod tests {
             Commands::Status,
             Commands::Ping,
             Commands::Reload,
-            Commands::Shutdown { signal: ShutdownSignalArg::Graceful },
-            Commands::Shutdown { signal: ShutdownSignalArg::Immediate },
-            Commands::Shutdown { signal: ShutdownSignalArg::Force },
+            Commands::Shutdown {
+                signal: ShutdownSignalArg::Graceful,
+            },
+            Commands::Shutdown {
+                signal: ShutdownSignalArg::Immediate,
+            },
+            Commands::Shutdown {
+                signal: ShutdownSignalArg::Force,
+            },
         ];
 
         for command in commands_to_test {
             let listener = UnixListener::bind(&socket_path).unwrap();
-            
+
             let command_clone = command.clone();
             let server_handle = tokio::spawn(async move {
                 let (stream, _) = listener.accept().await.unwrap();
                 let mut reader = BufReader::new(stream);
                 let mut line = String::new();
                 reader.read_line(&mut line).await.unwrap();
-                
+
                 // Parse and verify the command
                 let received_command: ControlCommand = serde_json::from_str(line.trim()).unwrap();
-                
+
                 // Verify command type matches
                 match (&command_clone, &received_command) {
                     (Commands::Status, ControlCommand::Status) => { /* OK */ }
                     (Commands::Ping, ControlCommand::Ping) => { /* OK */ }
                     (Commands::Reload, ControlCommand::Reload) => { /* OK */ }
-                    (Commands::Shutdown { signal }, ControlCommand::Shutdown { signal: recv_signal }) => {
+                    (
+                        Commands::Shutdown { signal },
+                        ControlCommand::Shutdown {
+                            signal: recv_signal,
+                        },
+                    ) => {
                         let expected_signal = ShutdownSignal::from(signal.clone());
                         assert_eq!(recv_signal, &expected_signal);
                     }
                     _ => panic!("Command mismatch"),
                 }
-                
+
                 // Send mock response
                 let response = ControlResponse {
                     component: "test".to_string(),
@@ -356,7 +372,7 @@ mod tests {
                     active_connections: 3,
                     shutdown_state: ShutdownState::Running,
                 };
-                
+
                 let response_json = serde_json::to_string(&response).unwrap();
                 let mut stream = reader.into_inner();
                 stream.write_all(response_json.as_bytes()).await.unwrap();
@@ -387,13 +403,13 @@ mod tests {
         let _ = std::fs::remove_file(&socket_path);
 
         let listener = UnixListener::bind(&socket_path).unwrap();
-        
+
         let server_handle = tokio::spawn(async move {
             let (stream, _) = listener.accept().await.unwrap();
             let mut reader = BufReader::new(stream);
             let mut line = String::new();
             reader.read_line(&mut line).await.unwrap();
-            
+
             // Send invalid JSON response
             let mut stream = reader.into_inner();
             stream.write_all(b"invalid json\n").await.unwrap();
@@ -431,12 +447,12 @@ mod tests {
     #[test]
     fn test_shutdown_signal_arg_value_enum() {
         use clap::ValueEnum;
-        
+
         // Test that all variants can be parsed
         assert!(ShutdownSignalArg::from_str("graceful", true).is_ok());
         assert!(ShutdownSignalArg::from_str("immediate", true).is_ok());
         assert!(ShutdownSignalArg::from_str("force", true).is_ok());
-        
+
         // Test invalid variant
         assert!(ShutdownSignalArg::from_str("invalid", true).is_err());
     }
