@@ -130,30 +130,27 @@ impl SshServer {
         }
     }
 
-    /// Extract certificate serial number from PEM
+    /// Extract certificate serial number from PEM certificate
     async fn extract_certificate_serial(&self, certificate_pem: &str) -> Result<Option<String>> {
-        // Parse the certificate to extract serial number
-        // This is a simplified implementation - in production, you'd use proper X.509 parsing
         use rustls_pemfile;
-        use std::io::BufReader;
-
-        let mut reader = BufReader::new(certificate_pem.as_bytes());
-        let certs_result = rustls_pemfile::certs(&mut reader);
+        use ring::digest;
         
-        match certs_result {
-            Ok(certs) => {
-                if let Some(cert_der) = certs.into_iter().next() {
-                    // For now, generate a hash-based serial from the certificate
-                    use ring::digest;
-                    let digest = digest::digest(&digest::SHA256, &cert_der);
-                    let serial = hex::encode(digest.as_ref());
-                    Ok(Some(serial))
-                } else {
-                    Ok(None)
-                }
-            }
-            Err(_) => Ok(None),
-        }
+        // Parse the PEM certificate
+        let mut reader = std::io::BufReader::new(certificate_pem.as_bytes());
+        let certs_iter = rustls_pemfile::certs(&mut reader);
+        
+        // Get the first certificate from the iterator
+        let cert_der = match certs_iter.into_iter().next() {
+            Some(Ok(cert)) => cert,
+            Some(Err(_)) => return Ok(None),
+            None => return Ok(None),
+        };
+        
+        // Calculate fingerprint as serial (simplified approach)
+        let digest = digest::digest(&digest::SHA256, &cert_der);
+        let serial = hex::encode(digest.as_ref());
+        
+        Ok(Some(serial))
     }
 
     /// Generate a unique subdomain for a developer's service
@@ -177,8 +174,8 @@ impl SshServer {
             local_port,
             channel_id,
             created_at: std::time::Instant::now(),
-            developer_id,
-            certificate_serial,
+            developer_id: developer_id.clone(),
+            certificate_serial: certificate_serial.clone(),
         };
 
         self.state.reverse_tunnels.lock().await.insert(subdomain.clone(), tunnel_info);
@@ -294,7 +291,7 @@ impl SshServer {
                 }
                 
                 // Accept new connections
-                accept_result = listener.accept() =>
+                accept_result = listener.accept() => {
                     match accept_result {
                         Ok((stream, addr)) => {
                             debug!("New SSH connection from {}", addr);

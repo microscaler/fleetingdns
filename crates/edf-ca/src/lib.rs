@@ -4,16 +4,12 @@
 //! used in FleetingDNS SSH tunnels. It provides short-lived (30 minute) certificates
 //! for client authentication in the SSH-over-TLS tunnel system.
 
-use anyhow::{Context, Result};
 use chrono::{DateTime, Duration, Utc};
-use rcgen::{Certificate, CertificateParams, DnType, KeyPair, SanType};
-use ring::signature::{Ed25519KeyPair, KeyPair as _};
-use rustls_pemfile::Item;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::{debug, info, warn};
+use tracing::info;
 use uuid::Uuid;
 
 pub mod ca;
@@ -209,7 +205,6 @@ impl CertificateRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio_test;
 
     #[tokio::test]
     async fn test_certificate_registry() {

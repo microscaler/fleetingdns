@@ -68,6 +68,7 @@ async fn run(args: Args) -> AppResult<()> {
         bind_addr: args.ssh_addr,
         host_key_path: args.ssh_host_key,
         public_domain: args.public_domain,
+        ca_config: None, // No CA configuration for now
     };
     let ssh_server = SshServer::new(ssh_config).await
         .map_err(|e| common::AppError::Message(e.to_string()))?;

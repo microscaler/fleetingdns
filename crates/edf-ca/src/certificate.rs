@@ -1,12 +1,10 @@
 //! Certificate management for FleetingDNS CA
 
-use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use rcgen::{Certificate, CertificateParams, DnType, SanType};
 use ring::digest;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tracing::info;
 
 use crate::errors::{CaError, CaResult};
 
@@ -68,7 +66,7 @@ impl CertificateRequest {
     /// Create a new certificate request for SSH tunnel client
     pub fn for_tunnel_client(client_id: &str, validity_duration: Duration) -> Self {
         Self {
-            common_name: format!("tunnel-client-{}", client_id),
+            common_name: format!("tunnel-client-{client_id}"),
             subject_alt_names: Vec::new(),
             key_usage: vec![KeyUsage::DigitalSignature, KeyUsage::KeyEncipherment],
             extended_key_usage: vec![ExtendedKeyUsage::ClientAuth],
@@ -269,7 +267,7 @@ pub fn calculate_fingerprint(cert_pem: &str) -> CaResult<String> {
     let fingerprint = digest
         .as_ref()
         .iter()
-        .map(|b| format!("{:02x}", b))
+        .map(|b| format!("{b:02x}"))
         .collect::<Vec<_>>()
         .join(":");
 

@@ -1,6 +1,5 @@
 //! Certificate Authority implementation for FleetingDNS
 
-use anyhow::Result;
 use chrono::{DateTime, Duration, Utc};
 use rcgen::{Certificate, CertificateParams, DnType, KeyPair};
 use std::path::Path;
@@ -277,11 +276,11 @@ impl CertificateAuthority {
 
         fs::write(cert_path, cert_pem)
             .await
-            .map_err(|e| CaError::Io(e))?;
+            .map_err(CaError::Io)?;
 
         fs::write(key_path, key_pem)
             .await
-            .map_err(|e| CaError::Io(e))?;
+            .map_err(CaError::Io)?;
 
         info!(cert_path = %cert_path, key_path = %key_path, "CA certificate saved");
         Ok(())
@@ -435,7 +434,7 @@ mod tests {
         // Issue certificates up to the limit
         for i in 0..10 {
             let request = IssuanceRequest::new(
-                format!("test-{}.fleetingdns.run", i),
+                format!("test-{i}.fleetingdns.run"),
                 "test-client-123".to_string(),
             );
             
