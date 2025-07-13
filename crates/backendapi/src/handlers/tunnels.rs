@@ -110,33 +110,32 @@ pub async fn create_tunnel(
     // Allocate SSH server slot
     let slot = allocate_ssh_slot(&state).await?;
     
-    // Issue ephemeral certificate using correct edf-ca API
     let cert_request = edf_ca::IssuanceRequest::new(
         format!("tunnel-client-{}", user.id),
-        user.id.clone(),
-    ).with_ttl(chrono::Duration::seconds(ttl_seconds as i64));
-    
-    let cert_response = state.ca.issue_certificate(cert_request).await?;
-    
-    // Generate SSH key pair
-    let ssh_key = generate_ssh_key_pair()?;
-    
-    // Create tunnel record
+        user.id.to_string(),
+    );
+
+    // Issue certificate
+    let cert_response = state.ca.issue_certificate(cert_request).await
+        .map_err(|e| ApiError::CertificateError(e.to_string()))?;
+
+    // Create tunnel with certificate
     let tunnel = Tunnel::new(
-        user.id.clone(),
+        user.id.to_string(),
         user.login.clone(),
-        subdomain,
-        &state.config.base_domain,
-        request.port,
-        slot,
-        cert_response.metadata.serial_number.clone(),
-        ttl_seconds,
+        request.subdomain.clone(),
+        request.local_port,
+        "fleetingdns.run".to_string(),
+        request.ttl_seconds,
     );
     
     // Store tunnel metadata
     state.storage.store_tunnel(&tunnel).await?;
     
     info!("Created tunnel {} -> {}", tunnel.fqdn, tunnel.local_port);
+    
+    // Generate SSH key pair
+    let ssh_key = generate_ssh_key_pair()?;
     
     // Generate basic auth credentials if requested
     let auth_credentials = if request.auth.unwrap_or(false) {
@@ -176,9 +175,9 @@ pub async fn get_tunnel(
     let tunnel = state.storage.get_tunnel(&uuid).await?
         .ok_or_else(|| ApiError::TunnelNotFound(tunnel_id.clone()))?;
     
-    // Check ownership
-    if tunnel.github_user_id != user.id {
-        return Err(ApiError::AuthorizationFailed("Not authorized to access this tunnel".to_string()));
+    // Verify tunnel ownership
+    if tunnel.github_user_id != user.id.to_string() {
+        return Err(ApiError::Forbidden("Not authorized to access this tunnel".to_string()));
     }
     
     // Clone values to avoid borrowing issues
@@ -239,7 +238,7 @@ pub async fn list_tunnels(
     let token = extract_bearer_token(&headers)?;
     let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
     
-    let tunnels = state.storage.list_user_tunnels(&user.id).await?;
+    let tunnels = state.storage.list_user_tunnels(&user.id.to_string()).await?;
     
     let tunnel_infos: Vec<TunnelInfo> = tunnels
         .into_iter()

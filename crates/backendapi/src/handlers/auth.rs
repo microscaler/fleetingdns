@@ -1,8 +1,19 @@
-use crate::{auth::*, models::*, ApiState, ApiResult};
-use axum::{extract::State, Json};
+use crate::{auth, ApiState, ApiResult};
+use axum::{extract::{Query, State}, http::HeaderMap, Json};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
+
+/// OAuth callback response
+#[derive(Debug, Serialize)]
+pub struct OAuthCallbackResponse {
+    /// JWT token for API access
+    pub token: String,
+    /// Token expiration time
+    pub expires_at: String,
+    /// GitHub user information
+    pub user: crate::models::GitHubUser,
+}
 
 /// GitHub OAuth request
 #[derive(Debug, Deserialize)]
@@ -17,7 +28,7 @@ pub struct GitHubOAuthResponse {
     pub access_token: String,
     pub token_type: String,
     pub expires_at: String,
-    pub user: GitHubUser,
+    pub user: crate::models::GitHubUser,
 }
 
 /// Token exchange request

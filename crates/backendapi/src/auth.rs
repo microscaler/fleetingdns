@@ -1,38 +1,34 @@
-use crate::{models::*, ApiError, ApiResult};
+use crate::{ApiError, ApiResult};
 use axum::http::HeaderMap;
 use chrono::Utc;
-use reqwest;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// GitHub OAuth authorization request
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct GitHubOAuthRequest {
     /// OAuth authorization code from GitHub
     pub code: String,
-    
-    /// State parameter for CSRF protection
+    /// OAuth state parameter for CSRF protection
     pub state: Option<String>,
 }
 
-/// GitHub OAuth response
+/// GitHub OAuth authorization response
 #[derive(Debug, Serialize)]
+#[allow(dead_code)]
 pub struct GitHubOAuthResponse {
-    /// Generated access token
-    pub access_token: String,
-    
-    /// Token type (Bearer)
-    pub token_type: String,
-    
+    /// JWT token for API access
+    pub token: String,
     /// Token expiration time
     pub expires_at: String,
-    
     /// GitHub user information
-    pub user: GitHubUser,
+    pub user: crate::models::GitHubUser,
 }
 
 /// Token exchange request
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct TokenRequest {
     /// GitHub access token
     pub github_token: String,
@@ -40,27 +36,26 @@ pub struct TokenRequest {
 
 /// Token exchange response
 #[derive(Debug, Serialize)]
+#[allow(dead_code)]
 pub struct TokenResponse {
-    /// JWT access token for API
-    pub access_token: String,
-    
-    /// Token type (Bearer)
-    pub token_type: String,
-    
+    /// JWT token for API access
+    pub token: String,
     /// Token expiration time
     pub expires_at: String,
 }
 
-/// GitHub access token response
+/// Internal GitHub token response
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct GitHubTokenResponse {
     access_token: String,
     token_type: String,
     scope: String,
 }
 
-/// GitHub user API response
+/// Internal GitHub user response
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct GitHubUserResponse {
     id: u64,
     login: String,
@@ -92,7 +87,7 @@ pub fn extract_bearer_token(headers: &HeaderMap) -> ApiResult<String> {
 pub async fn validate_github_token(
     client: &reqwest::Client,
     token: &str,
-) -> ApiResult<GitHubUser> {
+) -> ApiResult<crate::models::GitHubUser> {
     let response = client
         .get("https://api.github.com/user")
         .header("Authorization", format!("token {}", token))
@@ -108,8 +103,36 @@ pub async fn validate_github_token(
     
     let github_user: GitHubUserResponse = response.json().await?;
     
-    Ok(GitHubUser {
+    Ok(crate::models::GitHubUser {
         id: github_user.id.to_string(),
+        login: github_user.login,
+        name: github_user.name,
+        email: github_user.email,
+        avatar_url: github_user.avatar_url,
+    })
+}
+
+/// Get GitHub user information from access token
+pub async fn get_github_user(token: &str) -> ApiResult<crate::models::GitHubUser> {
+    let response = reqwest::Client::new()
+        .get("https://api.github.com/user")
+        .header("User-Agent", "FleetingDNS-API")
+        .header("Authorization", format!("token {token}"))
+        .send()
+        .await
+        .map_err(|e| ApiError::ExternalService(e.to_string()))?;
+
+    if !response.status().is_success() {
+        return Err(ApiError::Unauthorized("Invalid GitHub token".to_string()));
+    }
+
+    let github_user: GitHubUserResponse = response
+        .json()
+        .await
+        .map_err(|e| ApiError::ExternalService(e.to_string()))?;
+
+    Ok(crate::models::GitHubUser {
+        id: github_user.id,
         login: github_user.login,
         name: github_user.name,
         email: github_user.email,
@@ -148,7 +171,7 @@ pub async fn exchange_github_code(
 }
 
 /// Generate JWT token for authenticated user
-pub fn generate_jwt_token(user: &GitHubUser, secret: &str) -> ApiResult<String> {
+pub fn generate_jwt_token(user: &crate::models::GitHubUser, secret: &str) -> ApiResult<String> {
     // For now, return a simple signed token
     // In production, use a proper JWT library like jsonwebtoken
     let payload = format!("{}:{}:{}", user.id, user.login, Utc::now().timestamp());
@@ -157,7 +180,7 @@ pub fn generate_jwt_token(user: &GitHubUser, secret: &str) -> ApiResult<String> 
 }
 
 /// Validate JWT token
-pub fn validate_jwt_token(token: &str, secret: &str) -> ApiResult<GitHubUser> {
+pub fn validate_jwt_token(token: &str, secret: &str) -> ApiResult<crate::models::GitHubUser> {
     let parts: Vec<&str> = token.split('.').collect();
     if parts.len() != 2 {
         return Err(ApiError::AuthenticationFailed("Invalid token format".to_string()));
@@ -189,7 +212,7 @@ pub fn validate_jwt_token(token: &str, secret: &str) -> ApiResult<GitHubUser> {
         return Err(ApiError::AuthenticationFailed("Token expired".to_string()));
     }
     
-    Ok(GitHubUser {
+    Ok(crate::models::GitHubUser {
         id: user_id,
         login: username,
         name: None,
@@ -204,7 +227,7 @@ mod tests {
     
     #[test]
     fn test_jwt_token_generation_and_validation() {
-        let user = GitHubUser {
+        let user = crate::models::GitHubUser {
             id: "12345".to_string(),
             login: "testuser".to_string(),
             name: Some("Test User".to_string()),

@@ -153,11 +153,13 @@ impl SshServer {
         Ok(Some(serial))
     }
 
-    /// Generate a unique subdomain for a developer's service
+    /// Generate a unique subdomain for a service
     pub async fn generate_subdomain(&self, service_name: &str) -> String {
         let mut rng = rand::thread_rng();
-        let suffix: u32 = rng.gen_range(100..999999);
-        format!("{}{}", service_name, suffix)
+        let suffix: String = (0..8)
+            .map(|_| rng.gen_range(b'a'..=b'z') as char)
+            .collect();
+        format!("{service_name}{suffix}")
     }
 
     /// Register a reverse tunnel mapping
@@ -417,29 +419,18 @@ impl russh::server::Handler for SshSession {
 
     async fn auth_publickey(
         mut self,
-        user: &str,
-        public_key: &russh_keys::key::PublicKey,
+        _user: &str,
+        _public_key: &russh_keys::key::PublicKey,
     ) -> Result<(Self, Auth), Self::Error> {
-        info!(user = %user, "Public key authentication attempt");
-
-        // In production, this would validate the public key against the certificate
-        // For now, we'll extract certificate information from the key metadata if available
-        
-        // Check if this is a certificate-based authentication
-        if let Some(ca) = &self.state.certificate_authority {
-            // In a full implementation, we'd validate the certificate here
-            // For now, we'll accept the authentication and track the certificate serial
-            debug!("Certificate-based authentication accepted for user: {}", user);
-            
-            // Generate a mock certificate serial for tracking
-            // In production, this would come from the actual certificate
-            self.client_certificate_serial = Some(format!("cert-{}", uuid::Uuid::new_v4()));
-            
+        // For now, we'll implement certificate-based authentication later
+        // Check if client provided a certificate for validation
+        if let Some(_ca) = &self.state.certificate_authority {
+            // TODO: Implement certificate validation
+            // For now, accept any public key
             Ok((self, Auth::Accept))
         } else {
-            // Development mode - accept any public key
-            debug!("Development mode: public key authentication accepted for user: {}", user);
-            Ok((self, Auth::Accept))
+            // No CA configured, reject authentication
+            Ok((self, Auth::Reject { proceed_with_methods: None }))
         }
     }
 
@@ -550,10 +541,11 @@ async fn tcp_proxy_task(mut channel: Channel<Msg>, target_addr: SocketAddr) -> R
         // We need to create a separate channel reference for sending data back
         // This is a simplified implementation - in production we'd need proper channel management
         async move {
+            // Forward data from target back to SSH client (simplified)
             while let Some(_data) = rx_from_target.recv().await {
                 // For now, we'll skip the actual data forwarding back to SSH
                 // This would require proper channel management in the russh library
-                break;
+                // TODO: Implement proper bidirectional data forwarding
             }
         }
     };
@@ -598,9 +590,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_ssh_server_with_ca() {
-        let mut config = SshConfig::default();
-        config.ca_config = Some(CaConfig::default());
-        
+        let config = SshConfig {
+            ca_config: Some(CaConfig::default()),
+            ..Default::default()
+        };
         let server = SshServer::new(config).await.unwrap();
         assert!(server.state.certificate_authority.is_some());
         
@@ -611,9 +604,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_ssh_server_without_ca() {
-        let mut config = SshConfig::default();
-        config.ca_config = None;
-        
+        let config = SshConfig {
+            ca_config: None,
+            ..Default::default()
+        };
         let server = SshServer::new(config).await.unwrap();
         assert!(server.state.certificate_authority.is_none());
         

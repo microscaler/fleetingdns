@@ -15,6 +15,12 @@ pub enum ApiError {
     #[error("Authorization failed: {0}")]
     AuthorizationFailed(String),
     
+    #[error("Unauthorized: {0}")]
+    Unauthorized(String),
+    
+    #[error("Forbidden: {0}")]
+    Forbidden(String),
+    
     #[error("Tunnel not found: {0}")]
     TunnelNotFound(String),
     
@@ -29,6 +35,9 @@ pub enum ApiError {
     
     #[error("GitHub API error: {0}")]
     GitHubApiError(String),
+    
+    #[error("External service error: {0}")]
+    ExternalService(String),
     
     #[error("Rate limit exceeded")]
     RateLimitExceeded,
@@ -53,66 +62,81 @@ pub struct ErrorResponse {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let (status, error_type, message) = match &self {
-            ApiError::AuthenticationFailed(_) => (
+        let (status_code, error_type, message) = match &self {
+            &ApiError::AuthenticationFailed(_) => (
                 StatusCode::UNAUTHORIZED,
                 "authentication_failed",
                 self.to_string(),
             ),
-            ApiError::AuthorizationFailed(_) => (
+            &ApiError::AuthorizationFailed(_) => (
                 StatusCode::FORBIDDEN,
                 "authorization_failed",
                 self.to_string(),
             ),
-            ApiError::TunnelNotFound(_) => (
+            &ApiError::Unauthorized(_) => (
+                StatusCode::UNAUTHORIZED,
+                "unauthorized",
+                self.to_string(),
+            ),
+            &ApiError::Forbidden(_) => (
+                StatusCode::FORBIDDEN,
+                "forbidden",
+                self.to_string(),
+            ),
+            &ApiError::TunnelNotFound(_) => (
                 StatusCode::NOT_FOUND,
                 "tunnel_not_found",
                 self.to_string(),
             ),
-            ApiError::CertificateError(_) => (
-                StatusCode::BAD_REQUEST,
+            &ApiError::CertificateError(_) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
                 "certificate_error",
                 self.to_string(),
             ),
-            ApiError::StorageError(_) => (
+            &ApiError::StorageError(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "storage_error",
-                "Storage operation failed".to_string(),
+                self.to_string(),
             ),
-            ApiError::ConfigurationError(_) => (
+            &ApiError::ConfigurationError(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "configuration_error",
-                "Server configuration error".to_string(),
+                self.to_string(),
             ),
-            ApiError::GitHubApiError(_) => (
+            &ApiError::GitHubApiError(_) => (
                 StatusCode::BAD_GATEWAY,
                 "github_api_error",
-                "GitHub API request failed".to_string(),
+                self.to_string(),
             ),
-            ApiError::RateLimitExceeded => (
+            &ApiError::ExternalService(_) => (
+                StatusCode::BAD_GATEWAY,
+                "external_service_error",
+                self.to_string(),
+            ),
+            &ApiError::RateLimitExceeded => (
                 StatusCode::TOO_MANY_REQUESTS,
                 "rate_limit_exceeded",
-                "Rate limit exceeded".to_string(),
+                self.to_string(),
             ),
-            ApiError::BadRequest(_) => (
+            &ApiError::BadRequest(_) => (
                 StatusCode::BAD_REQUEST,
                 "bad_request",
                 self.to_string(),
             ),
-            ApiError::InternalError(_) => (
+            &ApiError::InternalError(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "internal_error",
-                "Internal server error".to_string(),
+                self.to_string(),
             ),
         };
 
-        let body = Json(ErrorResponse {
+        let error_response = ErrorResponse {
             error: error_type.to_string(),
             message,
-            code: status.as_u16(),
-        });
+            code: status_code.as_u16(),
+        };
 
-        (status, body).into_response()
+        (status_code, Json(error_response)).into_response()
     }
 }
 

@@ -1,7 +1,6 @@
 use crate::{models::*, ApiError, ApiResult};
 use bb8::{Pool, PooledConnection};
 use bb8_redis::{redis::AsyncCommands, RedisConnectionManager};
-use serde_json;
 use tracing::{debug, info};
 use uuid::Uuid;
 
