@@ -3,21 +3,29 @@ name = "edgehub"
 version = "0.1.0"
 edition = "2024"
 
-[dependencies]
-tokio = { workspace = true, features = ["full"] }
-tracing = { workspace = true }
-common = { path = "../common" }
-rustls = { workspace = true }
-tokio-rustls = { workspace = true }
-rand = { workspace = true }
-dnsd = { path = "../dnsd" }
-redis = { workspace = true }
-
 [features]
 e2e = []
 
+[dependencies]
+common = { path = "../common" }
+dnsd = { path = "../dnsd" }
+edf-ca = { path = "../edf-ca" }
+tokio = { workspace = true, features = ["full"] }
+tracing = { workspace = true }
+anyhow = { workspace = true }
+russh = "0.40"
+russh-keys = "0.40"
+uuid = { workspace = true }
+rand = "0.8"
+rustls = "0.23"
+tokio-rustls = "0.26"
+rustls-pemfile = "2.0"
+ring = "0.17"
+hex = "0.4"
+redis = { workspace = true }
+async-trait = "0.1"
+
 [dev-dependencies]
 tracing-test = "0.2"
-rustls-pemfile = { workspace = true }
-mini-redis = "0.4"
-hickory-resolver = "0.24"
+testcontainers = { workspace = true }
+testcontainers-modules = { workspace = true }

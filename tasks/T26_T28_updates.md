@@ -37,5 +37,4 @@
 1. **rustls + russh** – russh lets you supply your own socket (already TLS-wrapped). After TLS handshake succeed, pass the decrypted TcpStream into russh’s `run_server()`.
 2. **Resource leaks** – keep a `HashMap<Port, (TaskHandle, slot)>`; drop handle closes tunnel and triggers Redis cleanup.
 3. **CI stability** – run SSH client inside container (`panubo/sshd`) instead of host binary to avoid OpenSSH version issues on GitHub runners.
-
 Once these tasks merge, **T-29 metrics → T-31 CI DoT/Redis smoke** will pass with real traffic, unlocking the ML-pipeline tasks (T-39 +).

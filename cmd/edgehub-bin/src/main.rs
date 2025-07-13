@@ -4,14 +4,23 @@ use std::path::PathBuf;
 use tracing::info;
 
 use common::{AppResult, init_tracing, shutdown::GracefulShutdown, tls};
-use edgehub::{self, Config};
+use edgehub::{self, Config, SshConfig, SshServer};
 
 /// EdgeHub command line arguments.
 #[derive(Parser, Debug, Clone)]
 struct Args {
     /// Address to bind the TLS listener.
-    #[arg(long, default_value = "0.0.0.0:2222")]
+    #[arg(long, default_value = "0.0.0.0:8443")]
     addr: SocketAddr,
+    /// Address to bind the SSH-over-TLS server (port 443 for corporate firewall bypass).
+    #[arg(long, default_value = "0.0.0.0:443")]
+    ssh_addr: SocketAddr,
+    /// Path to SSH host key file.
+    #[arg(long)]
+    ssh_host_key: Option<String>,
+    /// Public domain for tunnel URLs (e.g., fleetingdns.run).
+    #[arg(long, default_value = "fleetingdns.run")]
+    public_domain: String,
     /// Redis connection URL.
     #[arg(long, default_value = "redis://127.0.0.1:6379")]
     redis: String,
@@ -44,8 +53,9 @@ async fn run(args: Args) -> AppResult<()> {
 
     info!(
         addr = %args.addr,
+        ssh_addr = %args.ssh_addr,
         control_socket = %shutdown.config.control_socket_path.display(),
-        "edgehub starting with graceful shutdown support"
+        "edgehub starting with TLS and SSH servers"
     );
 
     let (tls_config, _) = tls::generate_tls_config(&["ssh"])?;
@@ -53,22 +63,44 @@ async fn run(args: Args) -> AppResult<()> {
         .await
         .map_err(|e| common::AppError::Message(e.to_string()))?;
 
-    // Start EdgeHub server with shutdown signal
-    let shutdown_rx = shutdown.subscribe();
-    let serve_result = edgehub::serve_with_shutdown(
+    // Create SSH server
+    let ssh_config = SshConfig {
+        bind_addr: args.ssh_addr,
+        host_key_path: args.ssh_host_key,
+        public_domain: args.public_domain,
+        ca_config: None, // No CA configuration for now
+    };
+    let ssh_server = SshServer::new(ssh_config)
+        .await
+        .map_err(|e| common::AppError::Message(e.to_string()))?;
+
+    // Get shutdown signals for both servers
+    let tls_shutdown_rx = shutdown.subscribe();
+    let ssh_shutdown_rx = shutdown.subscribe();
+
+    // Start both servers concurrently
+    let tls_server = edgehub::serve_with_shutdown(
         Config {
             addr: args.addr,
             tls_config,
             redis_pool: pool,
         },
-        shutdown_rx,
-    )
-    .await;
+        tls_shutdown_rx,
+    );
+
+    let ssh_server_task = ssh_server.run(ssh_shutdown_rx);
+
+    // Run both servers concurrently
+    let (tls_result, ssh_result) = tokio::join!(tls_server, ssh_server_task);
 
     // Wait for graceful shutdown to complete
     shutdown.wait_for_shutdown().await?;
 
-    serve_result
+    // Check results
+    tls_result?;
+    ssh_result.map_err(|e| common::AppError::Message(e.to_string()))?;
+
+    Ok(())
 }
 
 #[tokio::main]
