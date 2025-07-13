@@ -1,15 +1,15 @@
-use crate::{ApiResult, ApiState, auth};
-use axum::{
-    Json,
-    extract::{Query, State},
-    http::HeaderMap,
+use crate::{
+    ApiResult, ApiState,
+    auth::{exchange_github_code, generate_jwt_token, validate_github_token},
 };
+use axum::{Json, extract::State};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 
 /// OAuth callback response
 #[derive(Debug, Serialize)]
+#[allow(dead_code)]
 pub struct OAuthCallbackResponse {
     /// JWT token for API access
     pub token: String,

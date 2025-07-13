@@ -90,7 +90,7 @@ pub async fn validate_github_token(
 ) -> ApiResult<crate::models::GitHubUser> {
     let response = client
         .get("https://api.github.com/user")
-        .header("Authorization", format!("token {}", token))
+        .header("Authorization", format!("token {token}"))
         .header("User-Agent", "FleetingDNS/1.0")
         .send()
         .await?;
@@ -113,6 +113,7 @@ pub async fn validate_github_token(
 }
 
 /// Get GitHub user information from access token
+#[allow(dead_code)]
 pub async fn get_github_user(token: &str) -> ApiResult<crate::models::GitHubUser> {
     let response = reqwest::Client::new()
         .get("https://api.github.com/user")
@@ -132,7 +133,7 @@ pub async fn get_github_user(token: &str) -> ApiResult<crate::models::GitHubUser
         .map_err(|e| ApiError::ExternalService(e.to_string()))?;
 
     Ok(crate::models::GitHubUser {
-        id: github_user.id,
+        id: github_user.id.to_string(),
         login: github_user.login,
         name: github_user.name,
         email: github_user.email,
@@ -175,8 +176,8 @@ pub fn generate_jwt_token(user: &crate::models::GitHubUser, secret: &str) -> Api
     // For now, return a simple signed token
     // In production, use a proper JWT library like jsonwebtoken
     let payload = format!("{}:{}:{}", user.id, user.login, Utc::now().timestamp());
-    let signature = format!("{:x}", md5::compute(format!("{}{}", payload, secret)));
-    Ok(format!("{}.{}", payload, signature))
+    let signature = format!("{:x}", md5::compute(format!("{payload}{secret}")));
+    Ok(format!("{payload}.{signature}"))
 }
 
 /// Validate JWT token
@@ -192,7 +193,7 @@ pub fn validate_jwt_token(token: &str, secret: &str) -> ApiResult<crate::models:
     let signature = parts[1];
 
     // Verify signature
-    let expected_signature = format!("{:x}", md5::compute(format!("{}{}", payload, secret)));
+    let expected_signature = format!("{:x}", md5::compute(format!("{payload}{secret}")));
     if signature != expected_signature {
         return Err(ApiError::AuthenticationFailed(
             "Invalid token signature".to_string(),

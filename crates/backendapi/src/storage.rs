@@ -12,15 +12,14 @@ pub struct TunnelStorage {
 impl TunnelStorage {
     /// Create a new tunnel storage instance
     pub async fn new(redis_url: &str) -> ApiResult<Self> {
-        let manager = RedisConnectionManager::new(redis_url).map_err(|e| {
-            ApiError::StorageError(format!("Failed to create Redis manager: {}", e))
-        })?;
+        let manager = RedisConnectionManager::new(redis_url)
+            .map_err(|e| ApiError::StorageError(format!("Failed to create Redis manager: {e}")))?;
 
         let pool = Pool::builder()
             .max_size(15)
             .build(manager)
             .await
-            .map_err(|e| ApiError::StorageError(format!("Failed to create Redis pool: {}", e)))?;
+            .map_err(|e| ApiError::StorageError(format!("Failed to create Redis pool: {e}")))?;
 
         info!("Connected to Redis at {}", redis_url);
 
@@ -32,7 +31,7 @@ impl TunnelStorage {
         self.pool
             .get()
             .await
-            .map_err(|e| ApiError::StorageError(format!("Failed to get Redis connection: {}", e)))
+            .map_err(|e| ApiError::StorageError(format!("Failed to get Redis connection: {e}")))
     }
 
     /// Store tunnel metadata
@@ -40,7 +39,7 @@ impl TunnelStorage {
         let mut conn = self.get_connection().await?;
 
         let tunnel_json = serde_json::to_string(tunnel)
-            .map_err(|e| ApiError::StorageError(format!("Failed to serialize tunnel: {}", e)))?;
+            .map_err(|e| ApiError::StorageError(format!("Failed to serialize tunnel: {e}")))?;
 
         let tunnel_key = format!("tunnel:{}", tunnel.id);
         let subdomain_key = format!("subdomain:{}", tunnel.subdomain);
@@ -53,27 +52,25 @@ impl TunnelStorage {
         let _: () = conn
             .set_ex(&tunnel_key, &tunnel_json, ttl)
             .await
-            .map_err(|e| ApiError::StorageError(format!("Failed to store tunnel: {}", e)))?;
+            .map_err(|e| ApiError::StorageError(format!("Failed to store tunnel: {e}")))?;
 
         // Map subdomain to tunnel ID with expiration
         let _: () = conn
             .set_ex(&subdomain_key, tunnel.id.to_string(), ttl)
             .await
-            .map_err(|e| ApiError::StorageError(format!("Failed to map subdomain: {}", e)))?;
+            .map_err(|e| ApiError::StorageError(format!("Failed to map subdomain: {e}")))?;
 
         // Add tunnel to user's list
         let _: () = conn
             .sadd(&user_key, tunnel.id.to_string())
             .await
-            .map_err(|e| ApiError::StorageError(format!("Failed to add to user tunnels: {}", e)))?;
+            .map_err(|e| ApiError::StorageError(format!("Failed to add to user tunnels: {e}")))?;
 
         // Set expiration on user list (longer than tunnel to allow cleanup)
         let _: () = conn
             .expire(&user_key, (ttl + 300) as i64)
             .await
-            .map_err(|e| {
-                ApiError::StorageError(format!("Failed to set user list expiry: {}", e))
-            })?;
+            .map_err(|e| ApiError::StorageError(format!("Failed to set user list expiry: {e}")))?;
 
         debug!("Stored tunnel {} with TTL {} seconds", tunnel.id, ttl);
         Ok(())
@@ -83,16 +80,16 @@ impl TunnelStorage {
     pub async fn get_tunnel(&self, tunnel_id: &Uuid) -> ApiResult<Option<Tunnel>> {
         let mut conn = self.get_connection().await?;
 
-        let tunnel_key = format!("tunnel:{}", tunnel_id);
+        let tunnel_key = format!("tunnel:{tunnel_id}");
         let tunnel_json: Option<String> = conn
             .get(&tunnel_key)
             .await
-            .map_err(|e| ApiError::StorageError(format!("Failed to get tunnel: {}", e)))?;
+            .map_err(|e| ApiError::StorageError(format!("Failed to get tunnel: {e}")))?;
 
         match tunnel_json {
             Some(json) => {
                 let tunnel: Tunnel = serde_json::from_str(&json).map_err(|e| {
-                    ApiError::StorageError(format!("Failed to deserialize tunnel: {}", e))
+                    ApiError::StorageError(format!("Failed to deserialize tunnel: {e}"))
                 })?;
                 Ok(Some(tunnel))
             }
@@ -104,15 +101,16 @@ impl TunnelStorage {
     pub async fn get_tunnel_by_subdomain(&self, subdomain: &str) -> ApiResult<Option<Tunnel>> {
         let mut conn = self.get_connection().await?;
 
-        let subdomain_key = format!("subdomain:{}", subdomain);
-        let tunnel_id: Option<String> = conn.get(&subdomain_key).await.map_err(|e| {
-            ApiError::StorageError(format!("Failed to get subdomain mapping: {}", e))
-        })?;
+        let subdomain_key = format!("subdomain:{subdomain}");
+        let tunnel_id: Option<String> = conn
+            .get(&subdomain_key)
+            .await
+            .map_err(|e| ApiError::StorageError(format!("Failed to get subdomain mapping: {e}")))?;
 
         match tunnel_id {
             Some(id) => {
                 let uuid = Uuid::parse_str(&id)
-                    .map_err(|e| ApiError::StorageError(format!("Invalid tunnel ID: {}", e)))?;
+                    .map_err(|e| ApiError::StorageError(format!("Invalid tunnel ID: {e}")))?;
                 self.get_tunnel(&uuid).await
             }
             None => Ok(None),
@@ -123,18 +121,18 @@ impl TunnelStorage {
     pub async fn list_user_tunnels(&self, github_user_id: &str) -> ApiResult<Vec<Tunnel>> {
         let mut conn = self.get_connection().await?;
 
-        let user_key = format!("user:{}:tunnels", github_user_id);
+        let user_key = format!("user:{github_user_id}:tunnels");
         let tunnel_ids: Vec<String> = conn
             .smembers(&user_key)
             .await
-            .map_err(|e| ApiError::StorageError(format!("Failed to get user tunnels: {}", e)))?;
+            .map_err(|e| ApiError::StorageError(format!("Failed to get user tunnels: {e}")))?;
 
         let mut tunnels = Vec::new();
         for id_str in tunnel_ids {
-            if let Ok(uuid) = Uuid::parse_str(&id_str) {
-                if let Ok(Some(tunnel)) = self.get_tunnel(&uuid).await {
-                    tunnels.push(tunnel);
-                }
+            if let Ok(uuid) = Uuid::parse_str(&id_str)
+                && let Ok(Some(tunnel)) = self.get_tunnel(&uuid).await
+            {
+                tunnels.push(tunnel);
             }
         }
 
@@ -178,7 +176,7 @@ impl TunnelStorage {
 
         let mut conn = self.get_connection().await?;
 
-        let tunnel_key = format!("tunnel:{}", tunnel_id);
+        let tunnel_key = format!("tunnel:{tunnel_id}");
         let subdomain_key = format!("subdomain:{}", tunnel.subdomain);
         let user_key = format!("user:{}:tunnels", tunnel.github_user_id);
 
@@ -186,11 +184,11 @@ impl TunnelStorage {
         let _: () = conn
             .del(&tunnel_key)
             .await
-            .map_err(|e| ApiError::StorageError(format!("Failed to delete tunnel: {}", e)))?;
+            .map_err(|e| ApiError::StorageError(format!("Failed to delete tunnel: {e}")))?;
 
         // Delete subdomain mapping
         let _: () = conn.del(&subdomain_key).await.map_err(|e| {
-            ApiError::StorageError(format!("Failed to delete subdomain mapping: {}", e))
+            ApiError::StorageError(format!("Failed to delete subdomain mapping: {e}"))
         })?;
 
         // Remove from user's tunnel list
@@ -198,7 +196,7 @@ impl TunnelStorage {
             .srem(&user_key, tunnel_id.to_string())
             .await
             .map_err(|e| {
-                ApiError::StorageError(format!("Failed to remove from user tunnels: {}", e))
+                ApiError::StorageError(format!("Failed to remove from user tunnels: {e}"))
             })?;
 
         debug!("Deleted tunnel {}", tunnel_id);
@@ -213,21 +211,18 @@ impl TunnelStorage {
         let tunnel_keys: Vec<String> = conn
             .keys("tunnel:*")
             .await
-            .map_err(|e| ApiError::StorageError(format!("Failed to get tunnel keys: {}", e)))?;
+            .map_err(|e| ApiError::StorageError(format!("Failed to get tunnel keys: {e}")))?;
 
         let mut cleaned_count = 0;
 
         for key in tunnel_keys {
-            if let Ok(tunnel_json) = conn.get::<_, Option<String>>(&key).await {
-                if let Some(json) = tunnel_json {
-                    if let Ok(tunnel) = serde_json::from_str::<Tunnel>(&json) {
-                        if tunnel.is_expired() {
-                            if self.delete_tunnel(&tunnel.id).await.unwrap_or(false) {
-                                cleaned_count += 1;
-                            }
-                        }
-                    }
-                }
+            if let Ok(tunnel_json) = conn.get::<_, Option<String>>(&key).await
+                && let Some(json) = tunnel_json
+                && let Ok(tunnel) = serde_json::from_str::<Tunnel>(&json)
+                && tunnel.is_expired()
+                && self.delete_tunnel(&tunnel.id).await.unwrap_or(false)
+            {
+                cleaned_count += 1;
             }
         }
 
@@ -245,7 +240,7 @@ impl TunnelStorage {
         let tunnel_keys: Vec<String> = conn
             .keys("tunnel:*")
             .await
-            .map_err(|e| ApiError::StorageError(format!("Failed to get tunnel keys: {}", e)))?;
+            .map_err(|e| ApiError::StorageError(format!("Failed to get tunnel keys: {e}")))?;
 
         Ok(tunnel_keys.len() as u64)
     }

@@ -48,8 +48,10 @@ pub struct Tunnel {
 /// Tunnel status enumeration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum TunnelStatus {
     /// Tunnel is being created
+    #[default]
     Creating,
 
     /// Tunnel is active and ready
@@ -175,6 +177,7 @@ pub struct CaStats {
 
 impl Tunnel {
     /// Create a new tunnel
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         github_user_id: String,
         github_username: String,
@@ -193,7 +196,7 @@ impl Tunnel {
             github_user_id,
             github_username,
             subdomain: subdomain.clone(),
-            fqdn: format!("{}.{}", subdomain, base_domain),
+            fqdn: format!("{subdomain}.{base_domain}"),
             local_port,
             slot,
             certificate_serial,
@@ -213,11 +216,5 @@ impl Tunnel {
     /// Get remaining TTL in seconds
     pub fn remaining_ttl(&self) -> i64 {
         (self.expires_at - Utc::now()).num_seconds()
-    }
-}
-
-impl Default for TunnelStatus {
-    fn default() -> Self {
-        TunnelStatus::Creating
     }
 }

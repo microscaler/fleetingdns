@@ -98,19 +98,15 @@ pub async fn create_tunnel(
         )));
     }
 
-    // Generate or validate subdomain
-    let subdomain = match request.custom_subdomain {
-        Some(custom) => {
-            validate_subdomain(&custom)?;
-            if !state.storage.is_subdomain_available(&custom).await? {
-                return Err(ApiError::BadRequest("Subdomain already in use".to_string()));
-            }
-            custom
-        }
-        None => generate_random_subdomain().await,
+    // Generate subdomain
+    let subdomain = if let Some(custom) = &request.custom_subdomain {
+        validate_subdomain(custom)?;
+        custom.clone()
+    } else {
+        generate_random_subdomain().await
     };
 
-    // Allocate SSH server slot
+    // Allocate SSH slot
     let slot = allocate_ssh_slot(&state).await?;
 
     let cert_request =
@@ -127,10 +123,12 @@ pub async fn create_tunnel(
     let tunnel = Tunnel::new(
         user.id.to_string(),
         user.login.clone(),
-        request.subdomain.clone(),
-        request.local_port,
-        "fleetingdns.run".to_string(),
-        request.ttl_seconds,
+        subdomain.clone(),
+        "fleetingdns.run",
+        request.port,
+        slot,
+        cert_response.metadata.serial_number.clone(),
+        request.ttl.unwrap_or(3600),
     );
 
     // Store tunnel metadata
@@ -183,7 +181,7 @@ pub async fn get_tunnel(
         .ok_or_else(|| ApiError::TunnelNotFound(tunnel_id.clone()))?;
 
     // Verify tunnel ownership
-    if tunnel.github_user_id != user.id.to_string() {
+    if tunnel.github_user_id != user.id {
         return Err(ApiError::Forbidden(
             "Not authorized to access this tunnel".to_string(),
         ));
@@ -319,7 +317,7 @@ async fn generate_random_subdomain() -> String {
         })
         .collect();
 
-    format!("tunnel-{}", chars)
+    format!("tunnel-{chars}")
 }
 
 /// Allocate an SSH server slot

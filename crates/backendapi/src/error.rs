@@ -62,56 +62,56 @@ pub struct ErrorResponse {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let (status_code, error_type, message) = match &self {
-            &ApiError::AuthenticationFailed(_) => (
+        let (status_code, error_type, message) = match self {
+            ApiError::AuthenticationFailed(_) => (
                 StatusCode::UNAUTHORIZED,
                 "authentication_failed",
                 self.to_string(),
             ),
-            &ApiError::AuthorizationFailed(_) => (
+            ApiError::AuthorizationFailed(_) => (
                 StatusCode::FORBIDDEN,
                 "authorization_failed",
                 self.to_string(),
             ),
-            &ApiError::Unauthorized(_) => {
+            ApiError::Unauthorized(_) => {
                 (StatusCode::UNAUTHORIZED, "unauthorized", self.to_string())
             }
-            &ApiError::Forbidden(_) => (StatusCode::FORBIDDEN, "forbidden", self.to_string()),
-            &ApiError::TunnelNotFound(_) => {
+            ApiError::Forbidden(_) => (StatusCode::FORBIDDEN, "forbidden", self.to_string()),
+            ApiError::TunnelNotFound(_) => {
                 (StatusCode::NOT_FOUND, "tunnel_not_found", self.to_string())
             }
-            &ApiError::CertificateError(_) => (
+            ApiError::CertificateError(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "certificate_error",
                 self.to_string(),
             ),
-            &ApiError::StorageError(_) => (
+            ApiError::StorageError(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "storage_error",
                 self.to_string(),
             ),
-            &ApiError::ConfigurationError(_) => (
+            ApiError::ConfigurationError(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "configuration_error",
                 self.to_string(),
             ),
-            &ApiError::GitHubApiError(_) => (
+            ApiError::GitHubApiError(_) => (
                 StatusCode::BAD_GATEWAY,
                 "github_api_error",
                 self.to_string(),
             ),
-            &ApiError::ExternalService(_) => (
+            ApiError::ExternalService(_) => (
                 StatusCode::BAD_GATEWAY,
                 "external_service_error",
                 self.to_string(),
             ),
-            &ApiError::RateLimitExceeded => (
+            ApiError::RateLimitExceeded => (
                 StatusCode::TOO_MANY_REQUESTS,
                 "rate_limit_exceeded",
                 self.to_string(),
             ),
-            &ApiError::BadRequest(_) => (StatusCode::BAD_REQUEST, "bad_request", self.to_string()),
-            &ApiError::InternalError(_) => (
+            ApiError::BadRequest(_) => (StatusCode::BAD_REQUEST, "bad_request", self.to_string()),
+            ApiError::InternalError(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "internal_error",
                 self.to_string(),
@@ -149,7 +149,7 @@ impl From<reqwest::Error> for ApiError {
 
 impl From<serde_json::Error> for ApiError {
     fn from(err: serde_json::Error) -> Self {
-        ApiError::BadRequest(format!("JSON parsing error: {}", err))
+        ApiError::BadRequest(format!("JSON parsing error: {err}"))
     }
 }
 

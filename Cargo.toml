@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
     "crates/auth",
-    # "crates/backendapi",    # Temporarily disabled due to API integration issues
+    "crates/backendapi",
     "crates/bin/dnsd",
     "crates/bin/slot-setter",
     "crates/common",
@@ -16,7 +16,7 @@ members = [
     "crates/intake_collector",
     "crates/metrics_client",
     "crates/ml_scorer",
-    # "cmd/api-bin",           # Temporarily disabled due to API integration issues
+    "cmd/api-bin",
     "cmd/dnsd-bin",
     "cmd/edgehub-bin",
     "cmd/feed_grpc-bin",
