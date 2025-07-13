@@ -2,12 +2,13 @@
 resolver = "2"
 members = [
     "crates/auth",
-    "crates/backendapi",
+    # "crates/backendapi",    # Temporarily disabled due to API integration issues
     "crates/bin/dnsd",
     "crates/bin/slot-setter",
     "crates/common",
     "crates/dnsd",
     "crates/dnsd_backend",
+    "crates/edf-ca",
     "crates/edgehub",
     "crates/feature_pipe",
     "crates/feed_grpc",
@@ -15,7 +16,7 @@ members = [
     "crates/intake_collector",
     "crates/metrics_client",
     "crates/ml_scorer",
-    "cmd/api-bin",
+    # "cmd/api-bin",           # Temporarily disabled due to API integration issues
     "cmd/dnsd-bin",
     "cmd/edgehub-bin",
     "cmd/feed_grpc-bin",
@@ -23,7 +24,6 @@ members = [
     "cmd/fleetingdns-ctl",
     "cmd/intake_collector-bin",
     "cmd/ml_scorer-bin",
-    "crates/edf-ca",
 ]
 exclude = [
     "crates/bin"

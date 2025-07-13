@@ -70,7 +70,8 @@ async fn run(args: Args) -> AppResult<()> {
         public_domain: args.public_domain,
         ca_config: None, // No CA configuration for now
     };
-    let ssh_server = SshServer::new(ssh_config).await
+    let ssh_server = SshServer::new(ssh_config)
+        .await
         .map_err(|e| common::AppError::Message(e.to_string()))?;
 
     // Get shutdown signals for both servers

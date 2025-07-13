@@ -150,9 +150,13 @@ impl CertificateBuilder {
     /// Create a new certificate builder
     pub fn new() -> Self {
         let mut params = CertificateParams::new(Vec::new());
-        params.distinguished_name.push(DnType::OrganizationName, "FleetingDNS");
-        params.distinguished_name.push(DnType::OrganizationalUnitName, "Tunnel Services");
-        
+        params
+            .distinguished_name
+            .push(DnType::OrganizationName, "FleetingDNS");
+        params
+            .distinguished_name
+            .push(DnType::OrganizationalUnitName, "Tunnel Services");
+
         Self { params }
     }
 
@@ -184,16 +188,24 @@ impl CertificateBuilder {
         for ku in usage {
             match ku {
                 KeyUsage::DigitalSignature => {
-                    self.params.key_usages.push(rcgen::KeyUsagePurpose::DigitalSignature);
+                    self.params
+                        .key_usages
+                        .push(rcgen::KeyUsagePurpose::DigitalSignature);
                 }
                 KeyUsage::KeyEncipherment => {
-                    self.params.key_usages.push(rcgen::KeyUsagePurpose::KeyEncipherment);
+                    self.params
+                        .key_usages
+                        .push(rcgen::KeyUsagePurpose::KeyEncipherment);
                 }
                 KeyUsage::KeyAgreement => {
-                    self.params.key_usages.push(rcgen::KeyUsagePurpose::KeyAgreement);
+                    self.params
+                        .key_usages
+                        .push(rcgen::KeyUsagePurpose::KeyAgreement);
                 }
                 KeyUsage::CertSign => {
-                    self.params.key_usages.push(rcgen::KeyUsagePurpose::KeyCertSign);
+                    self.params
+                        .key_usages
+                        .push(rcgen::KeyUsagePurpose::KeyCertSign);
                 }
                 KeyUsage::CrlSign => {
                     self.params.key_usages.push(rcgen::KeyUsagePurpose::CrlSign);
@@ -206,18 +218,20 @@ impl CertificateBuilder {
     /// Set extended key usage
     pub fn extended_key_usage(mut self, usage: Vec<ExtendedKeyUsage>) -> Self {
         let mut ext_key_usage = Vec::new();
-        
+
         for eku in usage {
             let oid = match eku {
                 ExtendedKeyUsage::ServerAuth => rcgen::ExtendedKeyUsagePurpose::ServerAuth,
                 ExtendedKeyUsage::ClientAuth => rcgen::ExtendedKeyUsagePurpose::ClientAuth,
                 ExtendedKeyUsage::CodeSigning => rcgen::ExtendedKeyUsagePurpose::CodeSigning,
-                ExtendedKeyUsage::EmailProtection => rcgen::ExtendedKeyUsagePurpose::EmailProtection,
+                ExtendedKeyUsage::EmailProtection => {
+                    rcgen::ExtendedKeyUsagePurpose::EmailProtection
+                }
                 ExtendedKeyUsage::TimeStamping => rcgen::ExtendedKeyUsagePurpose::TimeStamping,
             };
             ext_key_usage.push(oid);
         }
-        
+
         self.params.extended_key_usages = ext_key_usage;
         self
     }
@@ -231,9 +245,10 @@ impl CertificateBuilder {
     /// Generate certificate signed by CA
     pub fn generate_signed_by(self, ca_cert: &Certificate) -> CaResult<Certificate> {
         let cert = self.generate()?;
-        let _signed_cert = cert.serialize_pem_with_signer(ca_cert)
+        let _signed_cert = cert
+            .serialize_pem_with_signer(ca_cert)
             .map_err(|e| CaError::CertificateGeneration(e.to_string()))?;
-        
+
         // For now, return the original certificate
         // In a full implementation, we'd parse the signed certificate back
         Ok(cert)
@@ -251,12 +266,12 @@ pub fn calculate_fingerprint(cert_pem: &str) -> CaResult<String> {
     // Parse the PEM certificate
     let mut reader = std::io::BufReader::new(cert_pem.as_bytes());
     let certs_result = rustls_pemfile::certs(&mut reader);
-    
+
     let certs = match certs_result {
         Ok(certs) => certs,
         Err(e) => return Err(CaError::PemParsing(e.to_string())),
     };
-    
+
     let cert_der = certs
         .into_iter()
         .next()
@@ -287,14 +302,22 @@ mod tests {
     #[test]
     fn test_certificate_request_for_tunnel_client() {
         let req = CertificateRequest::for_tunnel_client("test-client-123", Duration::minutes(30));
-        
+
         assert_eq!(req.common_name, "tunnel-client-test-client-123");
         assert!(req.key_usage.contains(&KeyUsage::DigitalSignature));
         assert!(req.key_usage.contains(&KeyUsage::KeyEncipherment));
-        assert!(req.extended_key_usage.contains(&ExtendedKeyUsage::ClientAuth));
+        assert!(req
+            .extended_key_usage
+            .contains(&ExtendedKeyUsage::ClientAuth));
         assert_eq!(req.validity_duration, Duration::minutes(30));
-        assert_eq!(req.attributes.get("client_id"), Some(&"test-client-123".to_string()));
-        assert_eq!(req.attributes.get("purpose"), Some(&"ssh-tunnel".to_string()));
+        assert_eq!(
+            req.attributes.get("client_id"),
+            Some(&"test-client-123".to_string())
+        );
+        assert_eq!(
+            req.attributes.get("purpose"),
+            Some(&"ssh-tunnel".to_string())
+        );
     }
 
     #[test]
@@ -302,10 +325,14 @@ mod tests {
         let req = CertificateRequest::for_tunnel_client("test", Duration::minutes(30))
             .with_san("test.example.com".to_string())
             .with_san("alt.example.com".to_string());
-        
+
         assert_eq!(req.subject_alt_names.len(), 2);
-        assert!(req.subject_alt_names.contains(&"test.example.com".to_string()));
-        assert!(req.subject_alt_names.contains(&"alt.example.com".to_string()));
+        assert!(req
+            .subject_alt_names
+            .contains(&"test.example.com".to_string()));
+        assert!(req
+            .subject_alt_names
+            .contains(&"alt.example.com".to_string()));
     }
 
     #[test]
@@ -318,14 +345,14 @@ mod tests {
             expires_at: Utc::now() + Duration::minutes(30),
             fingerprint: "test-fingerprint".to_string(),
         };
-        
+
         let cert = EphemeralCertificate::new(
             "cert-pem".to_string(),
             "key-pem".to_string(),
             metadata,
             "ca-chain".to_string(),
         );
-        
+
         assert!(cert.is_valid());
         assert!(cert.time_until_expiry() > Duration::minutes(29));
         assert_eq!(cert.serial_number(), "test-123");
@@ -336,9 +363,9 @@ mod tests {
     fn test_generate_serial_number() {
         let serial1 = generate_serial_number();
         let serial2 = generate_serial_number();
-        
+
         assert_ne!(serial1, serial2);
         assert!(!serial1.is_empty());
         assert!(!serial2.is_empty());
     }
-} 
+}

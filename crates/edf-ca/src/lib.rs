@@ -1,5 +1,5 @@
 //! FleetingDNS Certificate Authority (edf-ca)
-//! 
+//!
 //! This crate implements a certificate authority for issuing ephemeral certificates
 //! used in FleetingDNS SSH tunnels. It provides short-lived (30 minute) certificates
 //! for client authentication in the SSH-over-TLS tunnel system.
@@ -17,7 +17,7 @@ pub mod certificate;
 pub mod errors;
 
 pub use ca::CertificateAuthority;
-pub use certificate::{CertificateRequest, EphemeralCertificate, CertificateMetadata};
+pub use certificate::{CertificateMetadata, CertificateRequest, EphemeralCertificate};
 pub use errors::CaError;
 
 /// Default certificate validity duration (30 minutes)
@@ -175,9 +175,9 @@ impl CertificateRegistry {
         let mut certs = self.active_certs.lock().await;
         let now = Utc::now();
         let initial_count = certs.len();
-        
+
         certs.retain(|_, cert| cert.metadata.expires_at > now);
-        
+
         let removed_count = initial_count - certs.len();
         if removed_count > 0 {
             info!("Cleaned up {} expired certificates", removed_count);
@@ -209,11 +209,11 @@ mod tests {
     #[tokio::test]
     async fn test_certificate_registry() {
         let registry = CertificateRegistry::new();
-        
+
         // Test empty registry
         assert_eq!(registry.active_count().await, 0);
         assert!(!registry.is_certificate_valid("nonexistent").await);
-        
+
         // Create test certificate
         let metadata = CertificateMetadata {
             serial_number: "test-123".to_string(),
@@ -223,19 +223,19 @@ mod tests {
             expires_at: Utc::now() + Duration::minutes(30),
             fingerprint: "test-fingerprint".to_string(),
         };
-        
+
         let cert = ActiveCertificate {
             metadata: metadata.clone(),
             certificate_pem: "test-pem".to_string(),
             client_id: "test-client".to_string(),
             issued_at: Utc::now(),
         };
-        
+
         // Register certificate
         registry.register_certificate(cert).await;
         assert_eq!(registry.active_count().await, 1);
         assert!(registry.is_certificate_valid("test-123").await);
-        
+
         // Test client certificate lookup
         let client_certs = registry.get_client_certificates("test-client").await;
         assert_eq!(client_certs.len(), 1);
@@ -244,17 +244,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_issuance_request() {
-        let request = IssuanceRequest::new("test.example.com".to_string(), "client-123".to_string())
-            .with_san("alt.example.com".to_string())
-            .with_ttl(Duration::hours(1))
-            .with_metadata("project".to_string(), "test-project".to_string());
-        
+        let request =
+            IssuanceRequest::new("test.example.com".to_string(), "client-123".to_string())
+                .with_san("alt.example.com".to_string())
+                .with_ttl(Duration::hours(1))
+                .with_metadata("project".to_string(), "test-project".to_string());
+
         assert_eq!(request.common_name, "test.example.com");
         assert_eq!(request.client_id, "client-123");
         assert_eq!(request.subject_alt_names.len(), 1);
         assert_eq!(request.subject_alt_names[0], "alt.example.com");
         assert_eq!(request.ttl, Some(Duration::hours(1)));
-        assert_eq!(request.metadata.get("project"), Some(&"test-project".to_string()));
+        assert_eq!(
+            request.metadata.get("project"),
+            Some(&"test-project".to_string())
+        );
     }
 
     #[tokio::test]
@@ -265,4 +269,4 @@ mod tests {
         assert_eq!(config.default_ttl, DEFAULT_CERT_TTL);
         assert_eq!(config.max_ttl, MAX_CERT_TTL);
     }
-} 
+}

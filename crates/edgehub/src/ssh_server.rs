@@ -1,4 +1,6 @@
 use anyhow::{Context, Result};
+use common::shutdown::ShutdownSignal;
+use rand::Rng;
 use russh::server::{Auth, Msg, Session};
 use russh::{Channel, ChannelId};
 use russh_keys::key::KeyPair;
@@ -7,20 +9,18 @@ use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{Mutex, mpsc};
 use tracing::{debug, error, info, warn};
-use common::shutdown::ShutdownSignal;
-use rand::Rng;
 
 // Import certificate authority functionality
-use edf_ca::{CertificateAuthority, CaConfig, IssuanceRequest, IssuanceResponse};
+use edf_ca::{CaConfig, CertificateAuthority, IssuanceRequest, IssuanceResponse};
 
 /// SSH server configuration
 #[derive(Debug, Clone)]
 pub struct SshConfig {
     pub bind_addr: SocketAddr,
     pub host_key_path: Option<String>,
-    pub public_domain: String, // e.g., "fleetingdns.run"
+    pub public_domain: String,       // e.g., "fleetingdns.run"
     pub ca_config: Option<CaConfig>, // Certificate authority configuration
 }
 
@@ -75,18 +75,19 @@ impl SshServer {
     /// Create a new SSH server with certificate authority
     pub async fn new(config: SshConfig) -> Result<Self> {
         let host_key = Self::load_or_generate_host_key(&config.host_key_path).await?;
-        
+
         // Initialize certificate authority if configured
         let certificate_authority = if let Some(ca_config) = &config.ca_config {
             info!("Initializing certificate authority for SSH server");
-            let ca = CertificateAuthority::new(ca_config.clone()).await
+            let ca = CertificateAuthority::new(ca_config.clone())
+                .await
                 .context("Failed to initialize certificate authority")?;
             Some(Arc::new(ca))
         } else {
             info!("SSH server running without certificate authority (development mode)");
             None
         };
-        
+
         let (shutdown_tx, _) = mpsc::channel(1);
         let state = SshServerState {
             active_tunnels: Arc::new(Mutex::new(HashMap::new())),
@@ -103,10 +104,15 @@ impl SshServer {
     }
 
     /// Issue a certificate for a client
-    pub async fn issue_certificate(&self, client_id: &str, common_name: &str) -> Result<IssuanceResponse> {
+    pub async fn issue_certificate(
+        &self,
+        client_id: &str,
+        common_name: &str,
+    ) -> Result<IssuanceResponse> {
         if let Some(ca) = &self.state.certificate_authority {
             let request = IssuanceRequest::new(common_name.to_string(), client_id.to_string());
-            ca.issue_certificate(request).await
+            ca.issue_certificate(request)
+                .await
                 .context("Failed to issue certificate")
         } else {
             anyhow::bail!("Certificate authority not configured")
@@ -118,7 +124,8 @@ impl SshServer {
         if let Some(ca) = &self.state.certificate_authority {
             // Extract serial number from certificate
             if let Some(serial) = self.extract_certificate_serial(certificate_pem).await? {
-                ca.validate_certificate(&serial).await
+                ca.validate_certificate(&serial)
+                    .await
                     .context("Failed to validate certificate")
             } else {
                 Ok(false)
@@ -132,33 +139,31 @@ impl SshServer {
 
     /// Extract certificate serial number from PEM certificate
     async fn extract_certificate_serial(&self, certificate_pem: &str) -> Result<Option<String>> {
-        use rustls_pemfile;
         use ring::digest;
-        
+        use rustls_pemfile;
+
         // Parse the PEM certificate
         let mut reader = std::io::BufReader::new(certificate_pem.as_bytes());
         let certs_iter = rustls_pemfile::certs(&mut reader);
-        
+
         // Get the first certificate from the iterator
         let cert_der = match certs_iter.into_iter().next() {
             Some(Ok(cert)) => cert,
             Some(Err(_)) => return Ok(None),
             None => return Ok(None),
         };
-        
+
         // Calculate fingerprint as serial (simplified approach)
         let digest = digest::digest(&digest::SHA256, &cert_der);
         let serial = hex::encode(digest.as_ref());
-        
+
         Ok(Some(serial))
     }
 
     /// Generate a unique subdomain for a service
     pub async fn generate_subdomain(&self, service_name: &str) -> String {
         let mut rng = rand::thread_rng();
-        let suffix: String = (0..8)
-            .map(|_| rng.gen_range(b'a'..=b'z') as char)
-            .collect();
+        let suffix: String = (0..8).map(|_| rng.gen_range(b'a'..=b'z') as char).collect();
         format!("{service_name}{suffix}")
     }
 
@@ -180,8 +185,12 @@ impl SshServer {
             certificate_serial: certificate_serial.clone(),
         };
 
-        self.state.reverse_tunnels.lock().await.insert(subdomain.clone(), tunnel_info);
-        
+        self.state
+            .reverse_tunnels
+            .lock()
+            .await
+            .insert(subdomain.clone(), tunnel_info);
+
         let public_url = format!("https://{}.{}", subdomain, self.config.public_domain);
         info!(
             subdomain = %subdomain,
@@ -190,13 +199,18 @@ impl SshServer {
             certificate_serial = ?certificate_serial,
             "Registered reverse tunnel"
         );
-        
+
         Ok(public_url)
     }
 
     /// Find reverse tunnel by subdomain
     pub async fn find_reverse_tunnel(&self, subdomain: &str) -> Option<ReverseTunnelInfo> {
-        self.state.reverse_tunnels.lock().await.get(subdomain).cloned()
+        self.state
+            .reverse_tunnels
+            .lock()
+            .await
+            .get(subdomain)
+            .cloned()
     }
 
     /// Handle incoming HTTP request for reverse tunnel
@@ -207,7 +221,8 @@ impl SshServer {
     ) -> Result<Vec<u8>> {
         if let Some(tunnel_info) = self.find_reverse_tunnel(subdomain).await {
             // Forward request through the SSH tunnel to developer's local service
-            self.forward_to_developer_service(tunnel_info, _request_data).await
+            self.forward_to_developer_service(tunnel_info, _request_data)
+                .await
         } else {
             // Return 404 if no tunnel found
             let response = b"HTTP/1.1 404 Not Found\r\nContent-Length: 13\r\n\r\nTunnel not found";
@@ -236,23 +251,25 @@ impl SshServer {
             Some(key_path) => {
                 if Path::new(key_path).exists() {
                     info!("Loading SSH host key from {}", key_path);
-                    let key_data = tokio::fs::read_to_string(key_path).await
+                    let key_data = tokio::fs::read_to_string(key_path)
+                        .await
                         .context("Failed to read host key file")?;
-                    
+
                     russh_keys::decode_secret_key(&key_data, None)
                         .context("Failed to decode host key")
                 } else {
                     info!("Generating new SSH host key at {}", key_path);
                     let key = russh_keys::key::KeyPair::generate_ed25519()
                         .context("Failed to generate host key")?;
-                    
+
                     let mut encoded = Vec::new();
                     russh_keys::encode_pkcs8_pem(&key, &mut encoded)
                         .context("Failed to encode host key")?;
-                    
-                    tokio::fs::write(key_path, encoded).await
+
+                    tokio::fs::write(key_path, encoded)
+                        .await
                         .context("Failed to write host key")?;
-                    
+
                     Ok(key)
                 }
             }
@@ -265,10 +282,14 @@ impl SshServer {
     }
 
     /// Start the SSH server
-    pub async fn run(self, mut shutdown_rx: tokio::sync::broadcast::Receiver<ShutdownSignal>) -> Result<()> {
-        let listener = TcpListener::bind(&self.config.bind_addr).await
+    pub async fn run(
+        self,
+        mut shutdown_rx: tokio::sync::broadcast::Receiver<ShutdownSignal>,
+    ) -> Result<()> {
+        let listener = TcpListener::bind(&self.config.bind_addr)
+            .await
             .context("Failed to bind SSH server")?;
-        
+
         info!(
             bind_addr = %self.config.bind_addr,
             public_domain = %self.config.public_domain,
@@ -291,7 +312,7 @@ impl SshServer {
                         }
                     }
                 }
-                
+
                 // Accept new connections
                 accept_result = listener.accept() => {
                     match accept_result {
@@ -300,7 +321,7 @@ impl SshServer {
                             let state = self.state.clone();
                             let host_key = self.host_key.clone();
                             let public_domain = self.config.public_domain.clone();
-                            
+
                             tokio::spawn(async move {
                                 let session = SshSession {
                                     state,
@@ -308,7 +329,7 @@ impl SshServer {
                                     public_domain,
                                     client_certificate_serial: None,
                                 };
-                                
+
                                 let config = Arc::new(russh::server::Config {
                                     inactivity_timeout: Some(std::time::Duration::from_secs(3600)),
                                     auth_rejection_time: std::time::Duration::from_secs(3),
@@ -316,7 +337,7 @@ impl SshServer {
                                     keys: vec![host_key],
                                     ..Default::default()
                                 });
-                                
+
                                 if let Err(e) = russh::server::run_stream(
                                     config,
                                     stream,
@@ -400,7 +421,11 @@ impl russh::server::Handler for SshSession {
             client_certificate_serial: self.client_certificate_serial.clone(),
         };
 
-        self.state.active_tunnels.lock().await.insert(channel.id(), tunnel_info);
+        self.state
+            .active_tunnels
+            .lock()
+            .await
+            .insert(channel.id(), tunnel_info);
 
         // Start TCP proxy in background
         let state = self.state.clone();
@@ -409,7 +434,7 @@ impl russh::server::Handler for SshSession {
             if let Err(e) = tcp_proxy_task(channel, target_addr).await {
                 error!("TCP proxy error: {}", e);
             }
-            
+
             // Clean up tunnel info when done
             state.active_tunnels.lock().await.remove(&channel_id);
         });
@@ -430,7 +455,12 @@ impl russh::server::Handler for SshSession {
             Ok((self, Auth::Accept))
         } else {
             // No CA configured, reject authentication
-            Ok((self, Auth::Reject { proceed_with_methods: None }))
+            Ok((
+                self,
+                Auth::Reject {
+                    proceed_with_methods: None,
+                },
+            ))
         }
     }
 
@@ -441,9 +471,12 @@ impl russh::server::Handler for SshSession {
     ) -> Result<(Self, Auth), Self::Error> {
         // Reject password authentication for security
         warn!(user = %user, "Password authentication rejected - use certificate-based authentication");
-        Ok((self, Auth::Reject {
-            proceed_with_methods: None,
-        }))
+        Ok((
+            self,
+            Auth::Reject {
+                proceed_with_methods: None,
+            },
+        ))
     }
 
     async fn channel_close(
@@ -454,13 +487,13 @@ impl russh::server::Handler for SshSession {
         debug!("Channel {} closed", channel);
         self.channels.remove(&channel);
         self.state.active_tunnels.lock().await.remove(&channel);
-        
+
         // Clean up reverse tunnel if this was one
         {
             let mut reverse_tunnels = self.state.reverse_tunnels.lock().await;
             reverse_tunnels.retain(|_, tunnel| tunnel.channel_id != channel);
         }
-        
+
         Ok((self, session))
     }
 }
@@ -468,17 +501,18 @@ impl russh::server::Handler for SshSession {
 /// TCP proxy task that forwards data between SSH channel and target
 async fn tcp_proxy_task(mut channel: Channel<Msg>, target_addr: SocketAddr) -> Result<()> {
     debug!("Starting TCP proxy to {}", target_addr);
-    
+
     // Connect to target
-    let target_stream = TcpStream::connect(target_addr).await
+    let target_stream = TcpStream::connect(target_addr)
+        .await
         .context("Failed to connect to target")?;
-    
+
     let (target_read, target_write) = target_stream.into_split();
-    
+
     // Create bidirectional proxy using channels
     let (tx_to_target, mut rx_from_ssh) = mpsc::channel::<Vec<u8>>(1024);
     let (tx_to_ssh, mut rx_from_target) = mpsc::channel::<Vec<u8>>(1024);
-    
+
     // SSH -> Target
     let ssh_to_target = {
         let tx = tx_to_target.clone();
@@ -499,14 +533,14 @@ async fn tcp_proxy_task(mut channel: Channel<Msg>, target_addr: SocketAddr) -> R
             }
         }
     };
-    
-    // Target -> SSH  
+
+    // Target -> SSH
     let target_to_ssh = {
         let mut target_read = target_read;
         async move {
             use tokio::io::AsyncReadExt;
             let mut buffer = [0u8; 4096];
-            
+
             loop {
                 match target_read.read(&mut buffer).await {
                     Ok(0) => break, // EOF
@@ -523,7 +557,7 @@ async fn tcp_proxy_task(mut channel: Channel<Msg>, target_addr: SocketAddr) -> R
             }
         }
     };
-    
+
     // Forward data from channels
     let forward_to_target = {
         let mut target_write = target_write;
@@ -536,7 +570,7 @@ async fn tcp_proxy_task(mut channel: Channel<Msg>, target_addr: SocketAddr) -> R
             }
         }
     };
-    
+
     let forward_to_ssh = {
         // We need to create a separate channel reference for sending data back
         // This is a simplified implementation - in production we'd need proper channel management
@@ -549,7 +583,7 @@ async fn tcp_proxy_task(mut channel: Channel<Msg>, target_addr: SocketAddr) -> R
             }
         }
     };
-    
+
     // Run all proxy tasks concurrently
     tokio::select! {
         _ = ssh_to_target => debug!("SSH to target proxy ended"),
@@ -557,7 +591,7 @@ async fn tcp_proxy_task(mut channel: Channel<Msg>, target_addr: SocketAddr) -> R
         _ = forward_to_target => debug!("Forward to target ended"),
         _ = forward_to_ssh => debug!("Forward to SSH ended"),
     }
-    
+
     debug!("TCP proxy to {} completed", target_addr);
     Ok(())
 }
@@ -596,9 +630,11 @@ mod tests {
         };
         let server = SshServer::new(config).await.unwrap();
         assert!(server.state.certificate_authority.is_some());
-        
+
         // Test certificate issuance
-        let response = server.issue_certificate("test-client", "test.example.com").await;
+        let response = server
+            .issue_certificate("test-client", "test.example.com")
+            .await;
         assert!(response.is_ok());
     }
 
@@ -610,9 +646,11 @@ mod tests {
         };
         let server = SshServer::new(config).await.unwrap();
         assert!(server.state.certificate_authority.is_none());
-        
+
         // Test certificate issuance should fail
-        let response = server.issue_certificate("test-client", "test.example.com").await;
+        let response = server
+            .issue_certificate("test-client", "test.example.com")
+            .await;
         assert!(response.is_err());
     }
 
@@ -645,12 +683,12 @@ mod tests {
     async fn test_certificate_validation() {
         let config = SshConfig::default();
         let server = SshServer::new(config).await.unwrap();
-        
+
         // Test with mock certificate PEM
         let mock_cert_pem = "-----BEGIN CERTIFICATE-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...\n-----END CERTIFICATE-----";
         let is_valid = server.validate_certificate(mock_cert_pem).await;
-        
+
         // Should not fail (even if certificate is not valid in CA)
         assert!(is_valid.is_ok());
     }
-} 
+}

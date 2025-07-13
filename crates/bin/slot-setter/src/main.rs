@@ -46,7 +46,7 @@ mod tests {
     use super::*;
     // Note: Testcontainer tests temporarily disabled due to API compatibility issues
     // These will be re-enabled after updating testcontainers dependencies
-    
+
     #[test]
     fn test_args_debug_format() {
         let args = Args {
@@ -55,7 +55,7 @@ mod tests {
             ttl: 300,
             redis: "redis://localhost:6379".to_string(),
         };
-        
+
         let debug_str = format!("{args:?}");
         assert!(debug_str.contains("test-slot"));
         assert!(debug_str.contains("192.168.1.1"));
@@ -70,7 +70,7 @@ mod tests {
             ttl: 300,
             redis: "redis://localhost:6379".to_string(),
         };
-        
+
         let cloned_args = args.clone();
         assert_eq!(args.slot, cloned_args.slot);
         assert_eq!(args.ip, cloned_args.ip);

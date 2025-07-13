@@ -1,5 +1,9 @@
-use crate::{auth, ApiState, ApiResult};
-use axum::{extract::{Query, State}, http::HeaderMap, Json};
+use crate::{ApiResult, ApiState, auth};
+use axum::{
+    Json,
+    extract::{Query, State},
+    http::HeaderMap,
+};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
@@ -51,25 +55,26 @@ pub async fn github_oauth(
     Json(request): Json<GitHubOAuthRequest>,
 ) -> ApiResult<Json<GitHubOAuthResponse>> {
     debug!("Processing GitHub OAuth request");
-    
+
     // Exchange code for GitHub access token
     let github_token = exchange_github_code(
         &state.github_client,
         &state.config.github_client_id,
         &state.config.github_client_secret,
         &request.code,
-    ).await?;
-    
+    )
+    .await?;
+
     // Get user information from GitHub
     let user = validate_github_token(&state.github_client, &github_token).await?;
-    
+
     info!("User {} authenticated via GitHub", user.login);
-    
+
     // Generate JWT token
     let jwt_token = generate_jwt_token(&user, &state.config.jwt_secret)?;
-    
+
     let expires_at = Utc::now() + chrono::Duration::hours(24);
-    
+
     Ok(Json(GitHubOAuthResponse {
         access_token: jwt_token,
         token_type: "Bearer".to_string(),
@@ -84,20 +89,20 @@ pub async fn exchange_token(
     Json(request): Json<TokenRequest>,
 ) -> ApiResult<Json<TokenResponse>> {
     debug!("Processing token exchange request");
-    
+
     // Validate GitHub token and get user info
     let user = validate_github_token(&state.github_client, &request.github_token).await?;
-    
+
     info!("Token exchange for user {}", user.login);
-    
+
     // Generate JWT token
     let jwt_token = generate_jwt_token(&user, &state.config.jwt_secret)?;
-    
+
     let expires_at = Utc::now() + chrono::Duration::hours(24);
-    
+
     Ok(Json(TokenResponse {
         access_token: jwt_token,
         token_type: "Bearer".to_string(),
         expires_at: expires_at.to_rfc3339(),
     }))
-} 
+}

@@ -1,6 +1,6 @@
 use axum::{
-    routing::{get, post, delete},
     Router,
+    routing::{delete, get, post},
 };
 use std::sync::Arc;
 use tokio::net::TcpListener;
@@ -75,24 +75,25 @@ fn create_router(state: ApiState) -> Router {
     Router::new()
         // Health check
         .route("/health", get(handlers::health_check))
-        
         // Authentication endpoints
         .route("/v1/auth/github", post(handlers::auth::github_oauth))
         .route("/v1/auth/token", post(handlers::auth::exchange_token))
-        
         // Tunnel management endpoints
         .route("/v1/tunnels", post(handlers::tunnels::create_tunnel))
         .route("/v1/tunnels/:id", get(handlers::tunnels::get_tunnel))
         .route("/v1/tunnels/:id", delete(handlers::tunnels::delete_tunnel))
         .route("/v1/tunnels", get(handlers::tunnels::list_tunnels))
-        
         // Certificate management
-        .route("/v1/certificates", post(handlers::certificates::issue_certificate))
-        .route("/v1/certificates/:serial", get(handlers::certificates::get_certificate))
-        
+        .route(
+            "/v1/certificates",
+            post(handlers::certificates::issue_certificate),
+        )
+        .route(
+            "/v1/certificates/:serial",
+            get(handlers::certificates::get_certificate),
+        )
         // Statistics and monitoring
         .route("/v1/stats", get(handlers::stats::get_stats))
-        
         // Add middleware
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())
@@ -100,8 +101,8 @@ fn create_router(state: ApiState) -> Router {
 }
 
 // Re-export main types for external use
-pub use handlers::tunnels::{CreateTunnelRequest, CreateTunnelResponse, TunnelInfo};
 pub use handlers::auth::{GitHubOAuthRequest, GitHubOAuthResponse, TokenRequest, TokenResponse};
+pub use handlers::tunnels::{CreateTunnelRequest, CreateTunnelResponse, TunnelInfo};
 
 #[cfg(test)]
 mod tests {

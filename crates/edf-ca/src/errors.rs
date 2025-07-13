@@ -89,4 +89,4 @@ impl From<rcgen::Error> for CaError {
 }
 
 /// Result type for CA operations
-pub type CaResult<T> = Result<T, CaError>; 
+pub type CaResult<T> = Result<T, CaError>;

@@ -1,8 +1,8 @@
-use crate::{auth::*, models::*, ApiState, ApiResult, ApiError};
+use crate::{ApiError, ApiResult, ApiState, auth::*, models::*};
 use axum::{
+    Json,
     extract::{Path, State},
     http::HeaderMap,
-    Json,
 };
 use serde::{Deserialize, Serialize};
 use tracing::info;
@@ -13,13 +13,13 @@ use uuid::Uuid;
 pub struct CreateTunnelRequest {
     /// Local port to forward
     pub port: u16,
-    
+
     /// Tunnel TTL in seconds (optional, uses default if not specified)
     pub ttl: Option<u64>,
-    
+
     /// Custom subdomain (optional, generates random if not specified)
     pub custom_subdomain: Option<String>,
-    
+
     /// Enable basic authentication (optional, default false)
     pub auth: Option<bool>,
 }
@@ -29,25 +29,25 @@ pub struct CreateTunnelRequest {
 pub struct CreateTunnelResponse {
     /// Tunnel ID
     pub id: String,
-    
+
     /// Full FQDN for the tunnel
     pub fqdn: String,
-    
+
     /// SSH server slot assigned
     pub slot: u16,
-    
+
     /// TLS certificate for client authentication
     pub tls_cert: String,
-    
+
     /// Private key for TLS certificate - NOTE: This should be in the response from edf-ca
     pub private_key: String,
-    
+
     /// SSH key pair for tunnel authentication
     pub ssh_key: SshKeyPair,
-    
+
     /// Tunnel expiration time
     pub expires_at: String,
-    
+
     /// Basic auth credentials (if enabled)
     pub auth: Option<BasicAuthCredentials>,
 }
@@ -83,9 +83,12 @@ pub async fn create_tunnel(
     // Authenticate user
     let token = extract_bearer_token(&headers)?;
     let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
-    
-    info!("Creating tunnel for user {} on port {}", user.login, request.port);
-    
+
+    info!(
+        "Creating tunnel for user {} on port {}",
+        user.login, request.port
+    );
+
     // Validate TTL
     let ttl_seconds = request.ttl.unwrap_or(state.config.default_tunnel_ttl);
     if ttl_seconds > state.config.max_tunnel_ttl {
@@ -94,7 +97,7 @@ pub async fn create_tunnel(
             ttl_seconds, state.config.max_tunnel_ttl
         )));
     }
-    
+
     // Generate or validate subdomain
     let subdomain = match request.custom_subdomain {
         Some(custom) => {
@@ -106,17 +109,18 @@ pub async fn create_tunnel(
         }
         None => generate_random_subdomain().await,
     };
-    
+
     // Allocate SSH server slot
     let slot = allocate_ssh_slot(&state).await?;
-    
-    let cert_request = edf_ca::IssuanceRequest::new(
-        format!("tunnel-client-{}", user.id),
-        user.id.to_string(),
-    );
+
+    let cert_request =
+        edf_ca::IssuanceRequest::new(format!("tunnel-client-{}", user.id), user.id.to_string());
 
     // Issue certificate
-    let cert_response = state.ca.issue_certificate(cert_request).await
+    let cert_response = state
+        .ca
+        .issue_certificate(cert_request)
+        .await
         .map_err(|e| ApiError::CertificateError(e.to_string()))?;
 
     // Create tunnel with certificate
@@ -128,15 +132,15 @@ pub async fn create_tunnel(
         "fleetingdns.run".to_string(),
         request.ttl_seconds,
     );
-    
+
     // Store tunnel metadata
     state.storage.store_tunnel(&tunnel).await?;
-    
+
     info!("Created tunnel {} -> {}", tunnel.fqdn, tunnel.local_port);
-    
+
     // Generate SSH key pair
     let ssh_key = generate_ssh_key_pair()?;
-    
+
     // Generate basic auth credentials if requested
     let auth_credentials = if request.auth.unwrap_or(false) {
         Some(BasicAuthCredentials {
@@ -146,7 +150,7 @@ pub async fn create_tunnel(
     } else {
         None
     };
-    
+
     Ok(Json(CreateTunnelResponse {
         id: tunnel.id.to_string(),
         fqdn: tunnel.fqdn,
@@ -168,18 +172,23 @@ pub async fn get_tunnel(
     // Authenticate user
     let token = extract_bearer_token(&headers)?;
     let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
-    
+
     let uuid = Uuid::parse_str(&tunnel_id)
         .map_err(|_| ApiError::BadRequest("Invalid tunnel ID".to_string()))?;
-    
-    let tunnel = state.storage.get_tunnel(&uuid).await?
+
+    let tunnel = state
+        .storage
+        .get_tunnel(&uuid)
+        .await?
         .ok_or_else(|| ApiError::TunnelNotFound(tunnel_id.clone()))?;
-    
+
     // Verify tunnel ownership
     if tunnel.github_user_id != user.id.to_string() {
-        return Err(ApiError::Forbidden("Not authorized to access this tunnel".to_string()));
+        return Err(ApiError::Forbidden(
+            "Not authorized to access this tunnel".to_string(),
+        ));
     }
-    
+
     // Clone values to avoid borrowing issues
     let tunnel_info = TunnelInfo {
         id: tunnel.id.to_string(),
@@ -193,7 +202,7 @@ pub async fn get_tunnel(
         request_count: tunnel.request_count,
         remaining_ttl: tunnel.remaining_ttl(),
     };
-    
+
     Ok(Json(tunnel_info))
 }
 
@@ -206,23 +215,28 @@ pub async fn delete_tunnel(
     // Authenticate user
     let token = extract_bearer_token(&headers)?;
     let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
-    
+
     let uuid = Uuid::parse_str(&tunnel_id)
         .map_err(|_| ApiError::BadRequest("Invalid tunnel ID".to_string()))?;
-    
-    let tunnel = state.storage.get_tunnel(&uuid).await?
+
+    let tunnel = state
+        .storage
+        .get_tunnel(&uuid)
+        .await?
         .ok_or_else(|| ApiError::TunnelNotFound(tunnel_id.clone()))?;
-    
+
     // Check ownership
     if tunnel.github_user_id != user.id {
-        return Err(ApiError::AuthorizationFailed("Not authorized to delete this tunnel".to_string()));
+        return Err(ApiError::AuthorizationFailed(
+            "Not authorized to delete this tunnel".to_string(),
+        ));
     }
-    
+
     // Delete tunnel
     state.storage.delete_tunnel(&uuid).await?;
-    
+
     info!("Deleted tunnel {} for user {}", tunnel_id, user.login);
-    
+
     Ok(Json(serde_json::json!({
         "status": "deleted",
         "tunnel_id": tunnel_id
@@ -237,9 +251,12 @@ pub async fn list_tunnels(
     // Authenticate user
     let token = extract_bearer_token(&headers)?;
     let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
-    
-    let tunnels = state.storage.list_user_tunnels(&user.id.to_string()).await?;
-    
+
+    let tunnels = state
+        .storage
+        .list_user_tunnels(&user.id.to_string())
+        .await?;
+
     let tunnel_infos: Vec<TunnelInfo> = tunnels
         .into_iter()
         .map(|tunnel| TunnelInfo {
@@ -255,24 +272,33 @@ pub async fn list_tunnels(
             remaining_ttl: tunnel.remaining_ttl(),
         })
         .collect();
-    
+
     Ok(Json(tunnel_infos))
 }
 
 /// Validate subdomain format
 fn validate_subdomain(subdomain: &str) -> ApiResult<()> {
     if subdomain.is_empty() || subdomain.len() > 63 {
-        return Err(ApiError::BadRequest("Subdomain must be 1-63 characters".to_string()));
+        return Err(ApiError::BadRequest(
+            "Subdomain must be 1-63 characters".to_string(),
+        ));
     }
-    
-    if !subdomain.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
-        return Err(ApiError::BadRequest("Subdomain can only contain alphanumeric characters and hyphens".to_string()));
+
+    if !subdomain
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-')
+    {
+        return Err(ApiError::BadRequest(
+            "Subdomain can only contain alphanumeric characters and hyphens".to_string(),
+        ));
     }
-    
+
     if subdomain.starts_with('-') || subdomain.ends_with('-') {
-        return Err(ApiError::BadRequest("Subdomain cannot start or end with hyphen".to_string()));
+        return Err(ApiError::BadRequest(
+            "Subdomain cannot start or end with hyphen".to_string(),
+        ));
     }
-    
+
     Ok(())
 }
 
@@ -280,7 +306,7 @@ fn validate_subdomain(subdomain: &str) -> ApiResult<()> {
 async fn generate_random_subdomain() -> String {
     use rand::Rng;
     let mut rng = rand::thread_rng();
-    
+
     // Generate a random 8-character alphanumeric string
     let chars: String = (0..8)
         .map(|_| {
@@ -292,7 +318,7 @@ async fn generate_random_subdomain() -> String {
             }
         })
         .collect();
-    
+
     format!("tunnel-{}", chars)
 }
 
@@ -310,7 +336,8 @@ fn generate_ssh_key_pair() -> ApiResult<SshKeyPair> {
     // For now, return placeholder keys
     // In production, generate actual Ed25519 key pairs
     Ok(SshKeyPair {
-        private_key: "-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----".to_string(),
+        private_key: "-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----"
+            .to_string(),
         public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5... tunnel-key".to_string(),
         fingerprint: "SHA256:abcd1234...".to_string(),
     })
@@ -321,11 +348,11 @@ fn generate_random_string(length: usize) -> String {
     use rand::Rng;
     const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     let mut rng = rand::thread_rng();
-    
+
     (0..length)
         .map(|_| {
             let idx = rng.gen_range(0..CHARSET.len());
             CHARSET[idx] as char
         })
         .collect()
-} 
+}

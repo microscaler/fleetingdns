@@ -69,7 +69,7 @@ mod tests {
     use super::*;
     // Note: Testcontainer tests temporarily disabled due to API compatibility issues
     // These will be re-enabled after updating testcontainers dependencies
-    
+
     #[test]
     fn test_cache_error_display() {
         let error = CacheError::NXDomain;

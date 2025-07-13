@@ -1,8 +1,8 @@
-use crate::{auth::*, ApiState, ApiResult, ApiError};
+use crate::{ApiError, ApiResult, ApiState, auth::*};
 use axum::{
+    Json,
     extract::{Path, State},
     http::HeaderMap,
-    Json,
 };
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
@@ -12,7 +12,7 @@ use tracing::{debug, info};
 pub struct IssueCertificateRequest {
     /// Certificate subject/common name
     pub common_name: String,
-    
+
     /// Certificate TTL in seconds
     pub ttl: Option<u64>,
 }
@@ -22,13 +22,13 @@ pub struct IssueCertificateRequest {
 pub struct IssueCertificateResponse {
     /// Certificate serial number
     pub serial: String,
-    
+
     /// PEM-encoded certificate
     pub certificate: String,
-    
+
     /// Certificate fingerprint
     pub fingerprint: String,
-    
+
     /// Certificate expiration time
     pub expires_at: String,
 }
@@ -53,9 +53,12 @@ pub async fn issue_certificate(
     // Authenticate user
     let token = extract_bearer_token(&headers)?;
     let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
-    
-    debug!("Issuing certificate for user {} with common name {}", user.login, request.common_name);
-    
+
+    debug!(
+        "Issuing certificate for user {} with common name {}",
+        user.login, request.common_name
+    );
+
     // Validate TTL
     let ttl_seconds = request.ttl.unwrap_or(state.config.default_tunnel_ttl);
     if ttl_seconds > state.config.max_tunnel_ttl {
@@ -64,18 +67,19 @@ pub async fn issue_certificate(
             ttl_seconds, state.config.max_tunnel_ttl
         )));
     }
-    
+
     // Create certificate issuance request using correct edf-ca API
-    let cert_request = edf_ca::IssuanceRequest::new(
-        request.common_name,
-        user.id.clone(),
-    ).with_ttl(chrono::Duration::seconds(ttl_seconds as i64));
-    
+    let cert_request = edf_ca::IssuanceRequest::new(request.common_name, user.id.clone())
+        .with_ttl(chrono::Duration::seconds(ttl_seconds as i64));
+
     // Issue certificate via CA
     let cert_response = state.ca.issue_certificate(cert_request).await?;
-    
-    info!("Issued certificate {} for user {}", cert_response.metadata.serial_number, user.login);
-    
+
+    info!(
+        "Issued certificate {} for user {}",
+        cert_response.metadata.serial_number, user.login
+    );
+
     Ok(Json(IssueCertificateResponse {
         serial: cert_response.metadata.serial_number,
         certificate: cert_response.certificate_pem,
@@ -93,16 +97,16 @@ pub async fn get_certificate(
     // Authenticate user
     let token = extract_bearer_token(&headers)?;
     let _user = validate_jwt_token(&token, &state.config.jwt_secret)?;
-    
+
     // Get certificate information from CA
     let cert_info = state.ca.get_certificate_info(&serial).await?;
-    
+
     let status = if cert_info.metadata.expires_at < chrono::Utc::now() {
         "expired"
     } else {
         "active"
     };
-    
+
     Ok(Json(CertificateInfoResponse {
         serial: cert_info.metadata.serial_number,
         subject: cert_info.metadata.subject,
@@ -111,4 +115,4 @@ pub async fn get_certificate(
         expires_at: cert_info.metadata.expires_at.to_rfc3339(),
         status: status.to_string(),
     }))
-} 
+}

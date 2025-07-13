@@ -7,40 +7,40 @@ use uuid::Uuid;
 pub struct Tunnel {
     /// Unique tunnel identifier
     pub id: Uuid,
-    
+
     /// GitHub user ID who owns this tunnel
     pub github_user_id: String,
-    
+
     /// GitHub username for display
     pub github_username: String,
-    
+
     /// Subdomain assigned to this tunnel
     pub subdomain: String,
-    
+
     /// Full FQDN for the tunnel
     pub fqdn: String,
-    
+
     /// Local port being forwarded
     pub local_port: u16,
-    
+
     /// SSH server slot/port assigned
     pub slot: u16,
-    
+
     /// Certificate serial number for this tunnel
     pub certificate_serial: String,
-    
+
     /// When the tunnel was created
     pub created_at: DateTime<Utc>,
-    
+
     /// When the tunnel expires
     pub expires_at: DateTime<Utc>,
-    
+
     /// Current tunnel status
     pub status: TunnelStatus,
-    
+
     /// Number of bytes transferred through this tunnel
     pub bytes_transferred: u64,
-    
+
     /// Number of requests processed
     pub request_count: u64,
 }
@@ -51,16 +51,16 @@ pub struct Tunnel {
 pub enum TunnelStatus {
     /// Tunnel is being created
     Creating,
-    
+
     /// Tunnel is active and ready
     Active,
-    
+
     /// Tunnel is being destroyed
     Destroying,
-    
+
     /// Tunnel has expired
     Expired,
-    
+
     /// Tunnel encountered an error
     Error,
 }
@@ -70,13 +70,13 @@ pub enum TunnelStatus {
 pub struct AuthToken {
     /// JWT token string
     pub token: String,
-    
+
     /// Token type (always "Bearer")
     pub token_type: String,
-    
+
     /// Token expiration time
     pub expires_at: DateTime<Utc>,
-    
+
     /// GitHub user information
     pub user: GitHubUser,
 }
@@ -86,16 +86,16 @@ pub struct AuthToken {
 pub struct GitHubUser {
     /// GitHub user ID
     pub id: String,
-    
+
     /// GitHub username
     pub login: String,
-    
+
     /// Display name
     pub name: Option<String>,
-    
+
     /// Email address
     pub email: Option<String>,
-    
+
     /// Avatar URL
     pub avatar_url: String,
 }
@@ -105,22 +105,22 @@ pub struct GitHubUser {
 pub struct CertificateInfo {
     /// Certificate serial number
     pub serial: String,
-    
+
     /// PEM-encoded certificate
     pub certificate: String,
-    
+
     /// PEM-encoded private key
     pub private_key: String,
-    
+
     /// Certificate fingerprint (SHA-256)
     pub fingerprint: String,
-    
+
     /// When the certificate was issued
     pub issued_at: DateTime<Utc>,
-    
+
     /// When the certificate expires
     pub expires_at: DateTime<Utc>,
-    
+
     /// Subject common name
     pub subject: String,
 }
@@ -130,10 +130,10 @@ pub struct CertificateInfo {
 pub struct SshKeyPair {
     /// PEM-encoded private key
     pub private_key: String,
-    
+
     /// Public key in OpenSSH format
     pub public_key: String,
-    
+
     /// Key fingerprint
     pub fingerprint: String,
 }
@@ -143,16 +143,16 @@ pub struct SshKeyPair {
 pub struct ApiStats {
     /// Total number of active tunnels
     pub active_tunnels: u64,
-    
+
     /// Total tunnels created today
     pub tunnels_created_today: u64,
-    
+
     /// Total bytes transferred today
     pub bytes_transferred_today: u64,
-    
+
     /// Certificate authority statistics
     pub ca_stats: CaStats,
-    
+
     /// System uptime in seconds
     pub uptime_seconds: u64,
 }
@@ -162,13 +162,13 @@ pub struct ApiStats {
 pub struct CaStats {
     /// Total certificates issued
     pub certificates_issued: u64,
-    
+
     /// Active certificates
     pub active_certificates: u64,
-    
+
     /// Expired certificates cleaned up
     pub expired_certificates: u64,
-    
+
     /// Certificate issuance rate (per hour)
     pub issuance_rate: f64,
 }
@@ -187,7 +187,7 @@ impl Tunnel {
     ) -> Self {
         let now = Utc::now();
         let expires_at = now + chrono::Duration::seconds(ttl_seconds as i64);
-        
+
         Self {
             id: Uuid::new_v4(),
             github_user_id,
@@ -204,12 +204,12 @@ impl Tunnel {
             request_count: 0,
         }
     }
-    
+
     /// Check if the tunnel has expired
     pub fn is_expired(&self) -> bool {
         Utc::now() > self.expires_at
     }
-    
+
     /// Get remaining TTL in seconds
     pub fn remaining_ttl(&self) -> i64 {
         (self.expires_at - Utc::now()).num_seconds()
@@ -220,4 +220,4 @@ impl Default for TunnelStatus {
     fn default() -> Self {
         TunnelStatus::Creating
     }
-} 
+}

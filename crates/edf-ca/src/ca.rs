@@ -9,8 +9,8 @@ use tokio::sync::Mutex;
 use tracing::{debug, info};
 
 use crate::certificate::{
-    CertificateBuilder, CertificateMetadata, CertificateRequest, EphemeralCertificate,
-    calculate_fingerprint, generate_serial_number,
+    calculate_fingerprint, generate_serial_number, CertificateBuilder, CertificateMetadata,
+    CertificateRequest, EphemeralCertificate,
 };
 use crate::errors::{CaError, CaResult};
 use crate::{ActiveCertificate, CaConfig, CertificateRegistry, IssuanceRequest, IssuanceResponse};
@@ -89,7 +89,10 @@ impl CertificateAuthority {
         self.registry.register_certificate(active_cert).await;
 
         // Update rate limiter
-        self.rate_limiter.lock().await.record_issuance(&request.client_id);
+        self.rate_limiter
+            .lock()
+            .await
+            .record_issuance(&request.client_id);
 
         info!(
             request_id = %request.request_id,
@@ -109,7 +112,7 @@ impl CertificateAuthority {
     /// Validate a certificate by serial number
     pub async fn validate_certificate(&self, serial_number: &str) -> CaResult<bool> {
         let is_valid = self.registry.is_certificate_valid(serial_number).await;
-        
+
         debug!(
             serial_number = %serial_number,
             is_valid = %is_valid,
@@ -167,7 +170,10 @@ impl CertificateAuthority {
     }
 
     /// Generate an ephemeral certificate
-    async fn generate_certificate(&self, request: CertificateRequest) -> CaResult<EphemeralCertificate> {
+    async fn generate_certificate(
+        &self,
+        request: CertificateRequest,
+    ) -> CaResult<EphemeralCertificate> {
         // Generate key pair for the certificate
         let key_pair = KeyPair::generate(&rcgen::PKCS_ED25519)
             .map_err(|e| CaError::CertificateGeneration(e.to_string()))?;
@@ -239,9 +245,16 @@ impl CertificateAuthority {
     /// Generate a new CA certificate
     async fn generate_ca_certificate(config: &CaConfig) -> CaResult<Certificate> {
         let mut params = CertificateParams::new(Vec::new());
-        params.distinguished_name.push(DnType::CommonName, config.ca_name.clone());
-        params.distinguished_name.push(DnType::OrganizationName, config.organization.clone());
-        params.distinguished_name.push(DnType::OrganizationalUnitName, config.organizational_unit.clone());
+        params
+            .distinguished_name
+            .push(DnType::CommonName, config.ca_name.clone());
+        params
+            .distinguished_name
+            .push(DnType::OrganizationName, config.organization.clone());
+        params.distinguished_name.push(
+            DnType::OrganizationalUnitName,
+            config.organizational_unit.clone(),
+        );
 
         params.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
         params.key_usages = vec![
@@ -254,8 +267,7 @@ impl CertificateAuthority {
         params.not_before = now;
         params.not_after = now + time::Duration::days(3650);
 
-        Certificate::from_params(params)
-            .map_err(|e| CaError::CertificateGeneration(e.to_string()))
+        Certificate::from_params(params).map_err(|e| CaError::CertificateGeneration(e.to_string()))
     }
 
     /// Load CA certificate from files
@@ -267,20 +279,20 @@ impl CertificateAuthority {
     }
 
     /// Save CA certificate to files
-    async fn save_ca_certificate(cert: &Certificate, cert_path: &str, key_path: &str) -> CaResult<()> {
+    async fn save_ca_certificate(
+        cert: &Certificate,
+        cert_path: &str,
+        key_path: &str,
+    ) -> CaResult<()> {
         let cert_pem = cert
             .serialize_pem()
             .map_err(|e| CaError::CertificateGeneration(e.to_string()))?;
 
         let key_pem = cert.get_key_pair().serialize_pem();
 
-        fs::write(cert_path, cert_pem)
-            .await
-            .map_err(CaError::Io)?;
+        fs::write(cert_path, cert_pem).await.map_err(CaError::Io)?;
 
-        fs::write(key_path, key_pem)
-            .await
-            .map_err(CaError::Io)?;
+        fs::write(key_path, key_pem).await.map_err(CaError::Io)?;
 
         info!(cert_path = %cert_path, key_path = %key_path, "CA certificate saved");
         Ok(())
@@ -289,11 +301,15 @@ impl CertificateAuthority {
     /// Validate certificate issuance request
     async fn validate_request(&self, request: &IssuanceRequest) -> CaResult<()> {
         if request.common_name.is_empty() {
-            return Err(CaError::InvalidRequest("Common name cannot be empty".to_string()));
+            return Err(CaError::InvalidRequest(
+                "Common name cannot be empty".to_string(),
+            ));
         }
 
         if request.client_id.is_empty() {
-            return Err(CaError::InvalidRequest("Client ID cannot be empty".to_string()));
+            return Err(CaError::InvalidRequest(
+                "Client ID cannot be empty".to_string(),
+            ));
         }
 
         // Additional validation can be added here
@@ -358,14 +374,17 @@ impl RateLimiter {
 
     fn record_issuance(&mut self, client_id: &str) {
         let now = Utc::now();
-        let entry = self.client_counts.entry(client_id.to_string()).or_insert((0, now));
-        
+        let entry = self
+            .client_counts
+            .entry(client_id.to_string())
+            .or_insert((0, now));
+
         // Reset if window expired
         if now - entry.1 >= Duration::hours(1) {
             entry.0 = 0;
             entry.1 = now;
         }
-        
+
         entry.0 += 1;
         self.total_issued += 1;
     }
@@ -383,7 +402,7 @@ mod tests {
     async fn test_ca_creation() {
         let config = CaConfig::default();
         let ca = CertificateAuthority::new(config).await.unwrap();
-        
+
         let ca_pem = ca.get_ca_certificate_pem().unwrap();
         assert!(!ca_pem.is_empty());
         assert!(ca_pem.contains("BEGIN CERTIFICATE"));
@@ -393,20 +412,23 @@ mod tests {
     async fn test_certificate_issuance() {
         let config = CaConfig::default();
         let ca = CertificateAuthority::new(config).await.unwrap();
-        
+
         let request = IssuanceRequest::new(
             "test-client.fleetingdns.run".to_string(),
             "test-client-123".to_string(),
         );
-        
+
         let response = ca.issue_certificate(request).await.unwrap();
-        
+
         assert!(!response.certificate_pem.is_empty());
         assert!(!response.ca_chain_pem.is_empty());
         assert!(response.metadata.expires_at > Utc::now());
-        
+
         // Verify certificate is registered
-        let is_valid = ca.validate_certificate(&response.metadata.serial_number).await.unwrap();
+        let is_valid = ca
+            .validate_certificate(&response.metadata.serial_number)
+            .await
+            .unwrap();
         assert!(is_valid);
     }
 
@@ -414,14 +436,14 @@ mod tests {
     async fn test_certificate_expiry_validation() {
         let config = CaConfig::default();
         let ca = CertificateAuthority::new(config).await.unwrap();
-        
+
         // Request certificate with TTL exceeding maximum
         let mut request = IssuanceRequest::new(
             "test-client.fleetingdns.run".to_string(),
             "test-client-123".to_string(),
         );
         request.ttl = Some(Duration::hours(5)); // Exceeds 2 hour maximum
-        
+
         let result = ca.issue_certificate(request).await;
         assert!(matches!(result, Err(CaError::TtlValidation { .. })));
     }
@@ -430,24 +452,24 @@ mod tests {
     async fn test_rate_limiting() {
         let config = CaConfig::default();
         let ca = CertificateAuthority::new(config).await.unwrap();
-        
+
         // Issue certificates up to the limit
         for i in 0..10 {
             let request = IssuanceRequest::new(
                 format!("test-{i}.fleetingdns.run"),
                 "test-client-123".to_string(),
             );
-            
+
             let result = ca.issue_certificate(request).await;
             assert!(result.is_ok());
         }
-        
+
         // Next request should be rate limited
         let request = IssuanceRequest::new(
             "test-11.fleetingdns.run".to_string(),
             "test-client-123".to_string(),
         );
-        
+
         let result = ca.issue_certificate(request).await;
         assert!(matches!(result, Err(CaError::RateLimitExceeded { .. })));
     }
@@ -456,22 +478,22 @@ mod tests {
     async fn test_certificate_revocation() {
         let config = CaConfig::default();
         let ca = CertificateAuthority::new(config).await.unwrap();
-        
+
         let request = IssuanceRequest::new(
             "test-client.fleetingdns.run".to_string(),
             "test-client-123".to_string(),
         );
-        
+
         let response = ca.issue_certificate(request).await.unwrap();
         let serial = &response.metadata.serial_number;
-        
+
         // Verify certificate is valid
         assert!(ca.validate_certificate(serial).await.unwrap());
-        
+
         // Revoke certificate
         ca.revoke_certificate(serial).await.unwrap();
-        
+
         // Verify certificate is no longer valid
         assert!(!ca.validate_certificate(serial).await.unwrap());
     }
-} 
+}

@@ -6,28 +6,28 @@ use std::env;
 pub struct ApiConfig {
     /// Address to bind the API server
     pub bind_address: String,
-    
+
     /// GitHub OAuth client ID
     pub github_client_id: String,
-    
+
     /// GitHub OAuth client secret
     pub github_client_secret: String,
-    
+
     /// Redis URL for tunnel metadata storage
     pub redis_url: String,
-    
+
     /// Base domain for tunnel subdomains
     pub base_domain: String,
-    
+
     /// Default tunnel TTL in seconds
     pub default_tunnel_ttl: u64,
-    
+
     /// Maximum tunnel TTL in seconds
     pub max_tunnel_ttl: u64,
-    
+
     /// EdgeHub SSH server address
     pub edgehub_address: String,
-    
+
     /// JWT secret for token signing
     pub jwt_secret: String,
 }
@@ -60,8 +60,7 @@ impl ApiConfig {
                 .unwrap_or_else(|_| "your-github-client-secret".to_string()),
             redis_url: env::var("REDIS_URL")
                 .unwrap_or_else(|_| "redis://localhost:6379".to_string()),
-            base_domain: env::var("BASE_DOMAIN")
-                .unwrap_or_else(|_| "fleetingdns.run".to_string()),
+            base_domain: env::var("BASE_DOMAIN").unwrap_or_else(|_| "fleetingdns.run".to_string()),
             default_tunnel_ttl: env::var("DEFAULT_TUNNEL_TTL")
                 .unwrap_or_else(|_| "1800".to_string())
                 .parse()?,
@@ -74,25 +73,25 @@ impl ApiConfig {
                 .unwrap_or_else(|_| "your-jwt-secret-key".to_string()),
         })
     }
-    
+
     /// Validate configuration
     pub fn validate(&self) -> Result<(), String> {
         if self.github_client_id == "your-github-client-id" {
             return Err("GitHub client ID not configured".to_string());
         }
-        
+
         if self.github_client_secret == "your-github-client-secret" {
             return Err("GitHub client secret not configured".to_string());
         }
-        
+
         if self.jwt_secret == "your-jwt-secret-key" {
             return Err("JWT secret not configured".to_string());
         }
-        
+
         if self.default_tunnel_ttl > self.max_tunnel_ttl {
             return Err("Default TTL cannot be greater than max TTL".to_string());
         }
-        
+
         Ok(())
     }
-} 
+}

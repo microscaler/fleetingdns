@@ -1,7 +1,7 @@
 use axum::{
+    Json,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -11,40 +11,40 @@ use thiserror::Error;
 pub enum ApiError {
     #[error("Authentication failed: {0}")]
     AuthenticationFailed(String),
-    
+
     #[error("Authorization failed: {0}")]
     AuthorizationFailed(String),
-    
+
     #[error("Unauthorized: {0}")]
     Unauthorized(String),
-    
+
     #[error("Forbidden: {0}")]
     Forbidden(String),
-    
+
     #[error("Tunnel not found: {0}")]
     TunnelNotFound(String),
-    
+
     #[error("Certificate error: {0}")]
     CertificateError(String),
-    
+
     #[error("Storage error: {0}")]
     StorageError(String),
-    
+
     #[error("Configuration error: {0}")]
     ConfigurationError(String),
-    
+
     #[error("GitHub API error: {0}")]
     GitHubApiError(String),
-    
+
     #[error("External service error: {0}")]
     ExternalService(String),
-    
+
     #[error("Rate limit exceeded")]
     RateLimitExceeded,
-    
+
     #[error("Invalid request: {0}")]
     BadRequest(String),
-    
+
     #[error("Internal server error: {0}")]
     InternalError(String),
 }
@@ -73,21 +73,13 @@ impl IntoResponse for ApiError {
                 "authorization_failed",
                 self.to_string(),
             ),
-            &ApiError::Unauthorized(_) => (
-                StatusCode::UNAUTHORIZED,
-                "unauthorized",
-                self.to_string(),
-            ),
-            &ApiError::Forbidden(_) => (
-                StatusCode::FORBIDDEN,
-                "forbidden",
-                self.to_string(),
-            ),
-            &ApiError::TunnelNotFound(_) => (
-                StatusCode::NOT_FOUND,
-                "tunnel_not_found",
-                self.to_string(),
-            ),
+            &ApiError::Unauthorized(_) => {
+                (StatusCode::UNAUTHORIZED, "unauthorized", self.to_string())
+            }
+            &ApiError::Forbidden(_) => (StatusCode::FORBIDDEN, "forbidden", self.to_string()),
+            &ApiError::TunnelNotFound(_) => {
+                (StatusCode::NOT_FOUND, "tunnel_not_found", self.to_string())
+            }
             &ApiError::CertificateError(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "certificate_error",
@@ -118,11 +110,7 @@ impl IntoResponse for ApiError {
                 "rate_limit_exceeded",
                 self.to_string(),
             ),
-            &ApiError::BadRequest(_) => (
-                StatusCode::BAD_REQUEST,
-                "bad_request",
-                self.to_string(),
-            ),
+            &ApiError::BadRequest(_) => (StatusCode::BAD_REQUEST, "bad_request", self.to_string()),
             &ApiError::InternalError(_) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "internal_error",
@@ -175,4 +163,4 @@ impl From<anyhow::Error> for ApiError {
     fn from(err: anyhow::Error) -> Self {
         ApiError::InternalError(err.to_string())
     }
-} 
+}
