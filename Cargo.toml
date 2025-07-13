@@ -1,10 +1,29 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/*",
-    "crates/bin/slot-setter",
+    "crates/auth",
+    "crates/backendapi",
     "crates/bin/dnsd",
-    "cmd/*"
+    "crates/bin/slot-setter",
+    "crates/common",
+    "crates/dnsd",
+    "crates/dnsd_backend",
+    "crates/edgehub",
+    "crates/feature_pipe",
+    "crates/feed_grpc",
+    "crates/feed_webhook",
+    "crates/intake_collector",
+    "crates/metrics_client",
+    "crates/ml_scorer",
+    "cmd/api-bin",
+    "cmd/dnsd-bin",
+    "cmd/edgehub-bin",
+    "cmd/feed_grpc-bin",
+    "cmd/feed_webhook-bin",
+    "cmd/fleetingdns-ctl",
+    "cmd/intake_collector-bin",
+    "cmd/ml_scorer-bin",
+    "crates/edf-ca",
 ]
 exclude = [
     "crates/bin"
@@ -26,6 +45,6 @@ tokio-rustls = "0.26"
 rand = "0.8"
 clap = { version = "4", features = ["derive"] }
 rustls-pemfile = "1"
-testcontainers = "0.15"
-testcontainers-modules = { version = "0.3", features = ["redis"] }
+testcontainers = "0.16"
+testcontainers-modules = { version = "0.4", features = ["redis"] }
 

@@ -1,23 +1,38 @@
 [package]
 name = "edgehub"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
-tokio = { workspace = true, features = ["full"] }
-tracing = { workspace = true }
-common = { path = "../common" }
-rustls = { workspace = true }
-tokio-rustls = { workspace = true }
-rand = { workspace = true }
-dnsd = { path = "../dnsd" }
-redis = { workspace = true }
+anyhow = "1.0"
+thiserror = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+rustls = "0.23"
+tokio-rustls = "0.26"
+rustls-pemfile = "1"
+metrics = "0.24"
+async-trait = "0.1"
+uuid = { version = "1.0", features = ["v4"] }
+hex = "0.4"
+ring = "0.17"
 
-[features]
-e2e = []
+# SSH dependencies
+russh = "0.40"
+russh-keys = "0.40"
+tokio-util = "0.7"
+
+# Certificate authority
+edf-ca = { path = "../edf-ca" }
+
+# Common utilities
+common = { path = "../common" }
+dnsd = { path = "../dnsd" }
+redis = { version = "0.32", default-features = false, features = ["tokio-comp"] }
 
 [dev-dependencies]
-tracing-test = "0.2"
-rustls-pemfile = { workspace = true }
 mini-redis = "0.4"
 hickory-resolver = "0.24"
+testcontainers = "0.16"
+testcontainers-modules = { version = "0.4", features = ["redis"] }

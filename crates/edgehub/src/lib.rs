@@ -12,6 +12,10 @@ use tokio_rustls::TlsAcceptor;
 use tracing::{info, instrument};
 
 pub mod redis;
+pub mod ssh_server;
+
+pub use redis::*;
+pub use ssh_server::*;
 
 /// Configuration for the EdgeHub server.
 #[derive(Debug, Clone)]
