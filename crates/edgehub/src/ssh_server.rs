@@ -379,12 +379,17 @@ impl SshServer {
     }
 }
 
-/// Individual SSH session handler with certificate validation
+/// SSH session handler
+#[allow(dead_code)]
 pub struct SshSession {
+    /// Shared server state
     state: SshServerState,
+    /// Active channels
     channels: HashMap<ChannelId, Channel<Msg>>,
+    /// Domain for public URLs
     public_domain: String,
-    client_certificate_serial: Option<String>, // Track client certificate for this session
+    /// Client certificate serial (if provided)
+    client_certificate_serial: Option<String>,
 }
 
 #[async_trait::async_trait]
@@ -405,11 +410,11 @@ impl russh::server::Handler for SshSession {
             host_to_connect, port_to_connect, originator_address, originator_port
         );
 
-        let target_addr = format!("{}:{}", host_to_connect, port_to_connect)
+        let target_addr = format!("{host_to_connect}:{port_to_connect}")
             .parse::<SocketAddr>()
             .context("Invalid target address")?;
 
-        let originator_addr = format!("{}:{}", originator_address, originator_port)
+        let originator_addr = format!("{originator_address}:{originator_port}")
             .parse::<SocketAddr>()
             .context("Invalid originator address")?;
 

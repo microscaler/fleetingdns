@@ -1,4 +1,6 @@
-#[cfg(feature = "e2e")]
+#![cfg(feature = "e2e")]
+#![allow(unused_imports, dead_code)]
+
 use hickory_resolver::TokioAsyncResolver;
 #[cfg(feature = "e2e")]
 use std::net::{Ipv4Addr, SocketAddr};

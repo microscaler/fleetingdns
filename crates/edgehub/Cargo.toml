@@ -3,6 +3,9 @@ name = "edgehub"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+e2e = []
+
 [dependencies]
 common = { path = "../common" }
 dnsd = { path = "../dnsd" }
