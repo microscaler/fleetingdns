@@ -26,4 +26,6 @@ tokio-rustls = "0.26"
 rand = "0.8"
 clap = { version = "4", features = ["derive"] }
 rustls-pemfile = "1"
+testcontainers = "0.15"
+testcontainers-modules = { version = "0.3", features = ["redis"] }
 

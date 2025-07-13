@@ -13,22 +13,49 @@ jobs:
         toolchain: [nightly]
     steps:
       - uses: actions/checkout@v3
+      
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.toolchain }}
           components: rustfmt, clippy
           override: true
+          
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          
+      - name: Cache cargo index
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+          
+      - name: Cache cargo build
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          
       - name: Install kdig
         run: sudo apt-get update && sudo apt-get install -y knot-dnsutils
+        
       - name: Format
         run: cargo fmt -- --check
+        
       - name: Lint
         run: cargo clippy --all -- -D warnings
-      - name: Test
-        run: cargo test --workspace
+        
+      - name: Test (unit tests)
+        run: cargo test --workspace --lib --bins
+        env:
+          RUST_TEST_THREADS: 1
+          
       - name: Test DoT
         run: cargo test -p dnsd --features dot
+          
       - name: Smoke test dnsd
         run: |
           cargo run --bin dnsd-bin &

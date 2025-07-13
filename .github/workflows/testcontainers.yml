@@ -1,0 +1,110 @@
+name: Integration Tests (Testcontainers)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+  # Allow manual triggering
+  workflow_dispatch:
+  # Run nightly to catch any container issues
+  schedule:
+    - cron: '0 2 * * *'
+
+jobs:
+  testcontainers:
+    name: Integration Tests with Redis Containers
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        toolchain: [nightly]
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: rustfmt, clippy
+          override: true
+          
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          
+      - name: Cache cargo index
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+          
+      - name: Cache cargo build
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          
+      - name: Pull Redis Docker image
+        run: |
+          docker pull redis:7-alpine
+          docker images | grep redis
+          
+      - name: Test Docker availability
+        run: |
+          docker --version
+          docker info
+          docker ps
+          
+      - name: Run testcontainer tests
+        run: cargo test --workspace
+        env:
+          # Testcontainers configuration for CI
+          TESTCONTAINERS_RYUK_DISABLED: true
+          TESTCONTAINERS_COMMAND_TIMEOUT: 180
+          DOCKER_HOST: unix:///var/run/docker.sock
+          # Run tests serially to avoid Docker resource conflicts
+          RUST_TEST_THREADS: 1
+          # Increase test timeout for container startup
+          RUST_TEST_TIME_UNIT: 180s
+          # Disable container logs to reduce noise
+          TESTCONTAINERS_LOG_LEVEL: OFF
+          # Enable debug logging for testcontainers if needed
+          RUST_LOG: testcontainers=debug
+          
+      - name: Run specific Redis cache tests
+        run: cargo test -p dnsd redis_cache::tests
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: true
+          TESTCONTAINERS_COMMAND_TIMEOUT: 180
+          DOCKER_HOST: unix:///var/run/docker.sock
+          RUST_TEST_THREADS: 1
+          RUST_TEST_TIME_UNIT: 180s
+          
+      - name: Run specific slot-setter tests
+        run: cargo test -p slot-setter
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: true
+          TESTCONTAINERS_COMMAND_TIMEOUT: 180
+          DOCKER_HOST: unix:///var/run/docker.sock
+          RUST_TEST_THREADS: 1
+          RUST_TEST_TIME_UNIT: 180s
+          
+      - name: Clean up Docker containers
+        if: always()
+        run: |
+          echo "Cleaning up Docker containers..."
+          docker ps -a
+          docker ps -q | xargs -r docker stop || true
+          docker ps -aq | xargs -r docker rm || true
+          docker system prune -f || true
+          echo "Docker cleanup complete"
+          
+      - name: Show Docker system info after cleanup
+        if: always()
+        run: |
+          docker ps -a
+          docker images | head -10 
