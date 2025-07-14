@@ -320,6 +320,11 @@ async fn test_certificate_authentication() {
         host_key_path: None,
         public_domain: "test.fleetingdns.run".to_string(),
         ca_config: Some(edf_ca::CaConfig::default()),
+        // CRITICAL-3 ENHANCEMENT: Include new certificate validation fields
+        require_client_certificates: true,
+        certificate_pinning_enabled: true,
+        max_auth_attempts: 3,
+        auth_lockout_duration: std::time::Duration::from_secs(300),
     };
 
     // Create SSH server

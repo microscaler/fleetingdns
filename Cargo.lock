@@ -1313,6 +1313,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "chrono",
  "common",
  "dnsd",
  "edf-ca",
@@ -1326,6 +1327,8 @@ dependencies = [
  "russh-keys",
  "rustls 0.23.29",
  "rustls-pemfile 2.2.0",
+ "serde",
+ "serde_json",
  "testcontainers",
  "testcontainers-modules",
  "tokio",
@@ -1334,6 +1337,7 @@ dependencies = [
  "tracing-subscriber 0.3.19",
  "tracing-test",
  "uuid",
+ "x509-parser",
 ]
 
 [[package]]

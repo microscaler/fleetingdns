@@ -63,12 +63,16 @@ async fn run(args: Args) -> AppResult<()> {
         .await
         .map_err(|e| common::AppError::Message(e.to_string()))?;
 
-    // Create SSH server
+    // Create SSH server with development-friendly defaults
     let ssh_config = SshConfig {
         bind_addr: args.ssh_addr,
         host_key_path: args.ssh_host_key,
         public_domain: args.public_domain,
-        ca_config: None, // No CA configuration for now
+        ca_config: None, // No CA configuration for development mode
+        // CRITICAL-3 ENHANCEMENT: Disable strict certificate validation for development
+        require_client_certificates: false,
+        certificate_pinning_enabled: false,
+        ..Default::default()
     };
     let ssh_server = SshServer::new(ssh_config)
         .await
