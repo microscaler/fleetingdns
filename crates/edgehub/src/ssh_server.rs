@@ -71,7 +71,9 @@ struct AuthAttempt {
     timestamp: Instant,
     client_addr: SocketAddr,
     success: bool,
+    #[allow(dead_code)] // Used for future audit logging enhancements
     certificate_serial: Option<String>,
+    #[allow(dead_code)] // Used for future audit logging enhancements
     failure_reason: Option<String>,
 }
 
@@ -249,7 +251,7 @@ impl SshServer {
         let cert_der = match self.parse_certificate_pem(certificate_pem) {
             Ok(der) => der,
             Err(e) => {
-                result.validation_errors.push(format!("Certificate parsing failed: {}", e));
+                result.validation_errors.push(format!("Certificate parsing failed: {e}"));
                 return Ok(result);
             }
         };
@@ -275,7 +277,7 @@ impl SshServer {
                         }
                     }
                     Err(e) => {
-                        result.validation_errors.push(format!("CA validation failed: {}", e));
+                        result.validation_errors.push(format!("CA validation failed: {e}"));
                     }
                 }
             }
@@ -284,12 +286,11 @@ impl SshServer {
         }
 
         // Certificate pinning validation
-        if self.config.certificate_pinning_enabled {
-            if let Err(e) = self.validate_certificate_pinning(&cert_der) {
-                result.validation_errors.push(format!("Certificate pinning validation failed: {}", e));
+        if self.config.certificate_pinning_enabled
+            && let Err(e) = self.validate_certificate_pinning(&cert_der) {
+                result.validation_errors.push(format!("Certificate pinning validation failed: {e}"));
                 result.is_valid = false;
             }
-        }
 
         // Comprehensive audit logging
         if result.is_valid {
@@ -344,9 +345,9 @@ impl SshServer {
         let issuer = cert.issuer().to_string();
         
         let not_before = DateTime::from_timestamp(cert.validity().not_before.timestamp(), 0)
-            .unwrap_or_else(|| Utc::now());
+            .unwrap_or_else(Utc::now);
         let not_after = DateTime::from_timestamp(cert.validity().not_after.timestamp(), 0)
-            .unwrap_or_else(|| Utc::now());
+            .unwrap_or_else(Utc::now);
 
         // Calculate SHA-256 fingerprint
         use ring::digest;
@@ -395,6 +396,7 @@ impl SshServer {
     }
 
     /// Extract certificate serial number from PEM certificate
+    #[allow(dead_code)] // Used for backward compatibility and future API extensions
     async fn extract_certificate_serial(&self, certificate_pem: &str) -> Result<Option<String>> {
         match self.parse_certificate_pem(certificate_pem) {
             Ok(cert_der) => {
