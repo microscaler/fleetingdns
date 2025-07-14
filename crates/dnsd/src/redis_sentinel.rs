@@ -32,7 +32,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use bb8::{Pool, PooledConnection};
+use bb8::Pool;
 use bb8_redis::RedisConnectionManager;
 use redis::RedisError;
 use serde::{Deserialize, Serialize};
@@ -388,6 +388,14 @@ impl RedisSentinelClient {
     async fn get_cached_master_address(&self) -> Option<SocketAddr> {
         let master = self.current_master.read().await;
         *master
+    }
+
+    /// Get master connection (placeholder implementation)
+    async fn get_master_connection(&self) -> Result<Pool<RedisConnectionManager>, SentinelError> {
+        // This is a placeholder - in production this would return the actual master connection
+        Err(SentinelError::InvalidResponse(
+            "Not implemented".to_string(),
+        ))
     }
 
     /// Get current master address from sentinel
