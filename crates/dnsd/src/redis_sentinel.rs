@@ -14,17 +14,24 @@
 //!
 //! # Usage
 //!
-//! ```rust
+//! ```rust,no_run
 //! use dnsd::redis_sentinel::{SentinelConfig, RedisSentinelClient};
 //!
-//! let config = SentinelConfig::new(vec![
-//!     "redis://sentinel-1:26379".to_string(),
-//!     "redis://sentinel-2:26379".to_string(),
-//!     "redis://sentinel-3:26379".to_string(),
-//! ], "fleetingdns-cluster".to_string());
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let config = SentinelConfig {
+//!     sentinels: vec![
+//!         "redis://sentinel-1:26379".to_string(),
+//!         "redis://sentinel-2:26379".to_string(),
+//!         "redis://sentinel-3:26379".to_string(),
+//!     ],
+//!     master_name: "fleetingdns-cluster".to_string(),
+//!     ..Default::default()
+//! };
 //!
 //! let client = RedisSentinelClient::new(config).await?;
 //! let master_addr = client.get_master_address().await?;
+//! # Ok(())
+//! # }
 //! ```
 
 use std::collections::HashMap;
