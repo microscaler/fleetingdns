@@ -1,6 +1,7 @@
 //! Certificate Authority implementation for FleetingDNS
 
 use chrono::{DateTime, Duration, Utc};
+use common::counter;
 use rcgen::{Certificate, CertificateParams, DnType, KeyPair};
 use std::path::Path;
 use std::sync::Arc;
@@ -50,6 +51,8 @@ impl CertificateAuthority {
 
     /// Issue an ephemeral certificate
     pub async fn issue_certificate(&self, request: IssuanceRequest) -> CaResult<IssuanceResponse> {
+        counter!("certificate_operations_total", "operation" => "issue", "status" => "requested");
+
         info!(
             request_id = %request.request_id,
             client_id = %request.client_id,
@@ -58,14 +61,21 @@ impl CertificateAuthority {
         );
 
         // Validate request
-        self.validate_request(&request).await?;
+        if let Err(e) = self.validate_request(&request).await {
+            counter!("certificate_operations_total", "operation" => "issue", "status" => "validation_failed");
+            return Err(e);
+        }
 
         // Check rate limits
-        self.check_rate_limits(&request.client_id).await?;
+        if let Err(e) = self.check_rate_limits(&request.client_id).await {
+            counter!("certificate_operations_total", "operation" => "issue", "status" => "rate_limited");
+            return Err(e);
+        }
 
         // Determine certificate TTL
         let ttl = request.ttl.unwrap_or(self.config.default_ttl);
         if ttl > self.config.max_ttl {
+            counter!("certificate_operations_total", "operation" => "issue", "status" => "ttl_validation_failed");
             return Err(CaError::TtlValidation {
                 requested_minutes: ttl.num_minutes(),
                 max_minutes: self.config.max_ttl.num_minutes(),
@@ -76,7 +86,13 @@ impl CertificateAuthority {
         let cert_request = CertificateRequest::for_tunnel_client(&request.client_id, ttl)
             .with_san(request.common_name.clone());
 
-        let ephemeral_cert = self.generate_certificate(cert_request).await?;
+        let ephemeral_cert = match self.generate_certificate(cert_request).await {
+            Ok(cert) => cert,
+            Err(e) => {
+                counter!("certificate_operations_total", "operation" => "issue", "status" => "generation_failed");
+                return Err(e);
+            }
+        };
 
         // Register certificate
         let active_cert = ActiveCertificate {
@@ -93,6 +109,8 @@ impl CertificateAuthority {
             .lock()
             .await
             .record_issuance(&request.client_id);
+
+        counter!("certificate_operations_total", "operation" => "issue", "status" => "success");
 
         info!(
             request_id = %request.request_id,
@@ -111,7 +129,11 @@ impl CertificateAuthority {
 
     /// Validate a certificate by serial number
     pub async fn validate_certificate(&self, serial_number: &str) -> CaResult<bool> {
+        counter!("certificate_operations_total", "operation" => "validate", "status" => "requested");
+
         let is_valid = self.registry.is_certificate_valid(serial_number).await;
+
+        counter!("certificate_operations_total", "operation" => "validate", "status" => if is_valid { "success" } else { "invalid" });
 
         debug!(
             serial_number = %serial_number,
@@ -124,23 +146,35 @@ impl CertificateAuthority {
 
     /// Get certificate information
     pub async fn get_certificate_info(&self, serial_number: &str) -> CaResult<ActiveCertificate> {
-        self.registry
-            .get_certificate(serial_number)
-            .await
-            .ok_or_else(|| CaError::CertificateNotFound {
-                serial: serial_number.to_string(),
-            })
+        counter!("certificate_operations_total", "operation" => "get_info", "status" => "requested");
+
+        match self.registry.get_certificate(serial_number).await {
+            Some(cert) => {
+                counter!("certificate_operations_total", "operation" => "get_info", "status" => "success");
+                Ok(cert)
+            }
+            None => {
+                counter!("certificate_operations_total", "operation" => "get_info", "status" => "not_found");
+                Err(CaError::CertificateNotFound {
+                    serial: serial_number.to_string(),
+                })
+            }
+        }
     }
 
     /// Revoke a certificate (mark as invalid)
     pub async fn revoke_certificate(&self, serial_number: &str) -> CaResult<()> {
+        counter!("certificate_operations_total", "operation" => "revoke", "status" => "requested");
+
         // For ephemeral certificates, we just remove from registry
         // In production, this might involve CRL or OCSP
         let mut certs = self.registry.active_certs.lock().await;
         if certs.remove(serial_number).is_some() {
+            counter!("certificate_operations_total", "operation" => "revoke", "status" => "success");
             info!(serial_number = %serial_number, "Certificate revoked");
             Ok(())
         } else {
+            counter!("certificate_operations_total", "operation" => "revoke", "status" => "not_found");
             Err(CaError::CertificateNotFound {
                 serial: serial_number.to_string(),
             })
@@ -149,7 +183,13 @@ impl CertificateAuthority {
 
     /// Clean up expired certificates
     pub async fn cleanup_expired_certificates(&self) -> usize {
-        self.registry.cleanup_expired().await
+        counter!("certificate_operations_total", "operation" => "cleanup", "status" => "requested");
+        
+        let cleaned_count = self.registry.cleanup_expired().await;
+        
+        counter!("certificate_operations_total", "operation" => "cleanup", "status" => "success");
+        
+        cleaned_count
     }
 
     /// Get CA certificate in PEM format

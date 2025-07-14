@@ -13,6 +13,7 @@ tracing = "0.1"
 uuid = { version = "1.0", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 time = { version = "0.3", features = ["serde"] }
+metrics = { workspace = true }
 
 # Cryptography and certificates
 rustls = "0.23"

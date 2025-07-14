@@ -6,7 +6,7 @@ use tracing::info;
 
 #[cfg(feature = "dot")]
 use common::tls;
-use common::{init_tracing, shutdown::GracefulShutdown};
+use common::{init_tracing, init_metrics, shutdown::GracefulShutdown};
 use dnsd::{Config, redis_cache};
 
 #[derive(Parser)]
@@ -29,6 +29,7 @@ struct Args {
 #[tokio::main]
 async fn main() -> common::AppResult<()> {
     init_tracing();
+    init_metrics();
     let args = Args::parse();
 
     // Initialize graceful shutdown framework
