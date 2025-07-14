@@ -590,7 +590,7 @@ mod tests {
             "valid-app-123".to_string(),
             "valid.com",
             8080,
-            80800,
+            8080,
             "cert-valid".to_string(),
             3600,
         );
@@ -615,7 +615,7 @@ mod tests {
                 subdomain.to_string(),
                 "edge.com",
                 8080,
-                80800,
+                8080,
                 "cert-edge".to_string(),
                 3600,
             );
