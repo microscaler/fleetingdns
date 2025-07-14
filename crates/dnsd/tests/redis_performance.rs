@@ -40,6 +40,12 @@ async fn test_performance_config_creation() {
             monitor_pool: true,
             track_latency: true,
         },
+        max_connections: 25,
+        min_idle: 10,
+        connection_timeout: 15,
+        operation_timeout: 45,
+        retry_attempts: 5,
+        retry_delay_ms: 200,
     };
 
     assert_eq!(config.redis_url, "redis://localhost:6379");
@@ -142,6 +148,9 @@ async fn test_performance_stats_structure() {
         failed_operations: 20,
         avg_latency_ms: 5.5,
         p95_latency_ms: 15.0,
+        p99_latency_ms: 25.0,
+        connections_in_use: 15,
+        pool_size: 20,
         ops_per_second: 100.0,
         pool_stats: PoolStats {
             active_connections: 15,
