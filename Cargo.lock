@@ -978,6 +978,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "crc16"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "338089f42c427b86394a5ee60ff321da23a5c89c9d89514c829687b26359fcff"
+
+[[package]]
 name = "crc32fast"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1240,6 +1246,7 @@ dependencies = [
  "bb8 0.9.0",
  "bb8-redis 0.24.0",
  "common",
+ "crc16",
  "governor",
  "hickory-proto",
  "mini-redis",

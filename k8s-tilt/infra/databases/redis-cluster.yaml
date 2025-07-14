@@ -1,0 +1,353 @@
+# Redis Cluster Configuration for FleetingDNS
+# This replaces single-instance Redis with Redis Cluster for scalability
+
+# Primary Redis Cluster (EU Region)
+---
+apiVersion: redis.gcp.upbound.io/v1beta1
+kind: Instance
+metadata:
+  name: fleetingdns-redis-cluster-eu-master-1
+  labels:
+    app.kubernetes.io/name: fleetingdns-redis-cluster
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: fleetingdns
+    redis.fleetingdns.io/cluster: primary
+    redis.fleetingdns.io/role: master
+    redis.fleetingdns.io/node: "1"
+spec:
+  forProvider:
+    name: fleetingdns-redis-cluster-eu-master-1
+    project: fleetingdns-infra
+    region: europe-west1
+    tier: STANDARD_HA
+    memorySizeGb: 8  # Increased for cluster performance
+    redisVersion: REDIS_7_0
+    displayName: "FleetingDNS EU Cluster Master 1"
+    authorizedNetwork: "projects/fleetingdns-infra/global/networks/fleetingdns-infra-vpc"
+    connectMode: PRIVATE_SERVICE_ACCESS
+    authEnabled: true
+    transitEncryptionMode: SERVER_AUTHENTICATION
+    redisConfigs:
+      # Cluster configuration
+      cluster-enabled: "yes"
+      cluster-config-file: "nodes-6379.conf"
+      cluster-node-timeout: "5000"
+      cluster-announce-hostname: "fleetingdns-redis-cluster-eu-master-1"
+      cluster-announce-port: "6379"
+      cluster-announce-bus-port: "16379"
+      # Performance optimizations
+      maxmemory-policy: "allkeys-lru"
+      notify-keyspace-events: "Ex"
+      timeout: "300"
+      tcp-keepalive: "300"
+      tcp-backlog: "511"
+      # Persistence for cluster state
+      save: "900 1 300 10 60 10000"
+      appendonly: "yes"
+      appendfsync: "everysec"
+      # Memory optimization
+      hash-max-ziplist-entries: "512"
+      hash-max-ziplist-value: "64"
+      list-max-ziplist-size: "-2"
+      set-max-intset-entries: "512"
+      zset-max-ziplist-entries: "128"
+      zset-max-ziplist-value: "64"
+    maintenancePolicy:
+    - weeklyMaintenanceWindow:
+      - day: SUNDAY
+        startTime:
+        - hours: 3
+          minutes: 0
+    labels:
+      environment: production
+      service: fleetingdns
+      role: cluster-master
+      node: "1"
+      region: europe-west1
+      managed-by: crossplane
+  providerConfigRef:
+    name: default
+---
+apiVersion: redis.gcp.upbound.io/v1beta1
+kind: Instance
+metadata:
+  name: fleetingdns-redis-cluster-eu-master-2
+  labels:
+    app.kubernetes.io/name: fleetingdns-redis-cluster
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: fleetingdns
+    redis.fleetingdns.io/cluster: primary
+    redis.fleetingdns.io/role: master
+    redis.fleetingdns.io/node: "2"
+spec:
+  forProvider:
+    name: fleetingdns-redis-cluster-eu-master-2
+    project: fleetingdns-infra
+    region: europe-west1
+    tier: STANDARD_HA
+    memorySizeGb: 8
+    redisVersion: REDIS_7_0
+    displayName: "FleetingDNS EU Cluster Master 2"
+    authorizedNetwork: "projects/fleetingdns-infra/global/networks/fleetingdns-infra-vpc"
+    connectMode: PRIVATE_SERVICE_ACCESS
+    authEnabled: true
+    transitEncryptionMode: SERVER_AUTHENTICATION
+    redisConfigs:
+      cluster-enabled: "yes"
+      cluster-config-file: "nodes-6379.conf"
+      cluster-node-timeout: "5000"
+      cluster-announce-hostname: "fleetingdns-redis-cluster-eu-master-2"
+      cluster-announce-port: "6379"
+      cluster-announce-bus-port: "16379"
+      maxmemory-policy: "allkeys-lru"
+      notify-keyspace-events: "Ex"
+      timeout: "300"
+      tcp-keepalive: "300"
+      tcp-backlog: "511"
+      save: "900 1 300 10 60 10000"
+      appendonly: "yes"
+      appendfsync: "everysec"
+      hash-max-ziplist-entries: "512"
+      hash-max-ziplist-value: "64"
+      list-max-ziplist-size: "-2"
+      set-max-intset-entries: "512"
+      zset-max-ziplist-entries: "128"
+      zset-max-ziplist-value: "64"
+    maintenancePolicy:
+    - weeklyMaintenanceWindow:
+      - day: SUNDAY
+        startTime:
+        - hours: 3
+          minutes: 30
+    labels:
+      environment: production
+      service: fleetingdns
+      role: cluster-master
+      node: "2"
+      region: europe-west1
+      managed-by: crossplane
+  providerConfigRef:
+    name: default
+---
+apiVersion: redis.gcp.upbound.io/v1beta1
+kind: Instance
+metadata:
+  name: fleetingdns-redis-cluster-eu-master-3
+  labels:
+    app.kubernetes.io/name: fleetingdns-redis-cluster
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: fleetingdns
+    redis.fleetingdns.io/cluster: primary
+    redis.fleetingdns.io/role: master
+    redis.fleetingdns.io/node: "3"
+spec:
+  forProvider:
+    name: fleetingdns-redis-cluster-eu-master-3
+    project: fleetingdns-infra
+    region: europe-west1
+    tier: STANDARD_HA
+    memorySizeGb: 8
+    redisVersion: REDIS_7_0
+    displayName: "FleetingDNS EU Cluster Master 3"
+    authorizedNetwork: "projects/fleetingdns-infra/global/networks/fleetingdns-infra-vpc"
+    connectMode: PRIVATE_SERVICE_ACCESS
+    authEnabled: true
+    transitEncryptionMode: SERVER_AUTHENTICATION
+    redisConfigs:
+      cluster-enabled: "yes"
+      cluster-config-file: "nodes-6379.conf"
+      cluster-node-timeout: "5000"
+      cluster-announce-hostname: "fleetingdns-redis-cluster-eu-master-3"
+      cluster-announce-port: "6379"
+      cluster-announce-bus-port: "16379"
+      maxmemory-policy: "allkeys-lru"
+      notify-keyspace-events: "Ex"
+      timeout: "300"
+      tcp-keepalive: "300"
+      tcp-backlog: "511"
+      save: "900 1 300 10 60 10000"
+      appendonly: "yes"
+      appendfsync: "everysec"
+      hash-max-ziplist-entries: "512"
+      hash-max-ziplist-value: "64"
+      list-max-ziplist-size: "-2"
+      set-max-intset-entries: "512"
+      zset-max-ziplist-entries: "128"
+      zset-max-ziplist-value: "64"
+    maintenancePolicy:
+    - weeklyMaintenanceWindow:
+      - day: SUNDAY
+        startTime:
+        - hours: 4
+          minutes: 0
+    labels:
+      environment: production
+      service: fleetingdns
+      role: cluster-master
+      node: "3"
+      region: europe-west1
+      managed-by: crossplane
+  providerConfigRef:
+    name: default
+---
+# US Region Redis Cluster
+apiVersion: redis.gcp.upbound.io/v1beta1
+kind: Instance
+metadata:
+  name: fleetingdns-redis-cluster-us-master-1
+  labels:
+    app.kubernetes.io/name: fleetingdns-redis-cluster
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: fleetingdns
+    redis.fleetingdns.io/cluster: us
+    redis.fleetingdns.io/role: master
+    redis.fleetingdns.io/node: "1"
+spec:
+  forProvider:
+    name: fleetingdns-redis-cluster-us-master-1
+    project: fleetingdns-prod-us
+    region: us-central1
+    tier: STANDARD_HA
+    memorySizeGb: 8
+    redisVersion: REDIS_7_0
+    displayName: "FleetingDNS US Cluster Master 1"
+    authorizedNetwork: "projects/fleetingdns-prod-us/global/networks/fleetingdns-prod-us-vpc"
+    connectMode: PRIVATE_SERVICE_ACCESS
+    authEnabled: true
+    transitEncryptionMode: SERVER_AUTHENTICATION
+    redisConfigs:
+      cluster-enabled: "yes"
+      cluster-config-file: "nodes-6379.conf"
+      cluster-node-timeout: "5000"
+      cluster-announce-hostname: "fleetingdns-redis-cluster-us-master-1"
+      cluster-announce-port: "6379"
+      cluster-announce-bus-port: "16379"
+      maxmemory-policy: "allkeys-lru"
+      notify-keyspace-events: "Ex"
+      timeout: "300"
+      tcp-keepalive: "300"
+      tcp-backlog: "511"
+      save: "900 1 300 10 60 10000"
+      appendonly: "yes"
+      appendfsync: "everysec"
+      hash-max-ziplist-entries: "512"
+      hash-max-ziplist-value: "64"
+      list-max-ziplist-size: "-2"
+      set-max-intset-entries: "512"
+      zset-max-ziplist-entries: "128"
+      zset-max-ziplist-value: "64"
+    maintenancePolicy:
+    - weeklyMaintenanceWindow:
+      - day: SUNDAY
+        startTime:
+        - hours: 9  # 3 AM PST
+          minutes: 0
+    labels:
+      environment: production
+      service: fleetingdns
+      role: cluster-master
+      node: "1"
+      region: us-central1
+      managed-by: crossplane
+  providerConfigRef:
+    name: us-central1
+---
+# APAC Region Redis Cluster
+apiVersion: redis.gcp.upbound.io/v1beta1
+kind: Instance
+metadata:
+  name: fleetingdns-redis-cluster-apac-master-1
+  labels:
+    app.kubernetes.io/name: fleetingdns-redis-cluster
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: fleetingdns
+    redis.fleetingdns.io/cluster: apac
+    redis.fleetingdns.io/role: master
+    redis.fleetingdns.io/node: "1"
+spec:
+  forProvider:
+    name: fleetingdns-redis-cluster-apac-master-1
+    project: fleetingdns-prod-apac
+    region: asia-southeast1
+    tier: STANDARD_HA
+    memorySizeGb: 8
+    redisVersion: REDIS_7_0
+    displayName: "FleetingDNS APAC Cluster Master 1"
+    authorizedNetwork: "projects/fleetingdns-prod-apac/global/networks/fleetingdns-prod-apac-vpc"
+    connectMode: PRIVATE_SERVICE_ACCESS
+    authEnabled: true
+    transitEncryptionMode: SERVER_AUTHENTICATION
+    redisConfigs:
+      cluster-enabled: "yes"
+      cluster-config-file: "nodes-6379.conf"
+      cluster-node-timeout: "5000"
+      cluster-announce-hostname: "fleetingdns-redis-cluster-apac-master-1"
+      cluster-announce-port: "6379"
+      cluster-announce-bus-port: "16379"
+      maxmemory-policy: "allkeys-lru"
+      notify-keyspace-events: "Ex"
+      timeout: "300"
+      tcp-keepalive: "300"
+      tcp-backlog: "511"
+      save: "900 1 300 10 60 10000"
+      appendonly: "yes"
+      appendfsync: "everysec"
+      hash-max-ziplist-entries: "512"
+      hash-max-ziplist-value: "64"
+      list-max-ziplist-size: "-2"
+      set-max-intset-entries: "512"
+      zset-max-ziplist-entries: "128"
+      zset-max-ziplist-value: "64"
+    maintenancePolicy:
+    - weeklyMaintenanceWindow:
+      - day: SUNDAY
+        startTime:
+        - hours: 19  # 3 AM JST
+          minutes: 0
+    labels:
+      environment: production
+      service: fleetingdns
+      role: cluster-master
+      node: "1"
+      region: asia-southeast1
+      managed-by: crossplane
+  providerConfigRef:
+    name: asia-southeast1
+---
+# Development Redis Cluster (Simplified)
+apiVersion: redis.gcp.upbound.io/v1beta1
+kind: Instance
+metadata:
+  name: fleetingdns-redis-cluster-dev
+  labels:
+    app.kubernetes.io/name: fleetingdns-redis-cluster
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: fleetingdns
+    redis.fleetingdns.io/cluster: dev
+    redis.fleetingdns.io/role: standalone
+spec:
+  forProvider:
+    name: fleetingdns-redis-cluster-dev
+    project: fleetingdns-dev
+    region: europe-west1
+    tier: BASIC  # Single node for dev
+    memorySizeGb: 2
+    redisVersion: REDIS_7_0
+    displayName: "FleetingDNS Development Redis"
+    authorizedNetwork: "projects/fleetingdns-dev/global/networks/fleetingdns-dev-vpc"
+    connectMode: PRIVATE_SERVICE_ACCESS
+    authEnabled: false  # Simplified for dev
+    transitEncryptionMode: DISABLED
+    redisConfigs:
+      maxmemory-policy: "allkeys-lru"
+      timeout: "300"
+      # Development optimizations
+      tcp-keepalive: "300"
+      save: ""  # Disable persistence for dev
+      appendonly: "no"
+    labels:
+      environment: development
+      service: fleetingdns
+      managed-by: crossplane
+  providerConfigRef:
+    name: development 
