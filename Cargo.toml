@@ -32,7 +32,7 @@ exclude = [
 [workspace.dependencies]
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-thiserror = "1"
+thiserror = "2.0.12"
 metrics = "0.24"
 metrics-exporter-prometheus = "0.12"
 metrics-exporter-opentelemetry = "0.1"

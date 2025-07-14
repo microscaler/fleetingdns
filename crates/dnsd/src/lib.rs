@@ -9,6 +9,10 @@ use tokio::sync::broadcast;
 pub mod redis_cache;
 pub mod sign;
 mod udp;
+// HIGH-1 ENHANCEMENT: Production DoT features
+#[cfg(feature = "dot")]
+pub mod dot_enhanced;
+
 use tokio::net::UdpSocket;
 use tracing::{info, instrument};
 
@@ -25,6 +29,9 @@ pub struct Config {
     #[cfg(feature = "dot")]
     /// TLS configuration for DoT.
     pub tls_config: ServerConfig,
+    #[cfg(feature = "dot")]
+    /// Certificate manager for production DoT features
+    pub cert_manager: Option<std::sync::Arc<common::cert_manager::CertificateManager>>,
 }
 
 /// Run the UDP server.
@@ -35,11 +42,23 @@ pub struct Config {
 pub async fn serve(cfg: Config) -> AppResult<()> {
     let pool = cfg.redis_pool.clone();
     #[cfg(feature = "dot")]
-    tokio::spawn(dot::serve(
-        cfg.dot_addr,
-        cfg.tls_config.clone(),
-        pool.clone(),
-    ));
+    {
+        if let Some(cert_manager) = &cfg.cert_manager {
+            // Use enhanced DoT server with certificate manager
+            tokio::spawn(dot_enhanced::serve(
+                cfg.dot_addr,
+                cert_manager.clone(),
+                pool.clone(),
+            ));
+        } else {
+            // Fallback to basic DoT server
+            tokio::spawn(dot::serve(
+                cfg.dot_addr,
+                cfg.tls_config.clone(),
+                pool.clone(),
+            ));
+        }
+    }
 
     let socket = UdpSocket::bind(cfg.addr).await?;
     info!(addr = %socket.local_addr()?, "listening");
@@ -66,12 +85,25 @@ pub async fn serve_with_shutdown(
 
     // Start DoT server with shutdown support
     #[cfg(feature = "dot")]
-    let dot_handle = tokio::spawn(dot::serve_with_shutdown(
-        cfg.dot_addr,
-        cfg.tls_config.clone(),
-        pool.clone(),
-        shutdown_rx.resubscribe(),
-    ));
+    let dot_handle = {
+        if let Some(cert_manager) = &cfg.cert_manager {
+            // Use enhanced DoT server with certificate manager
+            tokio::spawn(dot_enhanced::serve_with_shutdown(
+                cfg.dot_addr,
+                cert_manager.clone(),
+                pool.clone(),
+                shutdown_rx.resubscribe(),
+            ))
+        } else {
+            // Fallback to basic DoT server
+            tokio::spawn(dot::serve_with_shutdown(
+                cfg.dot_addr,
+                cfg.tls_config.clone(),
+                pool.clone(),
+                shutdown_rx.resubscribe(),
+            ))
+        }
+    };
 
     let socket = UdpSocket::bind(cfg.addr).await?;
     info!(addr = %socket.local_addr()?, "DNS server listening with graceful shutdown support");
@@ -152,6 +184,8 @@ mod tests {
             dot_addr,
             #[cfg(feature = "dot")]
             tls_config,
+            #[cfg(feature = "dot")]
+            cert_manager: None,
         };
         let handle = tokio::spawn(async move { serve(cfg).await.unwrap() });
 

@@ -32,6 +32,8 @@ macro_rules! histogram {
 pub mod metrics;
 pub mod shutdown;
 pub mod tls;
+// HIGH-1 ENHANCEMENT: Certificate management for production DoT
+pub mod cert_manager;
 pub use crate::metrics::init_metrics;
 
 use thiserror::Error;

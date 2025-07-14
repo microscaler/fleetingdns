@@ -13,12 +13,20 @@ opentelemetry = { version = "0.30", default-features = false, features = ["metri
 opentelemetry_sdk = { version = "0.30", default-features = false, features = ["metrics"] }
 opentelemetry-otlp = { version = "0.30", features = ["grpc-tonic", "metrics"] }
 rustls = "0.23"
+rustls-pemfile = "2.0"
 rcgen = "0.14"
 tokio = { workspace = true, features = ["full"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = "1.0"
 toml = "0.8"
 libc = "0.2"
+# HIGH-1 ENHANCEMENT: ACME and certificate management dependencies
+acme2 = "0.5"
+ring = "0.17"
+x509-parser = "0.16"
+chrono = { workspace = true, features = ["serde"] }
+uuid = { workspace = true }
+hex = "0.4"
 
 [dev-dependencies]
 tracing-test = "0.2"
@@ -26,3 +34,4 @@ tokio = { workspace = true, features = ["full"] }
 tonic = { version = "0.13", features = ["transport"] }
 tokio-stream = "0.1"
 opentelemetry-proto = { version = "0.30", features = ["gen-tonic", "metrics"] }
+tempfile = "3.0"

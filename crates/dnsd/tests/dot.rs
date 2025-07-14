@@ -58,6 +58,7 @@ async fn kdig_dot_returns_loopback() {
         redis_pool: pool.clone(),
         dot_addr,
         tls_config,
+        cert_manager: None,
     };
 
     let handle = tokio::spawn(async move { serve(cfg).await.unwrap() });

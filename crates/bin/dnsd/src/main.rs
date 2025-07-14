@@ -32,6 +32,8 @@ async fn run(args: Args) -> AppResult<()> {
         dot_addr: SocketAddr::new(args.addr.ip(), 853),
         #[cfg(feature = "dot")]
         tls_config,
+        #[cfg(feature = "dot")]
+        cert_manager: None,
     };
     dnsd::serve(cfg).await
 }
