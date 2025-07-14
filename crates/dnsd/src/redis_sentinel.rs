@@ -14,17 +14,24 @@
 //!
 //! # Usage
 //!
-//! ```rust
+//! ```rust,no_run
 //! use dnsd::redis_sentinel::{SentinelConfig, RedisSentinelClient};
 //!
-//! let config = SentinelConfig::new(vec![
-//!     "redis://sentinel-1:26379".to_string(),
-//!     "redis://sentinel-2:26379".to_string(),
-//!     "redis://sentinel-3:26379".to_string(),
-//! ], "fleetingdns-cluster".to_string());
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let config = SentinelConfig {
+//!     sentinels: vec![
+//!         "redis://sentinel-1:26379".to_string(),
+//!         "redis://sentinel-2:26379".to_string(),
+//!         "redis://sentinel-3:26379".to_string(),
+//!     ],
+//!     master_name: "fleetingdns-cluster".to_string(),
+//!     ..Default::default()
+//! };
 //!
 //! let client = RedisSentinelClient::new(config).await?;
 //! let master_addr = client.get_master_address().await?;
+//! # Ok(())
+//! # }
 //! ```
 
 use std::collections::HashMap;
@@ -409,11 +416,12 @@ impl RedisSentinelClient {
         // Query sentinels for master address
         let _sentinel_pools = self.sentinel_pools.clone();
         let _current_master = Arc::clone(&self.current_master);
-        
+
         // For now, return a placeholder - in production this would query actual sentinels
-        let master_addr = "127.0.0.1:6379".parse()
+        let master_addr = "127.0.0.1:6379"
+            .parse()
             .map_err(|_| SentinelError::InvalidResponse("Invalid master address".to_string()))?;
-            
+
         // Update cache
         {
             let mut master = self.current_master.write().await;

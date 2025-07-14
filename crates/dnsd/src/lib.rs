@@ -35,6 +35,21 @@ pub struct Config {
     #[cfg(feature = "dot")]
     /// Certificate manager for production DoT features
     pub cert_manager: Option<std::sync::Arc<common::cert_manager::CertificateManager>>,
+    /// DNSSEC configuration
+    pub dnssec_config: Option<sign::DnssecConfig>,
+}
+
+impl Config {
+    /// Initialize DNSSEC production signer with configuration
+    pub fn init_dnssec_signer(&self) -> AppResult<()> {
+        if let Some(ref config) = self.dnssec_config {
+            sign::init_production_signer(config.clone()).map_err(|e| {
+                common::AppError::Message(format!("Failed to initialize DNSSEC signer: {e}"))
+            })?;
+            info!("Initialized production DNSSEC signer");
+        }
+        Ok(())
+    }
 }
 
 /// Run the UDP server.
@@ -43,6 +58,9 @@ pub struct Config {
 /// packet. The function runs until cancelled.
 #[instrument]
 pub async fn serve(cfg: Config) -> AppResult<()> {
+    // Initialize DNSSEC signer if configured
+    cfg.init_dnssec_signer()?;
+
     let pool = cfg.redis_pool.clone();
     #[cfg(feature = "dot")]
     {
@@ -84,6 +102,9 @@ pub async fn serve_with_shutdown(
     cfg: Config,
     mut shutdown_rx: broadcast::Receiver<ShutdownSignal>,
 ) -> AppResult<()> {
+    // Initialize DNSSEC signer if configured
+    cfg.init_dnssec_signer()?;
+
     let pool = cfg.redis_pool.clone();
 
     // Start DoT server with shutdown support
@@ -189,6 +210,7 @@ mod tests {
             tls_config,
             #[cfg(feature = "dot")]
             cert_manager: None,
+            dnssec_config: None,
         };
         let handle = tokio::spawn(async move { serve(cfg).await.unwrap() });
 

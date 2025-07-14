@@ -56,7 +56,10 @@ pub async fn handle_packet(packet: &[u8], pool: &redis_cache::RedisPool) -> AppR
         let record = Record::from_rdata(qname.clone(), 60, RData::A(rdata::A(ip)));
         message.add_answer(record);
 
-        if let Some(signer) = sign::signer() {
+        // Try production signer first, fallback to legacy signer
+        let mut signed = false;
+
+        if let Some(prod_signer) = sign::production_signer() {
             let mut rrset = Vec::new();
             {
                 let mut enc = BinEncoder::new(&mut rrset);
@@ -65,7 +68,31 @@ pub async fn handle_packet(packet: &[u8], pool: &redis_cache::RedisPool) -> AppR
                         .map_err(|e| AppError::Message(e.to_string()))?;
                 }
             }
-            let sig = signer.rrsig_record(qname, RecordType::A, 60, &rrset);
+
+            // Try to sign with production signer using default algorithm
+            match prod_signer.rrsig_record(qname, RecordType::A, 60, &rrset) {
+                Ok(sig) => {
+                    message.add_answer(sig);
+                    signed = true;
+                }
+                Err(e) => {
+                    tracing::warn!("Production DNSSEC signing failed: {}", e);
+                    // Fall back to legacy signer
+                }
+            }
+        }
+
+        // Fallback to legacy signer if production signer failed
+        if !signed && let Some(legacy_signer) = sign::signer() {
+            let mut rrset = Vec::new();
+            {
+                let mut enc = BinEncoder::new(&mut rrset);
+                for rec in message.answers() {
+                    rec.emit(&mut enc)
+                        .map_err(|e| AppError::Message(e.to_string()))?;
+                }
+            }
+            let sig = legacy_signer.rrsig_record(qname, RecordType::A, 60, &rrset);
             message.add_answer(sig);
         }
     } else {

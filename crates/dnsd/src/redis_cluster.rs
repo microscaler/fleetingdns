@@ -9,18 +9,26 @@
 //!
 //! # Usage
 //!
-//! ```rust
+//! ```rust,no_run
 //! use dnsd::redis_cluster::{RedisClusterClient, ClusterConfig};
+//! use std::net::Ipv4Addr;
 //!
-//! let config = ClusterConfig::new(vec![
-//!     "redis://redis-eu-master-1:6379".to_string(),
-//!     "redis://redis-us-master-1:6379".to_string(),
-//!     "redis://redis-apac-master-1:6379".to_string(),
-//! ]);
+//! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+//! let config = ClusterConfig {
+//!     nodes: vec![
+//!         "redis://redis-eu-master-1:6379".to_string(),
+//!         "redis://redis-us-master-1:6379".to_string(),
+//!         "redis://redis-apac-master-1:6379".to_string(),
+//!     ],
+//!     ..Default::default()
+//! };
 //!
 //! let client = RedisClusterClient::new(config).await?;
-//! client.set_slot("demo", "127.0.0.1", 1800).await?;
-//! let ip = client.get_slot("demo").await?;
+//! let ip = Ipv4Addr::new(127, 0, 0, 1);
+//! client.set_slot("demo", ip, 1800).await?;
+//! let retrieved_ip = client.get_slot("demo").await?;
+//! # Ok(())
+//! # }
 //! ```
 
 use std::collections::HashMap;
@@ -724,7 +732,6 @@ mod crc16 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
 
     #[tokio::test]
     async fn test_cluster_config_default() {

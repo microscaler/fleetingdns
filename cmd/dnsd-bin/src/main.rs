@@ -73,6 +73,7 @@ async fn main() -> common::AppResult<()> {
             tls_config,
             #[cfg(feature = "dot")]
             cert_manager: None,
+            dnssec_config: None,
         },
         shutdown_rx,
     )
