@@ -295,6 +295,12 @@ async fn test_performance_client_integration() {
             monitor_pool: false,
             track_latency: true,
         },
+        max_connections: 10,
+        min_idle: 2,
+        connection_timeout: 5,
+        operation_timeout: 10,
+        retry_attempts: 2,
+        retry_delay_ms: 50,
     };
 
     match RedisPerformanceClient::new(config).await {
@@ -340,12 +346,12 @@ async fn test_performance_client_integration() {
                 "bulk-slot-3".to_string(),
             ];
 
-            let result = client.bulk_get_slots(slots).await;
+            let result = client.bulk_get_slots(slots.clone()).await;
             match result {
                 Ok(results) => {
                     println!("Bulk get successful: {} results", results.len());
-                    for (slot, ip) in results {
-                        println!("  {}: {:?}", slot, ip);
+                    for (i, ip) in results.iter().enumerate() {
+                        println!("  {}: {:?}", slots[i], ip);
                     }
                 }
                 Err(e) => println!("Bulk get failed: {}", e),
@@ -375,10 +381,10 @@ async fn test_error_conversion() {
     let performance_error: PerformanceError = redis_error.into();
 
     match performance_error {
-        PerformanceError::RedisError(_) => {
+        PerformanceError::Redis(_) => {
             // Expected
         }
-        _ => panic!("Expected RedisError variant"),
+        _ => panic!("Expected Redis variant"),
     }
 }
 
@@ -406,6 +412,12 @@ async fn test_timeout_configurations() {
             monitor_pool: false,
             track_latency: false,
         },
+        max_connections: 5,
+        min_idle: 1,
+        connection_timeout: 1, // Very short timeout in seconds
+        operation_timeout: 1,
+        retry_attempts: 1,
+        retry_delay_ms: 10,
     };
 
     // Should fail quickly due to short timeouts

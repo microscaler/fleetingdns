@@ -21,13 +21,11 @@ use tracing::{error, info, warn};
 pub enum PerformanceError {
     #[error("Redis error: {0}")]
     Redis(#[from] RedisError),
-    #[error("Redis error: {0}")]
-    RedisError(RedisError),
-    #[error("Pool error: {0}")]
+    #[error("Connection pool error: {0}")]
     PoolError(String),
     #[error("Bulk operation failed: {0}")]
     BulkOperationFailed(String),
-    #[error("Pipeline error: {0}")]
+    #[error("Pipeline execution failed: {0}")]
     PipelineError(String),
     #[error("Timeout error: {0}")]
     TimeoutError(String),
@@ -75,7 +73,7 @@ impl Default for PipelineConfig {
         Self {
             batch_size: 100,
             auto_flush: true,
-            execution_timeout: Duration::from_secs(5),
+            execution_timeout: Duration::from_secs(30),
             flush_interval: Duration::from_millis(10),
         }
     }
