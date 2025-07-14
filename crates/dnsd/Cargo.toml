@@ -7,6 +7,7 @@ edition = "2024"
 common = { path = "../common" }
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
+metrics = { workspace = true }
 hickory-proto = { version = "0.24", features = ["dnssec", "dnssec-ring"] }
 tokio-rustls = { version = "0.26", optional = true }
 rustls = { version = "0.23", optional = true }

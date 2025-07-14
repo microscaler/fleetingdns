@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use common::shutdown::ShutdownSignal;
+use common::gauge;
 use rand::Rng;
 use russh::server::{Auth, Msg, Session};
 use russh::{Channel, ChannelId};
@@ -721,6 +722,9 @@ impl russh::server::Handler for SshSession {
             .await
             .insert(channel.id(), tunnel_info);
 
+        // Increment tunnel gauge when SSH tunnel is established
+        gauge!("edge_tunnels_open").increment(1.0);
+
         // Start TCP proxy in background
         let state = self.state.clone();
         let channel_id = channel.id();
@@ -731,6 +735,9 @@ impl russh::server::Handler for SshSession {
 
             // Clean up tunnel info when done
             state.active_tunnels.lock().await.remove(&channel_id);
+            
+            // Decrement tunnel gauge when SSH tunnel is closed
+            gauge!("edge_tunnels_open").decrement(1.0);
         });
 
         Ok((self, true, session))

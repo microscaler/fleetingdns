@@ -4,7 +4,7 @@ use hickory_proto::serialize::binary::{BinEncodable, BinEncoder};
 
 use crate::redis_cache::{self, CacheError};
 use crate::sign;
-use common::{AppError, AppResult};
+use common::{AppError, AppResult, counter};
 
 /// Handle a single DNS packet, returning a response buffer.
 ///
@@ -13,7 +13,11 @@ use common::{AppError, AppResult};
 /// an NXDOMAIN.
 #[tracing::instrument(level = "trace", skip(packet, pool))]
 pub async fn handle_packet(packet: &[u8], pool: &redis_cache::RedisPool) -> AppResult<Vec<u8>> {
+    // Increment DNS queries counter for UDP protocol
+    counter!("dns_queries_total", "protocol" => "udp", "status" => "received").increment(1);
+
     if packet.len() < 12 {
+        counter!("dns_queries_total", "protocol" => "udp", "status" => "error").increment(1);
         return Err(AppError::Message("packet too short".into()));
     }
 
@@ -23,22 +27,34 @@ pub async fn handle_packet(packet: &[u8], pool: &redis_cache::RedisPool) -> AppR
     let rd = flags & 0x0100 != 0;
 
     // Parse the query name to determine the lookup key.
-    let req = Message::from_vec(packet).map_err(|e| AppError::Message(e.to_string()))?;
+    let req = Message::from_vec(packet).map_err(|e| {
+        counter!("dns_queries_total", "protocol" => "udp", "status" => "error").increment(1);
+        AppError::Message(e.to_string())
+    })?;
     let query = req
         .query()
-        .ok_or_else(|| AppError::Message("no query".into()))?;
+        .ok_or_else(|| {
+            counter!("dns_queries_total", "protocol" => "udp", "status" => "error").increment(1);
+            AppError::Message("no query".into())
+        })?;
     let qname = query.name();
     let label = qname
         .iter()
         .next()
         .and_then(|l| std::str::from_utf8(l).ok())
-        .ok_or_else(|| AppError::Message("invalid label".into()))?;
+        .ok_or_else(|| {
+            counter!("dns_queries_total", "protocol" => "udp", "status" => "error").increment(1);
+            AppError::Message("invalid label".into())
+        })?;
 
     // Look up the IPv4 address in Redis.
     let lookup = match redis_cache::get_slot(pool, label).await {
         Ok(ip) => Some(ip),
         Err(CacheError::NXDomain) => None,
-        Err(e) => return Err(AppError::Message(e.to_string())),
+        Err(e) => {
+            counter!("dns_queries_total", "protocol" => "udp", "status" => "error").increment(1);
+            return Err(AppError::Message(e.to_string()));
+        }
     };
 
     // Build the DNS response.
@@ -95,8 +111,11 @@ pub async fn handle_packet(packet: &[u8], pool: &redis_cache::RedisPool) -> AppR
             let sig = legacy_signer.rrsig_record(qname, RecordType::A, 60, &rrset);
             message.add_answer(sig);
         }
+        
+        counter!("dns_queries_total", "protocol" => "udp", "status" => "success").increment(1);
     } else {
         message.set_response_code(ResponseCode::NXDomain);
+        counter!("dns_queries_total", "protocol" => "udp", "status" => "nxdomain").increment(1);
     }
 
     let mut out = Vec::with_capacity(512);

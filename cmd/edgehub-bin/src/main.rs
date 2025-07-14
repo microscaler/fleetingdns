@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use tracing::info;
 
-use common::{AppResult, init_tracing, shutdown::GracefulShutdown, tls};
+use common::{AppResult, init_tracing, init_metrics, shutdown::GracefulShutdown, tls};
 use edgehub::{self, Config, SshConfig, SshServer};
 
 /// EdgeHub command line arguments.
@@ -34,6 +34,7 @@ struct Args {
 
 async fn run(args: Args) -> AppResult<()> {
     init_tracing();
+    init_metrics();
 
     // Initialize graceful shutdown framework
     let mut shutdown = if let Some(socket_path) = args.control_socket {
