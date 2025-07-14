@@ -34,6 +34,7 @@ async fn run(args: Args) -> AppResult<()> {
         tls_config,
         #[cfg(feature = "dot")]
         cert_manager: None,
+        dnssec_config: None,
     };
     dnsd::serve(cfg).await
 }

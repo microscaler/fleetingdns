@@ -289,11 +289,11 @@ impl DnssecKeyManager {
         let keys = self.keys.read().map_err(|e| DnssecError::KeyNotFound(e.to_string()))?;
         
         let algorithm_keys = keys.get(&algorithm)
-            .ok_or_else(|| DnssecError::KeyNotFound(format!("No keys for algorithm {:?}", algorithm)))?;
+            .ok_or_else(|| DnssecError::KeyNotFound(format!("No keys for algorithm {algorithm:?}")))?;
 
         let active_key = algorithm_keys.iter()
             .find(|key| key.metadata.is_active && key.metadata.expires_at > SystemTime::now())
-            .ok_or_else(|| DnssecError::KeyNotFound(format!("No active key for algorithm {:?}", algorithm)))?;
+            .ok_or_else(|| DnssecError::KeyNotFound(format!("No active key for algorithm {algorithm:?}")))?;
 
         Ok(active_key.clone())
     }
@@ -431,7 +431,7 @@ impl DnssecKeyManager {
                 let total_count = algorithm_keys.len();
                 
                 stats.insert(
-                    format!("{:?}", algorithm),
+                    format!("{algorithm:?}"),
                     serde_json::json!({
                         "active_keys": active_count,
                         "total_keys": total_count,
@@ -716,7 +716,7 @@ impl DnssecValidator {
                         let mut enc = hickory_proto::serialize::binary::BinEncoder::new(&mut rrset_data);
                         for record in &covered_records {
                             if let Err(e) = record.emit(&mut enc) {
-                                result.errors.push(format!("Failed to encode RRset: {}", e));
+                                result.errors.push(format!("Failed to encode RRset: {e}"));
                                 continue;
                             }
                         }
@@ -744,7 +744,7 @@ impl DnssecValidator {
                         }
                         Err(e) => {
                             result.validation_errors += 1;
-                            result.errors.push(format!("Validation error: {}", e));
+                            result.errors.push(format!("Validation error: {e}"));
                         }
                     }
                 }
@@ -771,7 +771,7 @@ impl DnssecValidator {
             if increment_total {
                 stats.total_validations += 1;
             }
-            *stats.validations_by_algorithm.entry(format!("{:?}", algorithm)).or_insert(0) += 1;
+            *stats.validations_by_algorithm.entry(format!("{algorithm:?}")).or_insert(0) += 1;
         }
     }
 
@@ -994,8 +994,8 @@ impl DnssecMonitor {
         }
 
         // Store alerts in history
-        if !alerts.is_empty() {
-            if let Ok(mut history) = self.alert_history.write() {
+        if !alerts.is_empty()
+            && let Ok(mut history) = self.alert_history.write() {
                 for alert in &alerts {
                     history.push(alert.clone());
                     // Keep only last 1000 alerts
@@ -1004,7 +1004,6 @@ impl DnssecMonitor {
                     }
                 }
             }
-        }
 
         alerts
     }
@@ -1227,7 +1226,7 @@ mod tests {
                 assert_eq!(sig.len(), 32); // HMAC-SHA256 output length (placeholder)
             }
             Err(e) => {
-                println!("ECDSA signing error: {}", e);
+                println!("ECDSA signing error: {e}");
                 // For now, this is expected since we're using placeholder implementation
                 assert!(e.to_string().contains("No active key") || e.to_string().contains("No keys"));
             }
@@ -1236,9 +1235,11 @@ mod tests {
 
     #[test]
     fn test_signature_caching() {
-        let mut config = DnssecConfig::default();
-        config.enable_signature_cache = true;
-        config.signature_cache_ttl = 10; // 10 seconds
+        let config = DnssecConfig { 
+            enable_signature_cache: true, 
+            signature_cache_ttl: 10, // 10 seconds
+            ..Default::default() 
+        };
         
         let manager = DnssecKeyManager::new(config).unwrap();
         let test_data = b"test caching data";
@@ -1254,8 +1255,10 @@ mod tests {
 
     #[test]
     fn test_key_rotation_needed() {
-        let mut config = DnssecConfig::default();
-        config.rotation_interval = 1; // 1 second
+        let config = DnssecConfig { 
+            rotation_interval: 1, // 1 second
+            ..Default::default() 
+        };
         
         let manager = DnssecKeyManager::new(config).unwrap();
         
@@ -1273,8 +1276,10 @@ mod tests {
 
     #[test]
     fn test_key_rotation() {
-        let mut config = DnssecConfig::default();
-        config.rotation_interval = 1; // 1 second
+        let config = DnssecConfig { 
+            rotation_interval: 1, // 1 second
+            ..Default::default() 
+        };
         
         let manager = DnssecKeyManager::new(config).unwrap();
         
@@ -1350,7 +1355,7 @@ mod tests {
                     }
                 }
                 Err(e) => {
-                    println!("Algorithm {:?} failed: {}", algorithm, e);
+                    println!("Algorithm {algorithm:?} failed: {e}");
                     // This is acceptable for placeholder implementation
                     assert!(e.to_string().contains("No active key") || e.to_string().contains("No keys"));
                 }
@@ -1499,7 +1504,7 @@ mod tests {
             if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data().unwrap() {
                 assert_eq!(rrsig.type_covered(), record_type);
             } else {
-                panic!("Expected RRSIG record data for {:?}", record_type);
+                panic!("Expected RRSIG record data for {record_type:?}");
             }
         }
     }
@@ -1528,7 +1533,7 @@ mod tests {
                 assert_eq!(rrsig.signer_name(), &name);
                 assert_eq!(rrsig.num_labels(), name.num_labels());
             } else {
-                panic!("Expected RRSIG record data for {}", name_str);
+                panic!("Expected RRSIG record data for {name_str}");
             }
         }
     }
@@ -1586,7 +1591,7 @@ mod tests {
                 assert_eq!(rrsig.original_ttl(), ttl);
                 assert_eq!(rrsig.sig_expiration(), rrsig.sig_inception() + ttl);
             } else {
-                panic!("Expected RRSIG record data for TTL {}", ttl);
+                panic!("Expected RRSIG record data for TTL {ttl}");
             }
         }
     }
@@ -1861,7 +1866,7 @@ mod tests {
             Ok(valid) => assert!(valid),
             Err(e) => {
                 // This might fail if the key is not available, which is acceptable
-                println!("Self-validation failed: {}", e);
+                println!("Self-validation failed: {e}");
                 assert!(e.to_string().contains("No active key") || e.to_string().contains("No keys"));
             }
         }
@@ -2026,8 +2031,10 @@ mod tests {
         let config = DnssecConfig::default();
         let manager = Arc::new(DnssecKeyManager::new(config).unwrap());
         let validator = Arc::new(DnssecValidator::new(manager));
-        let mut alert_config = AlertConfig::default();
-        alert_config.alert_cooldown_seconds = 1; // 1 second cooldown
+        let alert_config = AlertConfig { 
+            alert_cooldown_seconds: 1, // 1 second cooldown
+            ..Default::default() 
+        };
         
         let monitor = DnssecMonitor::new(validator, alert_config);
         
@@ -2134,8 +2141,10 @@ mod tests {
 
     #[test]
     fn test_production_signer_key_rotation_alert() {
-        let mut config = DnssecConfig::default();
-        config.rotation_interval = 1; // 1 second
+        let config = DnssecConfig { 
+            rotation_interval: 1, // 1 second
+            ..Default::default() 
+        };
         
         let signer = ProductionDnssecSigner::new(config).unwrap();
         

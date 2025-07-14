@@ -45,6 +45,7 @@ async fn dig_returns_cached_ip() {
     let cfg = Config {
         addr,
         redis_pool: pool.clone(),
+        dnssec_config: None,
     };
     let handle = tokio::spawn(async move { serve(cfg).await.unwrap() });
     sleep(Duration::from_millis(50)).await;
@@ -85,6 +86,7 @@ async fn dig_returns_nxdomain_on_miss() {
     let cfg = Config {
         addr,
         redis_pool: pool.clone(),
+        dnssec_config: None,
     };
     let handle = tokio::spawn(async move { serve(cfg).await.unwrap() });
     sleep(Duration::from_millis(50)).await;

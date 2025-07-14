@@ -44,7 +44,7 @@ impl Config {
     pub fn init_dnssec_signer(&self) -> AppResult<()> {
         if let Some(ref config) = self.dnssec_config {
             sign::init_production_signer(config.clone())
-                .map_err(|e| common::AppError::Message(format!("Failed to initialize DNSSEC signer: {}", e)))?;
+                .map_err(|e| common::AppError::Message(format!("Failed to initialize DNSSEC signer: {e}")))?;
             info!("Initialized production DNSSEC signer");
         }
         Ok(())

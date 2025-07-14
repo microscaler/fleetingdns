@@ -83,8 +83,8 @@ pub async fn handle_packet(packet: &[u8], pool: &redis_cache::RedisPool) -> AppR
         }
         
         // Fallback to legacy signer if production signer failed
-        if !signed {
-            if let Some(legacy_signer) = sign::signer() {
+        if !signed
+            && let Some(legacy_signer) = sign::signer() {
                 let mut rrset = Vec::new();
                 {
                     let mut enc = BinEncoder::new(&mut rrset);
@@ -96,7 +96,6 @@ pub async fn handle_packet(packet: &[u8], pool: &redis_cache::RedisPool) -> AppR
                 let sig = legacy_signer.rrsig_record(qname, RecordType::A, 60, &rrset);
                 message.add_answer(sig);
             }
-        }
     } else {
         message.set_response_code(ResponseCode::NXDomain);
     }
