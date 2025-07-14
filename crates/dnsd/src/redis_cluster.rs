@@ -152,6 +152,7 @@ struct ClusterSlot {
 
 /// Redis node information
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct NodeInfo {
     host: String,
     port: u16,
@@ -328,7 +329,7 @@ impl RedisClusterClient {
 
     /// Calculate Redis cluster slot for a key
     fn calculate_slot(&self, key: &str) -> u16 {
-        let mut hasher = crc16::State::<crc16::XMODEM>::new();
+        let mut hasher = crc16::State::<crc16::Xmodem>::new();
         hasher.update(key.as_bytes());
         hasher.get() % 16384
     }
@@ -391,7 +392,7 @@ impl RedisClusterClient {
         }
 
         let manager = RedisConnectionManager::new(node_url)
-            .map_err(|e| ClusterError::ConnectionFailed(node_url.to_string(), e.into()))?;
+            .map_err(|e| ClusterError::ConnectionFailed(node_url.to_string(), e))?;
 
         let pool = Pool::builder()
             .max_size(self.config.pool_config.max_size)
@@ -670,9 +671,9 @@ mod crc16 {
         value: u16,
     }
 
-    pub struct XMODEM;
+    pub struct Xmodem;
 
-    impl State<XMODEM> {
+    impl State<Xmodem> {
         pub fn new() -> Self {
             Self {
                 _phantom: std::marker::PhantomData,
@@ -682,9 +683,8 @@ mod crc16 {
 
         pub fn update(&mut self, data: &[u8]) {
             for &byte in data {
-                self.value = ((self.value << 8)
-                    ^ CRC16_XMODEM_TABLE[((self.value >> 8) ^ byte as u16) as usize])
-                    & 0xFFFF;
+                self.value = (self.value << 8)
+                    ^ CRC16_XMODEM_TABLE[((self.value >> 8) ^ byte as u16) as usize];
             }
         }
 
@@ -724,7 +724,7 @@ mod crc16 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::net::Ipv4Addr;
+    use std::time::Duration;
 
     #[tokio::test]
     async fn test_cluster_config_default() {

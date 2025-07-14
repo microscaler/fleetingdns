@@ -269,7 +269,7 @@ impl RedisSentinelClient {
             .await
             .map_err(|_| {
                 SentinelError::SentinelConnectionFailed(
-                    format!("sentinel-{}", sentinel_index),
+                    format!("sentinel-{sentinel_index}"),
                     RedisError::from((redis::ErrorKind::IoError, "Connection timeout")),
                 )
             })?
@@ -390,7 +390,8 @@ impl RedisSentinelClient {
         *master
     }
 
-    /// Get master connection (placeholder implementation)
+    /// Get a connection to the current master
+    #[allow(dead_code)]
     async fn get_master_connection(&self) -> Result<Pool<RedisConnectionManager>, SentinelError> {
         // This is a placeholder - in production this would return the actual master connection
         Err(SentinelError::InvalidResponse(
@@ -408,12 +409,11 @@ impl RedisSentinelClient {
         // Query sentinels for master address
         let _sentinel_pools = self.sentinel_pools.clone();
         let _current_master = Arc::clone(&self.current_master);
-
+        
         // For now, return a placeholder - in production this would query actual sentinels
-        let master_addr = "127.0.0.1:6379"
-            .parse()
+        let master_addr = "127.0.0.1:6379".parse()
             .map_err(|_| SentinelError::InvalidResponse("Invalid master address".to_string()))?;
-
+            
         // Update cache
         {
             let mut master = self.current_master.write().await;
@@ -431,9 +431,9 @@ impl RedisSentinelClient {
     /// Start background health monitoring
     fn start_health_monitoring(&self) {
         // Clone necessary components for the background task
-        let sentinel_pools = self.sentinel_pools.clone();
+        let _sentinel_pools = self.sentinel_pools.clone();
         let master_pool = Arc::clone(&self.master_pool);
-        let current_master = Arc::clone(&self.current_master);
+        let _current_master = Arc::clone(&self.current_master);
         let stats = Arc::clone(&self.stats);
         let config = self.config.clone();
 
@@ -451,11 +451,11 @@ impl RedisSentinelClient {
                             Ok(Ok(mut conn)) => {
                                 // Simple ping to check connectivity
                                 match redis::cmd("PING").query_async::<String>(&mut *conn).await {
-                                    Ok(_) => Ok(()),
-                                    Err(e) => Err(format!("PING failed: {}", e)),
+                                    Ok(_) => Ok("PONG".to_string()),
+                                    Err(e) => Err(format!("PING failed: {e}")),
                                 }
                             }
-                            Ok(Err(e)) => Err(format!("Pool error: {}", e)),
+                            Ok(Err(e)) => Err(format!("Pool error: {e}")),
                             Err(_) => Err("Connection timeout".to_string()),
                         }
                     } else {
@@ -478,7 +478,8 @@ impl RedisSentinelClient {
         });
     }
 
-    /// Check the health of the current master
+    /// Check if the master is healthy
+    #[allow(dead_code)]
     async fn check_master_health(&self) -> Result<(), SentinelError> {
         // This is a placeholder implementation
         // In production, this would check actual master connection health
@@ -490,23 +491,19 @@ impl RedisSentinelClient {
     pub async fn is_failover_in_progress(&self) -> bool {
         // Check if any sentinel reports a failover in progress
         for (i, pool) in self.sentinel_pools.iter().enumerate() {
-            if let Ok(mut conn) = pool.get().await {
-                if let Ok(info) = redis::cmd("SENTINEL")
+            if let Ok(mut conn) = pool.get().await
+                && let Ok(info) = redis::cmd("SENTINEL")
                     .arg("master")
                     .arg(&self.config.master_name)
                     .query_async::<HashMap<String, String>>(&mut *conn)
                     .await
-                {
-                    if let Some(flags) = info.get("flags") {
-                        if flags.contains("s_down")
-                            || flags.contains("o_down")
-                            || flags.contains("failover_in_progress")
-                        {
-                            debug!("Failover detected by sentinel {}", i);
-                            return true;
-                        }
-                    }
-                }
+                && let Some(flags) = info.get("flags")
+                && (flags.contains("s_down")
+                    || flags.contains("o_down")
+                    || flags.contains("failover_in_progress"))
+            {
+                debug!("Failover detected by sentinel {}", i);
+                return true;
             }
         }
         false

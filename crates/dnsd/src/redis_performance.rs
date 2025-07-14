@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tokio::time::timeout;
-use tracing::{error, info, warn};
+use tracing::error;
 
 /// Performance-related errors
 #[derive(Error, Debug)]
@@ -218,7 +218,7 @@ impl RedisPerformanceClient {
     /// Create a new performance client
     pub async fn new(config: PerformanceConfig) -> Result<Self, PerformanceError> {
         let manager = RedisConnectionManager::new(config.redis_url.as_str())
-            .map_err(|e| PerformanceError::Config(format!("Failed to create manager: {}", e)))?;
+            .map_err(|e| PerformanceError::Config(format!("Failed to create manager: {e}")))?;
 
         let pool = Pool::builder()
             .max_size(config.pool_config.max_size)
@@ -226,38 +226,48 @@ impl RedisPerformanceClient {
             .connection_timeout(config.pool_config.connection_timeout)
             .build(manager)
             .await
-            .map_err(|e| PerformanceError::Config(format!("Failed to build pool: {}", e)))?;
+            .map_err(|e| PerformanceError::Config(format!("Failed to build pool: {e}")))?;
 
         let stats = Arc::new(RwLock::new(PerformanceStats::default()));
 
-        Ok(Self { pool, config, stats })
+        Ok(Self {
+            pool,
+            config,
+            stats,
+        })
     }
 
     /// Get a slot value with performance optimization
-    pub async fn get_slot_optimized(&self, slot: &str) -> Result<Option<Ipv4Addr>, PerformanceError> {
+    pub async fn get_slot_optimized(
+        &self,
+        slot: &str,
+    ) -> Result<Option<Ipv4Addr>, PerformanceError> {
         let start_time = Instant::now();
         let slot = slot.to_string();
-        
-        let result = timeout(
-            Duration::from_secs(self.config.operation_timeout),
-            async {
-                let conn = self.pool.get().await.map_err(|e| {
-                    RedisError::from((redis::ErrorKind::IoError, "Failed to get connection", e.to_string()))
-                })?;
-                let mut conn = conn;
-                let value: Option<String> = conn.get(&slot).await?;
-                match value {
-                    Some(ip_str) => ip_str.parse::<Ipv4Addr>().map(Some).map_err(|e| {
-                        RedisError::from((
-                            redis::ErrorKind::TypeError,
-                            "Invalid IP address format",
-                            e.to_string(),
-                        ))
-                    }),
-                    None => Ok(None),
-                }
+
+        let result = timeout(Duration::from_secs(self.config.operation_timeout), async {
+            let conn = self.pool.get().await.map_err(|e| {
+                RedisError::from((
+                    redis::ErrorKind::IoError,
+                    "Failed to get connection",
+                    e.to_string(),
+                ))
+            })?;
+            let mut conn = conn;
+            let value: Option<String> = conn.get(&slot).await?;
+            match value {
+                Some(ip_str) => ip_str.parse::<Ipv4Addr>().map(Some).map_err(|e| {
+                    RedisError::from((
+                        redis::ErrorKind::TypeError,
+                        "Invalid IP address format",
+                        e.to_string(),
+                    ))
+                }),
+                None => Ok(None),
             }
-        ).await.map_err(|_| PerformanceError::TimeoutError("Operation timed out".to_string()))??;
+        })
+        .await
+        .map_err(|_| PerformanceError::TimeoutError("Operation timed out".to_string()))??;
 
         // Update performance metrics
         let latency = start_time.elapsed();
@@ -276,23 +286,26 @@ impl RedisPerformanceClient {
         let start_time = Instant::now();
         let slot = slot.to_string();
         let ip_str = ip.to_string();
-        
-        let result = timeout(
-            Duration::from_secs(self.config.operation_timeout),
-            async {
-                let conn = self.pool.get().await.map_err(|e| {
-                    RedisError::from((redis::ErrorKind::IoError, "Failed to get connection", e.to_string()))
-                })?;
-                let mut conn = conn;
-                conn.set_ex(&slot, ip_str, ttl).await
-            }
-        ).await.map_err(|_| PerformanceError::TimeoutError("Operation timed out".to_string()))??;
+
+        timeout(Duration::from_secs(self.config.operation_timeout), async {
+            let conn = self.pool.get().await.map_err(|e| {
+                RedisError::from((
+                    redis::ErrorKind::IoError,
+                    "Failed to get connection",
+                    e.to_string(),
+                ))
+            })?;
+            let mut conn = conn;
+            conn.set_ex(&slot, ip_str, ttl).await.map(|_: ()| ())
+        })
+        .await
+        .map_err(|_| PerformanceError::TimeoutError("Operation timed out".to_string()))??;
 
         // Update performance metrics
         let latency = start_time.elapsed();
         self.update_performance_metrics(1, latency).await;
 
-        Ok(result)
+        Ok(())
     }
 
     /// Bulk set multiple slots with pipelining
@@ -302,18 +315,19 @@ impl RedisPerformanceClient {
     ) -> Result<Vec<()>, PerformanceError> {
         let start_time = Instant::now();
         let total_operations = operations.len();
-        
+
         // For now, just execute operations sequentially
         // In a full implementation, this would use pipelining
         let mut results = Vec::new();
         for (slot, ip, ttl) in operations {
-            let result = self.set_slot_optimized(&slot, ip, ttl).await?;
-            results.push(result);
+            self.set_slot_optimized(&slot, ip, ttl).await?;
+            results.push(());
         }
 
         // Update performance metrics
         let latency = start_time.elapsed();
-        self.update_performance_metrics(total_operations, latency).await;
+        self.update_performance_metrics(total_operations, latency)
+            .await;
 
         Ok(results)
     }
@@ -325,7 +339,7 @@ impl RedisPerformanceClient {
     ) -> Result<Vec<Option<Ipv4Addr>>, PerformanceError> {
         let start_time = Instant::now();
         let total_slots = slots.len();
-        
+
         // For now, just execute operations sequentially
         // In a full implementation, this would use pipelining
         let mut results = Vec::new();
@@ -358,10 +372,10 @@ impl RedisPerformanceClient {
         let mut stats = self.stats.write().await;
         stats.total_operations += operations as u64;
         stats.successful_operations += operations as u64;
-        
+
         let latency_ms = latency.as_millis() as f64;
         stats.avg_latency_ms = (stats.avg_latency_ms + latency_ms) / 2.0;
-        
+
         // Update pool stats
         stats.pool_size = self.config.pool_config.max_size;
         stats.connections_in_use = self.config.pool_config.max_size;
@@ -371,7 +385,7 @@ impl RedisPerformanceClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::net::Ipv4Addr;
+    use std::time::Duration;
 
     #[tokio::test]
     async fn test_performance_config_creation() {

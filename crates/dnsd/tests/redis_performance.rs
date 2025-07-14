@@ -7,7 +7,6 @@
 //! - Handle high-concurrency scenarios
 //! - Provide query optimization and caching
 
-use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::time::Duration;
 
