@@ -24,6 +24,11 @@ ring = "0.17"
 hex = "0.4"
 redis = { workspace = true }
 async-trait = "0.1"
+# CRITICAL-3 ENHANCEMENT: Additional dependencies for certificate validation
+x509-parser = "0.16"
+chrono = { workspace = true, features = ["serde"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 tracing-test = "0.2"
