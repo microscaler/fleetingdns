@@ -259,7 +259,7 @@ impl TunnelStorage {
 mod tests {
     use super::*;
     use crate::models::TunnelStatus;
-    use std::time::Duration;
+
 
     // Mock Redis connection for testing
     struct MockRedisConnection;
@@ -507,7 +507,7 @@ mod tests {
             "clone-app".to_string(),
             "clone.com",
             7000,
-            70000,
+            7000,
             "cert-clone".to_string(),
             1800,
         );
@@ -558,7 +558,7 @@ mod tests {
             "json-app".to_string(),
             "json.com",
             8080,
-            80800,
+            8080,
             "cert-json".to_string(),
             3600,
         );
@@ -570,7 +570,7 @@ mod tests {
         assert_eq!(json_value["subdomain"], "json-app");
         assert_eq!(json_value["fqdn"], "json-app.json.com");
         assert_eq!(json_value["local_port"], 8080);
-        assert_eq!(json_value["slot"], 80800);
+        assert_eq!(json_value["slot"], 8080);
         assert_eq!(json_value["certificate_serial"], "cert-json");
         assert_eq!(json_value["bytes_transferred"], 0);
         assert_eq!(json_value["request_count"], 0);
