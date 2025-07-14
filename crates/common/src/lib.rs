@@ -4,10 +4,8 @@
 //! and re-exports of helpful metrics macros.
 
 use std::collections::HashMap;
-use tokio::signal;
-use tracing::{info, warn};
+use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, fmt};
-use uuid::Uuid;
 
 /// Emit a counter metric.
 #[macro_export]
@@ -117,7 +115,7 @@ static TRACE_COUNTER: AtomicU64 = AtomicU64::new(1);
 /// Generate a new trace ID for distributed tracing
 pub fn generate_trace_id() -> String {
     let id = TRACE_COUNTER.fetch_add(1, Ordering::SeqCst);
-    format!("trace-{:016x}", id)
+    format!("trace-{id:016x}")
 }
 
 /// Get the current trace ID from the active span

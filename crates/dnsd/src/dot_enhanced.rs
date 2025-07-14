@@ -253,7 +253,7 @@ impl EnhancedDotServer {
         if !self.check_rate_limit_and_connections(peer_ip).await? {
             debug!(peer = %peer, "Connection rejected due to rate limiting");
             if self.config.enable_metrics {
-                counter!("dot_connections_rejected_total", "reason" => "rate_limit");
+                counter!("dot_connections_rejected_total", "reason" => "rate_limit").increment(1);
             }
             return Ok(());
         }
@@ -265,7 +265,7 @@ impl EnhancedDotServer {
             None => {
                 warn!("No TLS configuration available, rejecting connection");
                 if self.config.enable_metrics {
-                    counter!("dot_connections_rejected_total", "reason" => "no_tls_config");
+                    counter!("dot_connections_rejected_total", "reason" => "no_tls_config").increment(1);
                 }
                 return Ok(());
             }
@@ -290,8 +290,8 @@ impl EnhancedDotServer {
         }
 
         if self.config.enable_metrics {
-            counter!("dot_connections_total", "status" => "established");
-            gauge!("dot_active_connections", self.get_active_connection_count().await as f64);
+            counter!("dot_connections_total", "status" => "established").increment(1);
+            gauge!("dot_active_connections").set(self.get_active_connection_count().await as f64);
         }
 
         // Handle connection in background task
@@ -331,13 +331,13 @@ impl EnhancedDotServer {
                 .await
                 .map_err(|_| {
                     if self.config.enable_metrics {
-                        counter!("dot_tls_handshake_errors_total", "reason" => "timeout");
+                        counter!("dot_tls_handshake_errors_total", "reason" => "timeout").increment(1);
                     }
                     common::AppError::Message("TLS handshake timeout".to_string())
                 })?
                 .map_err(|e| {
                     if self.config.enable_metrics {
-                        counter!("dot_tls_handshake_errors_total", "reason" => "handshake_failed");
+                        counter!("dot_tls_handshake_errors_total", "reason" => "handshake_failed").increment(1);
                     }
                     common::AppError::Message(format!("TLS handshake failed: {e}"))
                 })?;
@@ -349,8 +349,8 @@ impl EnhancedDotServer {
         );
 
         if self.config.enable_metrics {
-            counter!("dot_tls_handshake_total", "status" => "success");
-            histogram!("dot_tls_handshake_duration_seconds", connection_start.elapsed().as_secs_f64());
+            counter!("dot_tls_handshake_total", "status" => "success").increment(1);
+                                    histogram!("dot_tls_handshake_duration_seconds").record(connection_start.elapsed().as_secs_f64());
         }
 
         // Handle DNS queries over TLS
@@ -395,7 +395,7 @@ impl EnhancedDotServer {
                             "Invalid query size"
                         );
                         if self.config.enable_metrics {
-                            counter!("dns_queries_total", "protocol" => "dot", "status" => "error");
+                            counter!("dns_queries_total", "protocol" => "dot", "status" => "error").increment(1);
                         }
                         break;
                     }
@@ -405,7 +405,7 @@ impl EnhancedDotServer {
                     if tls_stream.read_exact(&mut query_buf).await.is_err() {
                         debug!(peer = %peer, "Failed to read query data");
                         if self.config.enable_metrics {
-                            counter!("dns_queries_total", "protocol" => "dot", "status" => "error");
+                            counter!("dns_queries_total", "protocol" => "dot", "status" => "error").increment(1);
                         }
                         break;
                     }
@@ -425,7 +425,7 @@ impl EnhancedDotServer {
                             {
                                 debug!(peer = %peer, "Failed to write response");
                                 if self.config.enable_metrics {
-                                    counter!("dns_queries_total", "protocol" => "dot", "status" => "error");
+                                    counter!("dns_queries_total", "protocol" => "dot", "status" => "error").increment(1);
                                 }
                                 break;
                             }
@@ -434,10 +434,10 @@ impl EnhancedDotServer {
                             query_count += 1;
 
                             if self.config.enable_metrics {
-                                counter!("dot_queries_total", "status" => "success");
-                                histogram!("dot_query_duration_seconds", query_start.elapsed().as_secs_f64());
-                                histogram!("dot_query_size_bytes", query_len as f64);
-                                histogram!("dot_response_size_bytes", response_len as f64);
+                                                                  counter!("dot_queries_total", "status" => "success").increment(1);
+                                                                    histogram!("dot_query_duration_seconds").record(query_start.elapsed().as_secs_f64());
+                                    histogram!("dot_query_size_bytes").record(query_len as f64);
+                                    histogram!("dot_response_size_bytes").record(response_len as f64);
                             }
 
                             debug!(
@@ -451,7 +451,7 @@ impl EnhancedDotServer {
                         Err(e) => {
                             warn!(peer = %peer, error = %e, "DNS query processing failed");
                             if self.config.enable_metrics {
-                                counter!("dot_query_errors_total", "reason" => "processing_failed");
+                                                                  counter!("dot_query_errors_total", "reason" => "processing_failed").increment(1);
                             }
                             break;
                         }
@@ -460,14 +460,14 @@ impl EnhancedDotServer {
                 Ok(Err(_)) => {
                     debug!(peer = %peer, "Connection closed by client");
                     if self.config.enable_metrics {
-                        counter!("dot_connections_closed_total", "reason" => "client_closed");
+                        counter!("dot_connections_closed_total", "reason" => "client_closed").increment(1);
                     }
                     break;
                 }
                 Err(_) => {
                     debug!(peer = %peer, "Keep-alive timeout reached");
                     if self.config.enable_metrics {
-                        counter!("dot_connections_closed_total", "reason" => "timeout");
+                        counter!("dot_connections_closed_total", "reason" => "timeout").increment(1);
                     }
                     break;
                 }
@@ -533,12 +533,12 @@ impl EnhancedDotServer {
             self.current_tls_config.store(Arc::new(Some(server_config)));
 
             if self.config.enable_metrics {
-                counter!("dot_certificate_updates_total", "status" => "success");
+                counter!("dot_certificate_updates_total", "status" => "success").increment(1);
             }
         } else {
             warn!("No server configuration available from certificate manager");
             if self.config.enable_metrics {
-                counter!("dot_certificate_updates_total", "status" => "failed");
+                counter!("dot_certificate_updates_total", "status" => "failed").increment(1);
             }
         }
 
@@ -561,12 +561,12 @@ impl EnhancedDotServer {
                     debug!("Certificate rotation check completed");
                     
                     if enable_metrics {
-                        counter!("dot_certificate_rotation_checks_total", "status" => "success");
+                        counter!("dot_certificate_rotation_checks_total", "status" => "success").increment(1);
                     }
                 } else {
                     warn!("Certificate rotation check failed - no server config available");
                     if enable_metrics {
-                        counter!("dot_certificate_rotation_checks_total", "status" => "failed");
+                        counter!("dot_certificate_rotation_checks_total", "status" => "failed").increment(1);
                     }
                 }
             }
@@ -596,7 +596,7 @@ impl EnhancedDotServer {
                 if cleaned_count > 0 {
                     debug!("Cleaned up {} inactive connections", cleaned_count);
                     if enable_metrics {
-                        counter!("dot_connections_cleaned_total", cleaned_count as f64);
+                        counter!("dot_connections_cleaned_total").increment(cleaned_count as u64);
                     }
                 }
             }
@@ -624,8 +624,8 @@ impl EnhancedDotServer {
                     .map(|conn| conn.queries_processed)
                     .sum();
 
-                gauge!("dot_active_connections", active_count as f64);
-                gauge!("dot_total_queries_processed", total_queries as f64);
+                gauge!("dot_active_connections").set(active_count as f64);
+                gauge!("dot_total_queries_processed").set(total_queries as f64);
 
                 debug!(
                     active_connections = active_count,
@@ -667,13 +667,14 @@ impl EnhancedDotServer {
     }
 
     /// Cleanup connection
+    #[allow(dead_code)] // Future connection cleanup functionality
     async fn cleanup_connection(&self, connection_id: &str) {
         let mut connections = self.active_connections.write().await;
         connections.remove(connection_id);
         
         if self.config.enable_metrics {
-            counter!("dot_connections_total", "status" => "closed");
-            gauge!("dot_active_connections", connections.len() as f64);
+            counter!("dot_connections_total", "status" => "closed").increment(1);
+            gauge!("dot_active_connections").set(connections.len() as f64);
         }
     }
 
@@ -684,7 +685,7 @@ impl EnhancedDotServer {
         connections.clear();
         
         if self.config.enable_metrics {
-            counter!("dot_connections_shutdown_total", connection_count as f64);
+            counter!("dot_connections_shutdown_total").increment(connection_count as u64);
         }
         
         info!("Shut down {} DoT connections", connection_count);
@@ -717,8 +718,8 @@ impl EnhancedDotServerTask {
         connections.remove(connection_id);
         
         if self.config.enable_metrics {
-            counter!("dot_connections_total", "status" => "closed");
-            gauge!("dot_active_connections", connections.len() as f64);
+            counter!("dot_connections_total", "status" => "closed").increment(1);
+            gauge!("dot_active_connections").set(connections.len() as f64);
         }
     }
 
