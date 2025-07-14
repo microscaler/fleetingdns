@@ -284,7 +284,7 @@ mod tests {
 
         let remaining = tunnel.remaining_ttl();
         // Should be approximately 3600 seconds (within 5 seconds tolerance)
-        assert!(remaining >= 3595 && remaining <= 3600);
+        assert!((3595..=3600).contains(&remaining));
     }
 
     #[test]
@@ -319,7 +319,7 @@ mod tests {
             let deserialized: TunnelStatus = serde_json::from_str(&serialized).unwrap();
             
             // Use Debug format for comparison since TunnelStatus doesn't implement PartialEq
-            assert_eq!(format!("{:?}", status), format!("{:?}", deserialized));
+            assert_eq!(format!("{status:?}"), format!("{deserialized:?}"));
         }
     }
 

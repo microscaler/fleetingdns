@@ -216,16 +216,12 @@ impl TunnelStorage {
         let mut cleaned_count = 0;
 
         for key in tunnel_keys {
-            if let Ok(tunnel_json) = conn.get::<_, Option<String>>(&key).await {
-                if let Some(json) = tunnel_json {
-                    if let Ok(tunnel) = serde_json::from_str::<Tunnel>(&json) {
-                        if tunnel.is_expired() {
-                            if let Ok(_) = conn.del::<_, ()>(&key).await {
-                                cleaned_count += 1;
-                            }
-                        }
-                    }
-                }
+            if let Ok(Some(json)) = conn.get::<_, Option<String>>(&key).await
+                && let Ok(tunnel) = serde_json::from_str::<Tunnel>(&json)
+                && tunnel.is_expired()
+                && conn.del::<_, ()>(&key).await.is_ok()
+            {
+                cleaned_count += 1;
             }
         }
 
@@ -262,9 +258,11 @@ mod tests {
 
 
     // Mock Redis connection for testing
+    #[allow(dead_code)]
     struct MockRedisConnection;
 
     impl MockRedisConnection {
+        #[allow(dead_code)]
         fn new() -> Self {
             Self
         }
@@ -289,7 +287,7 @@ mod tests {
         // Test the key generation logic
         let user_id = "user123";
         let subdomain = "myapp";
-        let expected_key = format!("tunnel:{}:{}", user_id, subdomain);
+        let expected_key = format!("tunnel:{user_id}:{subdomain}");
         
         // This would be the key format used in the storage methods
         assert_eq!(expected_key, "tunnel:user123:myapp");
@@ -621,7 +619,7 @@ mod tests {
             );
 
             assert_eq!(tunnel.subdomain, subdomain);
-            assert_eq!(tunnel.fqdn, format!("{}.edge.com", subdomain));
+            assert_eq!(tunnel.fqdn, format!("{subdomain}.edge.com"));
         }
     }
 }

@@ -1122,7 +1122,7 @@ mod tests {
         assert!(!result.is_valid);
         assert!(!result.validation_errors.is_empty());
         // Just check that we have validation errors, don't check specific message content
-        assert!(result.validation_errors.len() > 0);
+        assert!(!result.validation_errors.is_empty());
     }
 
     #[tokio::test]
@@ -1140,7 +1140,7 @@ mod tests {
                 timestamp: Instant::now(),
                 client_addr,
                 success: false,
-                certificate_serial: Some(format!("cert-{}", i)),
+                certificate_serial: Some(format!("cert-{i}")),
                 failure_reason: Some("Invalid certificate".to_string()),
             };
             protection.record_attempt(attempt, 3, lockout_duration);
@@ -1369,7 +1369,7 @@ mod tests {
                 timestamp: Instant::now(),
                 client_addr: client1,
                 success: false,
-                certificate_serial: Some(format!("cert-1-{}", i)),
+                certificate_serial: Some(format!("cert-1-{i}")),
                 failure_reason: Some("Invalid certificate".to_string()),
             };
             protection.record_attempt(attempt, 3, lockout_duration);
@@ -1402,7 +1402,7 @@ mod tests {
                 timestamp: Instant::now(),
                 client_addr,
                 success: false,
-                certificate_serial: Some(format!("cert-fail-{}", i)),
+                certificate_serial: Some(format!("cert-fail-{i}")),
                 failure_reason: Some("Invalid certificate".to_string()),
             };
             protection.record_attempt(attempt, 3, lockout_duration);
@@ -1456,10 +1456,10 @@ mod tests {
         let invalid_pem = "invalid-certificate-data";
         let result = server.extract_certificate_serial(invalid_pem).await;
         // The function might return Ok(None) for invalid data, so check for either error or None
-        match result {
-            Ok(serial) => assert!(serial.is_none(), "Expected None for invalid certificate"),
-            Err(_) => {} // Error is also acceptable
+        if let Ok(serial) = result {
+            assert!(serial.is_none(), "Expected None for invalid certificate");
         }
+        // Error is also acceptable
     }
 
     #[tokio::test]
@@ -1491,8 +1491,8 @@ mod tests {
 
         for (cert_pem, description) in test_cases {
             let result = server.validate_certificate_comprehensive(cert_pem, client_addr).await.unwrap();
-            assert!(!result.is_valid, "Certificate should be invalid for: {}", description);
-            assert!(!result.validation_errors.is_empty(), "Should have validation errors for: {}", description);
+            assert!(!result.is_valid, "Certificate should be invalid for: {description}");
+            assert!(!result.validation_errors.is_empty(), "Should have validation errors for: {description}");
         }
     }
 

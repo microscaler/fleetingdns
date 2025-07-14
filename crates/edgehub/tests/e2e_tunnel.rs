@@ -300,7 +300,7 @@ async fn test_graceful_cleanup() {
             return;
         };
 
-        eprintln!("Redis server started at {}", redis_url);
+        eprintln!("Redis server started at {redis_url}");
 
         // Create Redis pool
         let redis_pool = match redis_cache::new_pool(&redis_url).await {
@@ -319,7 +319,7 @@ async fn test_graceful_cleanup() {
         let ip = "127.0.0.1".parse().unwrap();
         let ttl = 60;
 
-        eprintln!("Setting slot '{}' to '{}'", slot, ip);
+        eprintln!("Setting slot '{slot}' to '{ip}'");
         
         // Try to set slot with better error handling
         match redis_cache::set_slot(&redis_pool, slot, ip, ttl).await {

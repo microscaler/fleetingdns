@@ -232,7 +232,7 @@ mod tests {
     #[test]
     fn test_api_error_debug() {
         let error = ApiError::BadRequest("Invalid input".to_string());
-        let debug_str = format!("{:?}", error);
+        let debug_str = format!("{error:?}");
         assert!(debug_str.contains("BadRequest"));
         assert!(debug_str.contains("Invalid input"));
     }
@@ -268,7 +268,7 @@ mod tests {
         // Test that ApiResult is properly aliased
         let success: ApiResult<String> = Ok("success".to_string());
         assert!(success.is_ok());
-        assert_eq!(success.unwrap(), "success");
+        assert_eq!(success.as_ref().unwrap(), "success");
 
         let error: ApiResult<String> = Err(ApiError::BadRequest("error".to_string()));
         assert!(error.is_err());

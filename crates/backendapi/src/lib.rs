@@ -151,9 +151,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_with_config_invalid_redis() {
-        let mut config = ApiConfig::default();
         // Set invalid Redis URL to test error handling
-        config.redis_url = "invalid://redis/url".to_string();
+        let config = ApiConfig {
+            redis_url: "invalid://redis/url".to_string(),
+            ..Default::default()
+        };
         
         let result = run_with_config(config).await;
         assert!(result.is_err());
@@ -162,7 +164,7 @@ mod tests {
         match result.unwrap_err() {
             ApiError::StorageError(_) => {}, // Expected error type
             ApiError::ConfigurationError(_) => {}, // Also acceptable
-            other => panic!("Unexpected error type: {:?}", other),
+            other => panic!("Unexpected error type: {other:?}"),
         }
     }
 
@@ -180,7 +182,7 @@ mod tests {
     #[test]
     fn test_api_config_debug_format() {
         let config = ApiConfig::default();
-        let debug_str = format!("{:?}", config);
+        let debug_str = format!("{config:?}");
         assert!(debug_str.contains("ApiConfig"));
         assert!(debug_str.contains("bind_address"));
         assert!(debug_str.contains("redis_url"));
@@ -246,7 +248,7 @@ mod tests {
         // Test that ApiResult works as expected
         let success: ApiResult<String> = Ok("success".to_string());
         assert!(success.is_ok());
-        assert_eq!(success.unwrap(), "success");
+        assert_eq!(success.as_ref().unwrap(), "success");
         
         let failure: ApiResult<String> = Err(ApiError::BadRequest("error".to_string()));
         assert!(failure.is_err());
