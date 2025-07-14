@@ -21,7 +21,7 @@
 //!
 //! let config = PerformanceConfig::default();
 //! let client = RedisPerformanceClient::new(config).await?;
-//! 
+//!
 //! // Bulk operations with pipelining
 //! let operations = vec![
 //!     ("slot1", "127.0.0.1", 3600),
@@ -32,12 +32,15 @@
 
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
+use std::pin::Pin;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use std::future::Future;
 
 use bb8::{Pool, PooledConnection};
 use bb8_redis::RedisConnectionManager;
-use redis::{AsyncCommands, Pipeline, RedisError};
+use redis::{pipe, AsyncCommands, RedisError, Pipeline};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::RwLock;
@@ -185,7 +188,7 @@ impl Default for PerformanceConfig {
 impl Default for PoolConfig {
     fn default() -> Self {
         Self {
-            max_size: 20,  // Increased for better performance
+            max_size: 20, // Increased for better performance
             min_idle: Some(5),
             connection_timeout: Duration::from_secs(10),
             idle_timeout: Some(Duration::from_secs(300)),
@@ -198,7 +201,7 @@ impl Default for PoolConfig {
 impl Default for PipelineConfig {
     fn default() -> Self {
         Self {
-            batch_size: 100,  // Optimal batch size for most workloads
+            batch_size: 100, // Optimal batch size for most workloads
             execution_timeout: Duration::from_secs(30),
             auto_flush: true,
             flush_interval: Duration::from_millis(10),
@@ -280,96 +283,117 @@ impl RedisPerformanceClient {
         Ok(client)
     }
 
-    /// Optimized single slot retrieval
+    /// Get a slot value with performance optimization
     pub async fn get_slot_optimized(&self, slot: &str) -> Result<Option<Ipv4Addr>, PerformanceError> {
+        let slot = slot.to_string();
         let start_time = Instant::now();
         
-        let result = self.execute_with_retry(|mut conn| async move {
-            let value: Option<String> = conn.get(slot).await?;
-            match value {
-                Some(ip_str) => {
-                    ip_str.parse::<Ipv4Addr>()
-                        .map(Some)
-                        .map_err(|e| RedisError::from((redis::ErrorKind::TypeError, "Invalid IP format", format!("{}", e))))
-                }
-                None => Ok(None),
-            }
-        }).await;
+        let result = self
+            .execute_with_retry(|mut conn| {
+                let slot = slot.clone();
+                Box::pin(async move {
+                    let value: Option<String> = conn.get(&slot).await?;
+                    match value {
+                        Some(ip_str) => ip_str.parse::<Ipv4Addr>().map(Some).map_err(|e| {
+                            redis::RedisError::from((
+                                redis::ErrorKind::TypeError,
+                                "Invalid IP address format",
+                                e.to_string(),
+                            ))
+                        }),
+                        None => Ok(None),
+                    }
+                })
+            })
+            .await?;
 
+        // Record operation latency
         self.record_operation_latency(start_time.elapsed()).await;
-        result
+
+        Ok(result)
     }
 
-    /// Optimized single slot setting with TTL
-    pub async fn set_slot_optimized(&self, slot: &str, ip: Ipv4Addr, ttl: u64) -> Result<(), PerformanceError> {
+    /// Set a slot value with performance optimization
+    pub async fn set_slot_optimized(
+        &self,
+        slot: &str,
+        ip: Ipv4Addr,
+        ttl: u64,
+    ) -> Result<(), PerformanceError> {
+        let slot = slot.to_string();
         let start_time = Instant::now();
         
-        let result = self.execute_with_retry(|mut conn| async move {
-            conn.set_ex(slot, ip.to_string(), ttl).await
-        }).await;
+        let result = self
+            .execute_with_retry(|mut conn| {
+                let slot = slot.clone();
+                Box::pin(async move { 
+                    conn.set_ex(&slot, ip.to_string(), ttl).await 
+                })
+            })
+            .await?;
 
+        // Record operation latency
         self.record_operation_latency(start_time.elapsed()).await;
-        result
+
+        Ok(result)
     }
 
-    /// Bulk slot operations using Redis pipelining
-    pub async fn bulk_set_slots(&self, operations: Vec<(String, Ipv4Addr, u64)>) -> Result<(), PerformanceError> {
-        if operations.is_empty() {
-            return Ok(());
-        }
-
+    /// Bulk set multiple slots with pipelining
+    pub async fn bulk_set_slots(
+        &self,
+        operations: Vec<(String, Ipv4Addr, u64)>,
+    ) -> Result<Vec<()>, PerformanceError> {
         let start_time = Instant::now();
-        let total_ops = operations.len();
-        
-        info!("Executing bulk set operation for {} slots", total_ops);
+        let total_operations = operations.len();
+        let mut results = Vec::new();
 
-        // Split operations into batches for optimal pipeline performance
+        // Process operations in batches for optimal performance
         let batch_size = self.config.pipeline_config.batch_size;
-        let batches: Vec<_> = operations.chunks(batch_size).collect();
-        
-        for (batch_idx, batch) in batches.iter().enumerate() {
-            let batch_start = Instant::now();
+        for chunk in operations.chunks(batch_size) {
+            let chunk_operations = chunk.to_vec();
+            let result = self
+                .execute_with_retry(|mut conn| {
+                    let chunk_operations = chunk_operations.clone();
+                    Box::pin(async move {
+                        let mut pipeline = Pipeline::new();
+                        
+                        // Add all operations to pipeline
+                        for (slot, ip, ttl) in &chunk_operations {
+                            pipeline.set_ex(slot, ip.to_string(), *ttl);
+                        }
+                        
+                        // Execute pipeline
+                        let pipeline_results: Vec<()> = pipeline.query_async(&mut conn).await?;
+                        Ok(pipeline_results)
+                    })
+                })
+                .await?;
             
-            let result = self.execute_pipeline_batch(batch).await;
-            
-            match result {
-                Ok(_) => {
-                    debug!("Batch {}/{} completed successfully ({} operations)", 
-                           batch_idx + 1, batches.len(), batch.len());
-                }
-                Err(e) => {
-                    error!("Batch {}/{} failed: {}", batch_idx + 1, batches.len(), e);
-                    self.record_failed_operation().await;
-                    return Err(e);
-                }
-            }
-
-            // Record pipeline statistics
-            {
-                let mut stats = self.stats.write().await;
-                stats.pipeline_stats.total_pipelines += 1;
-                stats.pipeline_stats.avg_pipeline_size = 
-                    (stats.pipeline_stats.avg_pipeline_size * (stats.pipeline_stats.total_pipelines - 1) as f64 + batch.len() as f64) 
-                    / stats.pipeline_stats.total_pipelines as f64;
-                stats.pipeline_stats.avg_execution_time_ms = 
-                    (stats.pipeline_stats.avg_execution_time_ms * (stats.pipeline_stats.total_pipelines - 1) as f64 + batch_start.elapsed().as_millis() as f64) 
-                    / stats.pipeline_stats.total_pipelines as f64;
-            }
+            results.extend(result);
         }
 
-        let total_duration = start_time.elapsed();
-        info!("Bulk operation completed: {} operations in {:?} ({:.2} ops/sec)", 
-              total_ops, total_duration, total_ops as f64 / total_duration.as_secs_f64());
+        // Record performance metrics
+        let latency = start_time.elapsed();
+        self.record_operation_latency(latency).await;
+        
+        // Update bulk operation stats
+        {
+            let mut stats = self.stats.write().await;
+            stats.bulk_operations_count += 1;
+            stats.total_operations_processed += total_operations as u64;
+        }
 
-        self.record_operation_latency(total_duration).await;
-        Ok(())
+        Ok(results)
     }
 
     /// Execute a pipeline batch with retry logic
-    async fn execute_pipeline_batch(&self, batch: &[(String, Ipv4Addr, u64)]) -> Result<(), PerformanceError> {
+    async fn execute_pipeline_batch(
+        &self,
+        batch: &[(String, Ipv4Addr, u64)],
+    ) -> Result<(), PerformanceError> {
         self.execute_with_retry(|mut conn| async move {
             let mut pipeline = Pipeline::new();
-            
+
             // Add all operations to the pipeline
             for (slot, ip, ttl) in batch {
                 pipeline.set_ex(slot, ip.to_string(), *ttl);
@@ -378,97 +402,77 @@ impl RedisPerformanceClient {
             // Execute the pipeline
             timeout(
                 self.config.pipeline_config.execution_timeout,
-                pipeline.query_async::<()>(&mut *conn)
+                pipeline.query_async::<()>(&mut *conn),
             )
             .await
-            .map_err(|_| RedisError::from((redis::ErrorKind::IoError, "Pipeline execution timeout")))?
-        }).await
+            .map_err(|_| {
+                RedisError::from((redis::ErrorKind::IoError, "Pipeline execution timeout"))
+            })?
+        })
+        .await
     }
 
-    /// Bulk slot retrieval using Redis pipelining
-    pub async fn bulk_get_slots(&self, slots: Vec<String>) -> Result<HashMap<String, Option<Ipv4Addr>>, PerformanceError> {
-        if slots.is_empty() {
-            return Ok(HashMap::new());
-        }
-
+    /// Bulk get multiple slots with pipelining
+    pub async fn bulk_get_slots(
+        &self,
+        slots: Vec<String>,
+    ) -> Result<Vec<Option<Ipv4Addr>>, PerformanceError> {
         let start_time = Instant::now();
-        let total_ops = slots.len();
-        
-        info!("Executing bulk get operation for {} slots", total_ops);
+        let total_slots = slots.len();
+        let mut results = Vec::new();
 
-        let mut results = HashMap::new();
+        // Process slots in batches for optimal performance
         let batch_size = self.config.pipeline_config.batch_size;
-        let batches: Vec<_> = slots.chunks(batch_size).collect();
-
-        for (batch_idx, batch) in batches.iter().enumerate() {
-            let batch_start = Instant::now();
-            
-            let batch_results = self.execute_get_pipeline_batch(batch).await?;
-            
-            for (slot, ip) in batch_results {
-                results.insert(slot, ip);
-            }
-
-            debug!("Get batch {}/{} completed successfully ({} operations)", 
-                   batch_idx + 1, batches.len(), batch.len());
-
-            // Record pipeline statistics
-            {
-                let mut stats = self.stats.write().await;
-                stats.pipeline_stats.total_pipelines += 1;
-                stats.pipeline_stats.avg_execution_time_ms = 
-                    (stats.pipeline_stats.avg_execution_time_ms * (stats.pipeline_stats.total_pipelines - 1) as f64 + batch_start.elapsed().as_millis() as f64) 
-                    / stats.pipeline_stats.total_pipelines as f64;
-            }
-        }
-
-        let total_duration = start_time.elapsed();
-        info!("Bulk get operation completed: {} operations in {:?} ({:.2} ops/sec)", 
-              total_ops, total_duration, total_ops as f64 / total_duration.as_secs_f64());
-
-        self.record_operation_latency(total_duration).await;
-        Ok(results)
-    }
-
-    /// Execute a get pipeline batch
-    async fn execute_get_pipeline_batch(&self, batch: &[String]) -> Result<HashMap<String, Option<Ipv4Addr>>, PerformanceError> {
-        self.execute_with_retry(|mut conn| async move {
-            let mut pipeline = Pipeline::new();
-            
-            // Add all get operations to the pipeline
-            for slot in batch {
-                pipeline.get(slot);
-            }
-
-            // Execute the pipeline and get results
-            let values: Vec<Option<String>> = timeout(
-                self.config.pipeline_config.execution_timeout,
-                pipeline.query_async(&mut *conn)
-            )
-            .await
-            .map_err(|_| RedisError::from((redis::ErrorKind::IoError, "Pipeline execution timeout")))?
-            .map_err(RedisError::from)?;
-
-            // Parse results
-            let mut results = HashMap::new();
-            for (slot, value) in batch.iter().zip(values.iter()) {
-                let ip = match value {
-                    Some(ip_str) => {
-                        match ip_str.parse::<Ipv4Addr>() {
-                            Ok(ip) => Some(ip),
-                            Err(_) => {
-                                warn!("Invalid IP format for slot {}: {}", slot, ip_str);
-                                None
+        for chunk in slots.chunks(batch_size) {
+            let chunk_slots = chunk.to_vec();
+            let result = self
+                .execute_with_retry(|mut conn| {
+                    let chunk_slots = chunk_slots.clone();
+                    Box::pin(async move {
+                        let mut pipeline = Pipeline::new();
+                        
+                        // Add all get operations to pipeline
+                        for slot in &chunk_slots {
+                            pipeline.get(slot);
+                        }
+                        
+                        // Execute pipeline
+                        let pipeline_results: Vec<Option<String>> = pipeline.query_async(&mut conn).await?;
+                        
+                        // Parse results
+                        let mut parsed_results = Vec::new();
+                        for result in pipeline_results {
+                            match result {
+                                Some(ip_str) => {
+                                    match ip_str.parse::<Ipv4Addr>() {
+                                        Ok(ip) => parsed_results.push(Some(ip)),
+                                        Err(_) => parsed_results.push(None),
+                                    }
+                                }
+                                None => parsed_results.push(None),
                             }
                         }
-                    }
-                    None => None,
-                };
-                results.insert(slot.clone(), ip);
-            }
+                        
+                        Ok(parsed_results)
+                    })
+                })
+                .await?;
+            
+            results.extend(result);
+        }
 
-            Ok(results)
-        }).await
+        // Record performance metrics
+        let latency = start_time.elapsed();
+        self.record_operation_latency(latency).await;
+        
+        // Update bulk operation stats
+        {
+            let mut stats = self.stats.write().await;
+            stats.bulk_operations_count += 1;
+            stats.total_operations_processed += total_slots as u64;
+        }
+
+        Ok(results)
     }
 
     /// Execute an operation with retry logic and connection management
@@ -483,22 +487,25 @@ impl RedisPerformanceClient {
 
         loop {
             let conn_start = Instant::now();
-            
+
             // Get connection from pool
-            let conn = timeout(
-                self.config.pool_config.connection_timeout,
-                self.pool.get()
-            )
-            .await
-            .map_err(|_| PerformanceError::TimeoutError("Connection acquisition timeout".to_string()))?
-            .map_err(|e| PerformanceError::PoolError(format!("Failed to get connection: {}", e)))?;
+            let conn = timeout(self.config.pool_config.connection_timeout, self.pool.get())
+                .await
+                .map_err(|_| {
+                    PerformanceError::TimeoutError("Connection acquisition timeout".to_string())
+                })?
+                .map_err(|e| {
+                    PerformanceError::PoolError(format!("Failed to get connection: {}", e))
+                })?;
 
             // Record connection acquisition time
             {
                 let mut stats = self.stats.write().await;
-                stats.pool_stats.avg_acquisition_time_ms = 
-                    (stats.pool_stats.avg_acquisition_time_ms * stats.pool_stats.total_connections_created as f64 + conn_start.elapsed().as_millis() as f64) 
-                    / (stats.pool_stats.total_connections_created + 1) as f64;
+                stats.pool_stats.avg_acquisition_time_ms =
+                    (stats.pool_stats.avg_acquisition_time_ms
+                        * stats.pool_stats.total_connections_created as f64
+                        + conn_start.elapsed().as_millis() as f64)
+                        / (stats.pool_stats.total_connections_created + 1) as f64;
                 stats.pool_stats.total_connections_created += 1;
             }
 
@@ -510,8 +517,11 @@ impl RedisPerformanceClient {
                 }
                 Err(e) => {
                     retries += 1;
-                    warn!("Operation failed (attempt {}/{}): {}", retries, max_retries, e);
-                    
+                    warn!(
+                        "Operation failed (attempt {}/{}): {}",
+                        retries, max_retries, e
+                    );
+
                     if retries >= max_retries {
                         self.record_failed_operation().await;
                         return Err(PerformanceError::RedisError(e));
@@ -545,11 +555,11 @@ impl RedisPerformanceClient {
         }
 
         let latency_ms = duration.as_millis() as f64;
-        
+
         {
             let mut samples = self.latency_samples.write().await;
             samples.push(latency_ms);
-            
+
             // Keep only the last 1000 samples for memory efficiency
             if samples.len() > 1000 {
                 samples.remove(0);
@@ -559,8 +569,8 @@ impl RedisPerformanceClient {
         // Update statistics
         {
             let mut stats = self.stats.write().await;
-            stats.avg_latency_ms = 
-                (stats.avg_latency_ms * (stats.total_operations - 1) as f64 + latency_ms) 
+            stats.avg_latency_ms = (stats.avg_latency_ms * (stats.total_operations - 1) as f64
+                + latency_ms)
                 / stats.total_operations as f64;
         }
     }
@@ -574,7 +584,7 @@ impl RedisPerformanceClient {
 
         let mut sorted_samples = samples.clone();
         sorted_samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        
+
         let index = (sorted_samples.len() as f64 * 0.95) as usize;
         sorted_samples.get(index).copied().unwrap_or(0.0)
     }
@@ -584,31 +594,31 @@ impl RedisPerformanceClient {
         let stats = Arc::clone(&self.stats);
         let latency_samples = Arc::clone(&self.latency_samples);
         let interval = self.config.monitoring_config.metrics_interval;
-        
+
         tokio::spawn(async move {
             let mut interval_timer = tokio::time::interval(interval);
             let mut last_total_ops = 0u64;
             let mut last_time = Instant::now();
-            
+
             loop {
                 interval_timer.tick().await;
-                
+
                 let current_time = Instant::now();
                 let time_diff = current_time.duration_since(last_time).as_secs_f64();
-                
+
                 {
                     let mut stats = stats.write().await;
                     let current_total_ops = stats.total_operations;
-                    
+
                     // Calculate operations per second
                     if time_diff > 0.0 {
                         let ops_diff = current_total_ops - last_total_ops;
                         stats.ops_per_second = ops_diff as f64 / time_diff;
                     }
-                    
+
                     last_total_ops = current_total_ops;
                 }
-                
+
                 // Calculate 95th percentile latency
                 let p95_latency = {
                     let samples = latency_samples.read().await;
@@ -621,25 +631,27 @@ impl RedisPerformanceClient {
                         0.0
                     }
                 };
-                
+
                 {
                     let mut stats = stats.write().await;
                     stats.p95_latency_ms = p95_latency;
                 }
-                
+
                 last_time = current_time;
-                
+
                 // Log performance metrics
                 let stats = stats.read().await;
-                info!("Performance metrics - Ops/sec: {:.2}, Avg latency: {:.2}ms, P95 latency: {:.2}ms, Success rate: {:.2}%",
-                      stats.ops_per_second,
-                      stats.avg_latency_ms,
-                      stats.p95_latency_ms,
-                      if stats.total_operations > 0 { 
-                          stats.successful_operations as f64 / stats.total_operations as f64 * 100.0 
-                      } else { 
-                          0.0 
-                      });
+                info!(
+                    "Performance metrics - Ops/sec: {:.2}, Avg latency: {:.2}ms, P95 latency: {:.2}ms, Success rate: {:.2}%",
+                    stats.ops_per_second,
+                    stats.avg_latency_ms,
+                    stats.p95_latency_ms,
+                    if stats.total_operations > 0 {
+                        stats.successful_operations as f64 / stats.total_operations as f64 * 100.0
+                    } else {
+                        0.0
+                    }
+                );
             }
         });
     }
@@ -673,7 +685,7 @@ impl RedisPerformanceClient {
                 avg_execution_time_ms: 0.0,
             },
         };
-        
+
         let mut samples = self.latency_samples.write().await;
         samples.clear();
     }
@@ -712,7 +724,7 @@ mod tests {
     fn test_performance_error_display() {
         let error = PerformanceError::PoolError("test error".to_string());
         assert_eq!(error.to_string(), "Connection pool error: test error");
-        
+
         let error = PerformanceError::BulkOperationFailed("bulk error".to_string());
         assert_eq!(error.to_string(), "Bulk operation failed: bulk error");
     }
@@ -740,7 +752,7 @@ mod tests {
                 avg_execution_time_ms: 15.0,
             },
         };
-        
+
         assert_eq!(stats.total_operations, 100);
         assert_eq!(stats.successful_operations, 95);
         assert_eq!(stats.failed_operations, 5);
@@ -752,13 +764,20 @@ mod tests {
     #[tokio::test]
     async fn test_config_serialization() {
         let config = PerformanceConfig::default();
-        
+
         // Test serialization/deserialization
         let json = serde_json::to_string(&config).expect("Failed to serialize config");
-        let deserialized: PerformanceConfig = serde_json::from_str(&json).expect("Failed to deserialize config");
-        
+        let deserialized: PerformanceConfig =
+            serde_json::from_str(&json).expect("Failed to deserialize config");
+
         assert_eq!(config.redis_url, deserialized.redis_url);
-        assert_eq!(config.pool_config.max_size, deserialized.pool_config.max_size);
-        assert_eq!(config.pipeline_config.batch_size, deserialized.pipeline_config.batch_size);
+        assert_eq!(
+            config.pool_config.max_size,
+            deserialized.pool_config.max_size
+        );
+        assert_eq!(
+            config.pipeline_config.batch_size,
+            deserialized.pipeline_config.batch_size
+        );
     }
-} 
+}

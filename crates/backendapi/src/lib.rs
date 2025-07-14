@@ -156,14 +156,14 @@ mod tests {
             redis_url: "invalid://redis/url".to_string(),
             ..Default::default()
         };
-        
+
         let result = run_with_config(config).await;
         assert!(result.is_err());
-        
+
         // Verify error is related to storage or configuration
         match result.unwrap_err() {
-            ApiError::StorageError(_) => {}, // Expected error type
-            ApiError::ConfigurationError(_) => {}, // Also acceptable
+            ApiError::StorageError(_) => {}       // Expected error type
+            ApiError::ConfigurationError(_) => {} // Also acceptable
             other => panic!("Unexpected error type: {other:?}"),
         }
     }
@@ -202,10 +202,18 @@ mod tests {
         let _config = ApiConfig::default();
         let _ca_config = edf_ca::CaConfig::default();
         let _github_client = reqwest::Client::new();
-        
+
         // We can't easily create real instances without Redis/CA setup
         // but we can test the structure requirements
-        assert_eq!(std::mem::size_of::<ApiState>(), std::mem::size_of::<(Arc<ApiConfig>, Arc<edf_ca::CertificateAuthority>, Arc<storage::TunnelStorage>, reqwest::Client)>());
+        assert_eq!(
+            std::mem::size_of::<ApiState>(),
+            std::mem::size_of::<(
+                Arc<ApiConfig>,
+                Arc<edf_ca::CertificateAuthority>,
+                Arc<storage::TunnelStorage>,
+                reqwest::Client
+            )>()
+        );
     }
 
     #[test]
@@ -213,11 +221,11 @@ mod tests {
         // Test that create_router function exists and has correct signature
         // This is a compile-time test to ensure the function is properly defined
         use std::any::type_name;
-        
+
         // Verify the function exists by checking its type
         let fn_type = type_name::<fn(ApiState) -> Router>();
         assert!(fn_type.contains("Router"));
-        
+
         // Test that we can reference the function
         let _fn_ref = create_router;
     }
@@ -235,10 +243,10 @@ mod tests {
         // Test that our error types work correctly
         let config_error = ApiError::ConfigurationError("test error".to_string());
         assert!(matches!(config_error, ApiError::ConfigurationError(_)));
-        
+
         let storage_error = ApiError::StorageError("test storage error".to_string());
         assert!(matches!(storage_error, ApiError::StorageError(_)));
-        
+
         let bad_request = ApiError::BadRequest("bad request".to_string());
         assert!(matches!(bad_request, ApiError::BadRequest(_)));
     }
@@ -249,7 +257,7 @@ mod tests {
         let success: ApiResult<String> = Ok("success".to_string());
         assert!(success.is_ok());
         assert_eq!(success.as_ref().unwrap(), "success");
-        
+
         let failure: ApiResult<String> = Err(ApiError::BadRequest("error".to_string()));
         assert!(failure.is_err());
     }

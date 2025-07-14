@@ -12,8 +12,8 @@ use std::net::Ipv4Addr;
 use std::time::Duration;
 
 use dnsd::redis_performance::{
-    PerformanceConfig, PerformanceError, RedisPerformanceClient,
-    PoolConfig, PipelineConfig, MonitoringConfig
+    MonitoringConfig, PerformanceConfig, PerformanceError, PipelineConfig, PoolConfig,
+    RedisPerformanceClient,
 };
 
 #[tokio::test]
@@ -51,23 +51,32 @@ async fn test_performance_config_creation() {
 #[tokio::test]
 async fn test_performance_config_default() {
     let config = PerformanceConfig::default();
-    
+
     assert_eq!(config.redis_url, "redis://127.0.0.1:6379");
     assert_eq!(config.pool_config.max_size, 20);
     assert_eq!(config.pool_config.min_idle, Some(5));
-    assert_eq!(config.pool_config.connection_timeout, Duration::from_secs(10));
+    assert_eq!(
+        config.pool_config.connection_timeout,
+        Duration::from_secs(10)
+    );
     assert_eq!(config.pool_config.max_retries, 3);
     assert_eq!(config.pipeline_config.batch_size, 100);
     assert!(config.pipeline_config.auto_flush);
-    assert_eq!(config.pipeline_config.execution_timeout, Duration::from_secs(30));
+    assert_eq!(
+        config.pipeline_config.execution_timeout,
+        Duration::from_secs(30)
+    );
     assert!(config.monitoring_config.enable_metrics);
-    assert_eq!(config.monitoring_config.metrics_interval, Duration::from_secs(60));
+    assert_eq!(
+        config.monitoring_config.metrics_interval,
+        Duration::from_secs(60)
+    );
 }
 
 #[tokio::test]
 async fn test_pool_config_optimization() {
     let config = PoolConfig::default();
-    
+
     // Verify optimized settings for high performance
     assert_eq!(config.max_size, 20); // Increased from typical default
     assert_eq!(config.min_idle, Some(5)); // Maintains warm connections
@@ -80,7 +89,7 @@ async fn test_pool_config_optimization() {
 #[tokio::test]
 async fn test_pipeline_config_optimization() {
     let config = PipelineConfig::default();
-    
+
     // Verify optimal pipeline settings
     assert_eq!(config.batch_size, 100); // Optimal for most workloads
     assert_eq!(config.execution_timeout, Duration::from_secs(30));
@@ -91,7 +100,7 @@ async fn test_pipeline_config_optimization() {
 #[tokio::test]
 async fn test_monitoring_config_default() {
     let config = MonitoringConfig::default();
-    
+
     assert!(config.enable_metrics);
     assert_eq!(config.metrics_interval, Duration::from_secs(60));
     assert!(config.monitor_pool);
@@ -102,25 +111,31 @@ async fn test_monitoring_config_default() {
 fn test_performance_error_types() {
     // Test error message formatting
     let error = PerformanceError::PoolError("connection failed".to_string());
-    assert_eq!(error.to_string(), "Connection pool error: connection failed");
-    
+    assert_eq!(
+        error.to_string(),
+        "Connection pool error: connection failed"
+    );
+
     let error = PerformanceError::BulkOperationFailed("batch failed".to_string());
     assert_eq!(error.to_string(), "Bulk operation failed: batch failed");
-    
+
     let error = PerformanceError::PipelineError("pipeline timeout".to_string());
-    assert_eq!(error.to_string(), "Pipeline execution failed: pipeline timeout");
-    
+    assert_eq!(
+        error.to_string(),
+        "Pipeline execution failed: pipeline timeout"
+    );
+
     let error = PerformanceError::TimeoutError("operation timeout".to_string());
     assert_eq!(error.to_string(), "Timeout error: operation timeout");
-    
+
     let error = PerformanceError::ConfigError("invalid config".to_string());
     assert_eq!(error.to_string(), "Configuration error: invalid config");
 }
 
 #[tokio::test]
 async fn test_performance_stats_structure() {
-    use dnsd::redis_performance::{PerformanceStats, PoolStats, PipelineStats};
-    
+    use dnsd::redis_performance::{PerformanceStats, PipelineStats, PoolStats};
+
     let stats = PerformanceStats {
         total_operations: 1000,
         successful_operations: 980,
@@ -142,21 +157,21 @@ async fn test_performance_stats_structure() {
             avg_execution_time_ms: 25.0,
         },
     };
-    
+
     assert_eq!(stats.total_operations, 1000);
     assert_eq!(stats.successful_operations, 980);
     assert_eq!(stats.failed_operations, 20);
     assert_eq!(stats.avg_latency_ms, 5.5);
     assert_eq!(stats.p95_latency_ms, 15.0);
     assert_eq!(stats.ops_per_second, 100.0);
-    
+
     // Pool statistics
     assert_eq!(stats.pool_stats.active_connections, 15);
     assert_eq!(stats.pool_stats.idle_connections, 5);
     assert_eq!(stats.pool_stats.total_connections_created, 20);
     assert_eq!(stats.pool_stats.connection_failures, 2);
     assert_eq!(stats.pool_stats.avg_acquisition_time_ms, 1.5);
-    
+
     // Pipeline statistics
     assert_eq!(stats.pipeline_stats.total_pipelines, 50);
     assert_eq!(stats.pipeline_stats.avg_pipeline_size, 20.0);
@@ -167,15 +182,25 @@ async fn test_performance_stats_structure() {
 #[tokio::test]
 async fn test_config_serialization() {
     let config = PerformanceConfig::default();
-    
+
     // Test that the config can be serialized and deserialized
     let json = serde_json::to_string(&config).expect("Failed to serialize config");
-    let deserialized: PerformanceConfig = serde_json::from_str(&json).expect("Failed to deserialize config");
-    
+    let deserialized: PerformanceConfig =
+        serde_json::from_str(&json).expect("Failed to deserialize config");
+
     assert_eq!(config.redis_url, deserialized.redis_url);
-    assert_eq!(config.pool_config.max_size, deserialized.pool_config.max_size);
-    assert_eq!(config.pipeline_config.batch_size, deserialized.pipeline_config.batch_size);
-    assert_eq!(config.monitoring_config.enable_metrics, deserialized.monitoring_config.enable_metrics);
+    assert_eq!(
+        config.pool_config.max_size,
+        deserialized.pool_config.max_size
+    );
+    assert_eq!(
+        config.pipeline_config.batch_size,
+        deserialized.pipeline_config.batch_size
+    );
+    assert_eq!(
+        config.monitoring_config.enable_metrics,
+        deserialized.monitoring_config.enable_metrics
+    );
 }
 
 #[tokio::test]
@@ -190,20 +215,23 @@ async fn test_bulk_operation_batching() {
         },
         ..Default::default()
     };
-    
+
     // Create test operations that exceed batch size
     let operations: Vec<(String, Ipv4Addr, u64)> = (0..125)
-        .map(|i| (
-            format!("slot{}", i),
-            Ipv4Addr::new(127, 0, 0, (i % 255) as u8 + 1),
-            3600
-        ))
+        .map(|i| {
+            (
+                format!("slot{}", i),
+                Ipv4Addr::new(127, 0, 0, (i % 255) as u8 + 1),
+                3600,
+            )
+        })
         .collect();
-    
+
     assert_eq!(operations.len(), 125);
-    
+
     // This would be split into 3 batches: 50 + 50 + 25
-    let expected_batches = (125 + config.pipeline_config.batch_size - 1) / config.pipeline_config.batch_size;
+    let expected_batches =
+        (125 + config.pipeline_config.batch_size - 1) / config.pipeline_config.batch_size;
     assert_eq!(expected_batches, 3);
 }
 
@@ -215,16 +243,17 @@ async fn test_performance_monitoring_config() {
         monitor_pool: true,
         track_latency: true,
     };
-    
+
     assert!(config.enable_metrics);
     assert_eq!(config.metrics_interval, Duration::from_secs(30));
     assert!(config.monitor_pool);
     assert!(config.track_latency);
-    
+
     // Test serialization
     let json = serde_json::to_string(&config).expect("Failed to serialize monitoring config");
-    let deserialized: MonitoringConfig = serde_json::from_str(&json).expect("Failed to deserialize monitoring config");
-    
+    let deserialized: MonitoringConfig =
+        serde_json::from_str(&json).expect("Failed to deserialize monitoring config");
+
     assert_eq!(config.enable_metrics, deserialized.enable_metrics);
     assert_eq!(config.metrics_interval, deserialized.metrics_interval);
     assert_eq!(config.monitor_pool, deserialized.monitor_pool);
@@ -258,36 +287,50 @@ async fn test_performance_client_integration() {
             track_latency: true,
         },
     };
-    
+
     match RedisPerformanceClient::new(config).await {
         Ok(client) => {
             // Test single operation
-            let result = client.set_slot_optimized("test-slot", "127.0.0.1".parse().unwrap(), 3600).await;
+            let result = client
+                .set_slot_optimized("test-slot", "127.0.0.1".parse().unwrap(), 3600)
+                .await;
             match result {
                 Ok(_) => println!("Single operation successful"),
                 Err(e) => println!("Single operation failed: {}", e),
             }
-            
+
             // Test bulk operations
             let operations = vec![
-                ("bulk-slot-1".to_string(), "127.0.0.1".parse().unwrap(), 3600),
-                ("bulk-slot-2".to_string(), "127.0.0.2".parse().unwrap(), 1800),
-                ("bulk-slot-3".to_string(), "127.0.0.3".parse().unwrap(), 7200),
+                (
+                    "bulk-slot-1".to_string(),
+                    "127.0.0.1".parse().unwrap(),
+                    3600,
+                ),
+                (
+                    "bulk-slot-2".to_string(),
+                    "127.0.0.2".parse().unwrap(),
+                    1800,
+                ),
+                (
+                    "bulk-slot-3".to_string(),
+                    "127.0.0.3".parse().unwrap(),
+                    7200,
+                ),
             ];
-            
+
             let result = client.bulk_set_slots(operations).await;
             match result {
                 Ok(_) => println!("Bulk operation successful"),
                 Err(e) => println!("Bulk operation failed: {}", e),
             }
-            
+
             // Test bulk get operations
             let slots = vec![
                 "bulk-slot-1".to_string(),
                 "bulk-slot-2".to_string(),
                 "bulk-slot-3".to_string(),
             ];
-            
+
             let result = client.bulk_get_slots(slots).await;
             match result {
                 Ok(results) => {
@@ -298,7 +341,7 @@ async fn test_performance_client_integration() {
                 }
                 Err(e) => println!("Bulk get failed: {}", e),
             }
-            
+
             // Test statistics
             let stats = client.get_stats().await;
             println!("Performance stats:");
@@ -316,12 +359,12 @@ async fn test_performance_client_integration() {
 
 #[tokio::test]
 async fn test_error_conversion() {
-    use redis::{RedisError, ErrorKind};
-    
+    use redis::{ErrorKind, RedisError};
+
     // Test Redis error conversion
     let redis_error = RedisError::from((ErrorKind::IoError, "Connection failed"));
     let performance_error: PerformanceError = redis_error.into();
-    
+
     match performance_error {
         PerformanceError::RedisError(_) => {
             // Expected
@@ -355,7 +398,7 @@ async fn test_timeout_configurations() {
             track_latency: false,
         },
     };
-    
+
     // Should fail quickly due to short timeouts
     let start = std::time::Instant::now();
     match RedisPerformanceClient::new(config).await {
@@ -363,7 +406,11 @@ async fn test_timeout_configurations() {
         Err(_) => {
             let elapsed = start.elapsed();
             // Should fail quickly (within a reasonable time)
-            assert!(elapsed < Duration::from_secs(5), "Took too long to fail: {:?}", elapsed);
+            assert!(
+                elapsed < Duration::from_secs(5),
+                "Took too long to fail: {:?}",
+                elapsed
+            );
         }
     }
 }
@@ -371,11 +418,26 @@ async fn test_timeout_configurations() {
 #[tokio::test]
 async fn test_performance_optimization_settings() {
     let config = PerformanceConfig::default();
-    
+
     // Verify performance-optimized settings
-    assert!(config.pool_config.max_size >= 20, "Pool size should be optimized for performance");
-    assert!(config.pool_config.min_idle.unwrap_or(0) >= 5, "Should maintain warm connections");
-    assert!(config.pipeline_config.batch_size >= 100, "Batch size should be optimized");
-    assert!(config.pipeline_config.auto_flush, "Auto-flush should be enabled for performance");
-    assert!(config.monitoring_config.enable_metrics, "Metrics should be enabled by default");
-} 
+    assert!(
+        config.pool_config.max_size >= 20,
+        "Pool size should be optimized for performance"
+    );
+    assert!(
+        config.pool_config.min_idle.unwrap_or(0) >= 5,
+        "Should maintain warm connections"
+    );
+    assert!(
+        config.pipeline_config.batch_size >= 100,
+        "Batch size should be optimized"
+    );
+    assert!(
+        config.pipeline_config.auto_flush,
+        "Auto-flush should be enabled for performance"
+    );
+    assert!(
+        config.monitoring_config.enable_metrics,
+        "Metrics should be enabled by default"
+    );
+}

@@ -317,7 +317,7 @@ mod tests {
             // Test that all variants can be serialized and deserialized
             let serialized = serde_json::to_string(&status).unwrap();
             let deserialized: TunnelStatus = serde_json::from_str(&serialized).unwrap();
-            
+
             // Use Debug format for comparison since TunnelStatus doesn't implement PartialEq
             assert_eq!(format!("{status:?}"), format!("{deserialized:?}"));
         }
@@ -359,8 +359,16 @@ mod tests {
         };
 
         assert_eq!(cert_info.serial, "cert-123");
-        assert!(cert_info.certificate.starts_with("-----BEGIN CERTIFICATE-----"));
-        assert!(cert_info.private_key.starts_with("-----BEGIN PRIVATE KEY-----"));
+        assert!(
+            cert_info
+                .certificate
+                .starts_with("-----BEGIN CERTIFICATE-----")
+        );
+        assert!(
+            cert_info
+                .private_key
+                .starts_with("-----BEGIN PRIVATE KEY-----")
+        );
         assert_eq!(cert_info.fingerprint, "sha256:abcd1234");
         assert_eq!(cert_info.subject, "CN=test.example.com");
     }
@@ -368,12 +376,18 @@ mod tests {
     #[test]
     fn test_ssh_key_pair_creation() {
         let key_pair = SshKeyPair {
-            private_key: "-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----".to_string(),
+            private_key:
+                "-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----"
+                    .to_string(),
             public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5... test@example.com".to_string(),
             fingerprint: "SHA256:abcd1234...".to_string(),
         };
 
-        assert!(key_pair.private_key.starts_with("-----BEGIN OPENSSH PRIVATE KEY-----"));
+        assert!(
+            key_pair
+                .private_key
+                .starts_with("-----BEGIN OPENSSH PRIVATE KEY-----")
+        );
         assert!(key_pair.public_key.starts_with("ssh-ed25519"));
         assert!(key_pair.fingerprint.starts_with("SHA256:"));
     }

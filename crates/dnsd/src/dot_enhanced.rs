@@ -27,14 +27,14 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use arc_swap::ArcSwap;
+use common::AppResult;
 use common::cert_manager::CertificateManager;
 use common::shutdown::ShutdownSignal;
-use common::AppResult;
 use rustls::ServerConfig;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
-use tokio::sync::{broadcast, Mutex, RwLock};
+use tokio::sync::{Mutex, RwLock, broadcast};
 use tokio::time::interval;
 use tokio_rustls::TlsAcceptor;
 use tracing::{debug, error, info, warn};
@@ -334,7 +334,8 @@ impl EnhancedDotServer {
 
         if self.config.enable_metrics {
             dot_counter!("dot_connections_total");
-            dot_gauge!("dot_active_connections").set(self.get_active_connection_count().await as f64);
+            dot_gauge!("dot_active_connections")
+                .set(self.get_active_connection_count().await as f64);
         }
 
         // Handle connection in background task
@@ -368,14 +369,12 @@ impl EnhancedDotServer {
     ) -> AppResult<()> {
         // Set connection timeout
         let connection_start = Instant::now();
-        
-        let tls_stream = tokio::time::timeout(
-            self.config.connection_timeout,
-            acceptor.accept(stream),
-        )
-        .await
-        .map_err(|_| common::AppError::Message("TLS handshake timeout".to_string()))?
-        .map_err(|e| common::AppError::Message(format!("TLS handshake failed: {e}")))?;
+
+        let tls_stream =
+            tokio::time::timeout(self.config.connection_timeout, acceptor.accept(stream))
+                .await
+                .map_err(|_| common::AppError::Message("TLS handshake timeout".to_string()))?
+                .map_err(|e| common::AppError::Message(format!("TLS handshake failed: {e}")))?;
 
         info!(
             peer = %peer,
@@ -389,7 +388,8 @@ impl EnhancedDotServer {
         }
 
         // Handle DNS queries over TLS
-        self.handle_dns_queries(tls_stream, peer, pool, connection_id).await
+        self.handle_dns_queries(tls_stream, peer, pool, connection_id)
+            .await
     }
 
     /// Handle DNS queries over the TLS connection
@@ -409,16 +409,17 @@ impl EnhancedDotServer {
         loop {
             // Read query length (2 bytes)
             let mut len_buf = [0u8; 2];
-            
+
             let read_result = tokio::time::timeout(
                 self.config.keep_alive_timeout,
                 tls_stream.read_exact(&mut len_buf),
-            ).await;
+            )
+            .await;
 
             match read_result {
                 Ok(Ok(_)) => {
                     let query_len = u16::from_be_bytes(len_buf) as usize;
-                    
+
                     // Validate query size
                     if query_len == 0 || query_len > self.config.max_query_size {
                         warn!(
@@ -447,8 +448,9 @@ impl EnhancedDotServer {
                             let response_len_bytes = (response_len as u16).to_be_bytes();
 
                             // Write response length and data
-                            if tls_stream.write_all(&response_len_bytes).await.is_err() ||
-                               tls_stream.write_all(&response).await.is_err() {
+                            if tls_stream.write_all(&response_len_bytes).await.is_err()
+                                || tls_stream.write_all(&response).await.is_err()
+                            {
                                 debug!(peer = %peer, "Failed to write response");
                                 break;
                             }
@@ -461,7 +463,8 @@ impl EnhancedDotServer {
                                 dot_histogram!("dot_query_duration_seconds")
                                     .record(query_start.elapsed().as_secs_f64());
                                 dot_histogram!("dot_query_size_bytes").record(query_len as f64);
-                                dot_histogram!("dot_response_size_bytes").record(response_len as f64);
+                                dot_histogram!("dot_response_size_bytes")
+                                    .record(response_len as f64);
                             }
 
                             debug!(
@@ -492,7 +495,13 @@ impl EnhancedDotServer {
             }
 
             // Update connection statistics
-            self.update_connection_stats(&connection_id, query_count, total_bytes_received, total_bytes_sent).await;
+            self.update_connection_stats(
+                &connection_id,
+                query_count,
+                total_bytes_received,
+                total_bytes_sent,
+            )
+            .await;
         }
 
         // Graceful TLS shutdown
@@ -512,7 +521,7 @@ impl EnhancedDotServer {
     /// Check rate limiting and connection limits for an IP (simplified)
     async fn check_rate_limit_and_connections(&self, ip: IpAddr) -> AppResult<bool> {
         let mut ip_limits = self.ip_rate_limits.lock().await;
-        
+
         let ip_limit = ip_limits.entry(ip).or_insert_with(IpRateLimit::default);
 
         // Check connection limit
@@ -543,7 +552,7 @@ impl EnhancedDotServer {
         if let Some(server_config) = self.cert_manager.get_server_config().await {
             info!("Updating TLS configuration with new certificate");
             self.current_tls_config.store(Arc::new(Some(server_config)));
-            
+
             if self.config.enable_metrics {
                 dot_counter!("dot_certificate_updates_total");
             }
@@ -569,7 +578,7 @@ impl EnhancedDotServer {
                 if let Some(server_config) = cert_manager.get_server_config().await {
                     tls_config.store(Arc::new(Some(server_config)));
                     debug!("Certificate rotation check completed");
-                    
+
                     if enable_metrics {
                         dot_counter!("dot_certificate_rotation_checks_total");
                     }
@@ -623,13 +632,14 @@ impl EnhancedDotServer {
 
                 let connections_guard = connections.read().await;
                 let active_count = connections_guard.len();
-                
+
                 dot_gauge!("dot_active_connections").set(active_count as f64);
 
-                let total_queries: u64 = connections_guard.values()
+                let total_queries: u64 = connections_guard
+                    .values()
                     .map(|conn| conn.queries_processed)
                     .sum();
-                
+
                 dot_gauge!("dot_total_queries_processed").set(total_queries as f64);
             }
         });
@@ -670,7 +680,8 @@ impl EnhancedDotServer {
 
         if self.config.enable_metrics {
             dot_counter!("dot_connections_closed_total");
-            dot_gauge!("dot_active_connections").set(self.get_active_connection_count().await as f64);
+            dot_gauge!("dot_active_connections")
+                .set(self.get_active_connection_count().await as f64);
         }
     }
 
@@ -680,7 +691,10 @@ impl EnhancedDotServer {
         let connection_count = connections.len();
         connections.clear();
 
-        info!(connections_closed = connection_count, "Closed all active connections");
+        info!(
+            connections_closed = connection_count,
+            "Closed all active connections"
+        );
     }
 
     /// Clone for connection handling (simplified clone)
@@ -804,8 +818,11 @@ mod tests {
         let config = DotServerConfig::default();
         let json = serde_json::to_string(&config).unwrap();
         let deserialized: DotServerConfig = serde_json::from_str(&json).unwrap();
-        
-        assert_eq!(config.max_connections_per_ip, deserialized.max_connections_per_ip);
+
+        assert_eq!(
+            config.max_connections_per_ip,
+            deserialized.max_connections_per_ip
+        );
         assert_eq!(config.rate_limit_qps, deserialized.rate_limit_qps);
     }
-} 
+}
