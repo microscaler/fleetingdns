@@ -24,6 +24,9 @@ tokio-util = { version = "0.7", features = ["time"] }
 governor = "0.6"
 nonzero_ext = "0.3"
 arc-swap = "1.7"
+# HIGH-3 ENHANCEMENT: Production DNSSEC dependencies
+hex = "0.4"
+rand = "0.8"
 
 [features]
 dot = ["tokio-rustls", "rustls"]
