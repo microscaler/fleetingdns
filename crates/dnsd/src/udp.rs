@@ -58,7 +58,7 @@ pub async fn handle_packet(packet: &[u8], pool: &redis_cache::RedisPool) -> AppR
 
         // Try production signer first, fallback to legacy signer
         let mut signed = false;
-        
+
         if let Some(prod_signer) = sign::production_signer() {
             let mut rrset = Vec::new();
             {
@@ -68,7 +68,7 @@ pub async fn handle_packet(packet: &[u8], pool: &redis_cache::RedisPool) -> AppR
                         .map_err(|e| AppError::Message(e.to_string()))?;
                 }
             }
-            
+
             // Try to sign with production signer using default algorithm
             match prod_signer.rrsig_record(qname, RecordType::A, 60, &rrset) {
                 Ok(sig) => {
@@ -81,21 +81,20 @@ pub async fn handle_packet(packet: &[u8], pool: &redis_cache::RedisPool) -> AppR
                 }
             }
         }
-        
+
         // Fallback to legacy signer if production signer failed
-        if !signed
-            && let Some(legacy_signer) = sign::signer() {
-                let mut rrset = Vec::new();
-                {
-                    let mut enc = BinEncoder::new(&mut rrset);
-                    for rec in message.answers() {
-                        rec.emit(&mut enc)
-                            .map_err(|e| AppError::Message(e.to_string()))?;
-                    }
+        if !signed && let Some(legacy_signer) = sign::signer() {
+            let mut rrset = Vec::new();
+            {
+                let mut enc = BinEncoder::new(&mut rrset);
+                for rec in message.answers() {
+                    rec.emit(&mut enc)
+                        .map_err(|e| AppError::Message(e.to_string()))?;
                 }
-                let sig = legacy_signer.rrsig_record(qname, RecordType::A, 60, &rrset);
-                message.add_answer(sig);
             }
+            let sig = legacy_signer.rrsig_record(qname, RecordType::A, 60, &rrset);
+            message.add_answer(sig);
+        }
     } else {
         message.set_response_code(ResponseCode::NXDomain);
     }

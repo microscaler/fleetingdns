@@ -1,6 +1,6 @@
+use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use std::collections::HashMap;
 
 use hickory_proto::rr::{
     Name, RData, Record, RecordType,
@@ -11,7 +11,7 @@ use hickory_proto::rr::{
 };
 use hickory_proto::serialize::binary::BinEncodable;
 use ring::hmac;
-use ring::rand::{SystemRandom, SecureRandom};
+use ring::rand::{SecureRandom, SystemRandom};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::{debug, error, info, warn};
@@ -48,9 +48,9 @@ impl DnssecAlgorithm {
     /// Get the algorithm number for DNSSEC records
     pub fn algorithm_number(&self) -> u8 {
         match self {
-            Self::HmacSha256 => 253,      // Private use
-            Self::RsaSha256 => 8,         // RSA/SHA-256
-            Self::EcdsaP256Sha256 => 13,  // ECDSA Curve P-256 with SHA-256
+            Self::HmacSha256 => 253,     // Private use
+            Self::RsaSha256 => 8,        // RSA/SHA-256
+            Self::EcdsaP256Sha256 => 13, // ECDSA Curve P-256 with SHA-256
         }
     }
 
@@ -130,7 +130,7 @@ impl Default for DnssecConfig {
             grace_period: 86400,          // 1 day
             max_keys: 10,
             enable_signature_cache: true,
-            signature_cache_ttl: 300,     // 5 minutes
+            signature_cache_ttl: 300, // 5 minutes
             enable_key_backup: true,
             backup_directory: None,
         }
@@ -179,10 +179,10 @@ impl DnssecKeyManager {
     /// Initialize keys for all supported algorithms
     fn initialize_keys(&self) -> Result<(), DnssecError> {
         info!("Initializing DNSSEC keys");
-        
+
         // Generate initial key for default algorithm
         self.generate_key(self.config.default_algorithm)?;
-        
+
         // Load existing keys from environment for backward compatibility
         if let Ok(hmac_secret) = std::env::var("FDNS_HMAC_KEY") {
             self.add_hmac_key_from_env(&hmac_secret)?;
@@ -208,8 +208,13 @@ impl DnssecKeyManager {
             key_material: KeyMaterial::Hmac(key),
         };
 
-        let mut keys = self.keys.write().map_err(|e| DnssecError::KeyRotation(e.to_string()))?;
-        keys.entry(DnssecAlgorithm::HmacSha256).or_default().push(dnssec_key);
+        let mut keys = self
+            .keys
+            .write()
+            .map_err(|e| DnssecError::KeyRotation(e.to_string()))?;
+        keys.entry(DnssecAlgorithm::HmacSha256)
+            .or_default()
+            .push(dnssec_key);
 
         info!("Added HMAC key from environment");
         Ok(())
@@ -217,27 +222,40 @@ impl DnssecKeyManager {
 
     /// Generate a new key for the specified algorithm
     pub fn generate_key(&self, algorithm: DnssecAlgorithm) -> Result<String, DnssecError> {
-        let key_id = format!("{:?}-{}", algorithm, SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs());
-        
+        let key_id = format!(
+            "{:?}-{}",
+            algorithm,
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        );
+
         let key_material = match algorithm {
             DnssecAlgorithm::HmacSha256 => {
                 // Generate random 256-bit key for HMAC
                 let mut key_bytes = [0u8; 32];
-                self.rng.fill(&mut key_bytes).map_err(|e| DnssecError::KeyGeneration(e.to_string()))?;
+                self.rng
+                    .fill(&mut key_bytes)
+                    .map_err(|e| DnssecError::KeyGeneration(e.to_string()))?;
                 let key = hmac::Key::new(hmac::HMAC_SHA256, &key_bytes);
                 KeyMaterial::Hmac(key)
             }
             DnssecAlgorithm::RsaSha256 => {
                 // RSA key generation requires external crate - for now use HMAC as placeholder
                 let mut key_bytes = [0u8; 32];
-                self.rng.fill(&mut key_bytes).map_err(|e| DnssecError::KeyGeneration(e.to_string()))?;
+                self.rng
+                    .fill(&mut key_bytes)
+                    .map_err(|e| DnssecError::KeyGeneration(e.to_string()))?;
                 let key = hmac::Key::new(hmac::HMAC_SHA256, &key_bytes);
                 KeyMaterial::Rsa(key)
             }
             DnssecAlgorithm::EcdsaP256Sha256 => {
                 // ECDSA key generation requires external crate - for now use HMAC as placeholder
                 let mut key_bytes = [0u8; 32];
-                self.rng.fill(&mut key_bytes).map_err(|e| DnssecError::KeyGeneration(e.to_string()))?;
+                self.rng
+                    .fill(&mut key_bytes)
+                    .map_err(|e| DnssecError::KeyGeneration(e.to_string()))?;
                 let key = hmac::Key::new(hmac::HMAC_SHA256, &key_bytes);
                 KeyMaterial::Ecdsa(key)
             }
@@ -258,10 +276,17 @@ impl DnssecKeyManager {
         };
 
         // Add to key store
-        let mut keys = self.keys.write().map_err(|e| DnssecError::KeyRotation(e.to_string()))?;
+        let mut keys = self
+            .keys
+            .write()
+            .map_err(|e| DnssecError::KeyRotation(e.to_string()))?;
         keys.entry(algorithm).or_default().push(dnssec_key);
 
-        info!("Generated new {} key with ID: {}", algorithm.algorithm_number(), key_id);
+        info!(
+            "Generated new {} key with ID: {}",
+            algorithm.algorithm_number(),
+            key_id
+        );
 
         // Backup key if enabled
         if self.config.enable_key_backup {
@@ -286,14 +311,21 @@ impl DnssecKeyManager {
 
     /// Get active key for algorithm
     pub fn get_active_key(&self, algorithm: DnssecAlgorithm) -> Result<DnssecKey, DnssecError> {
-        let keys = self.keys.read().map_err(|e| DnssecError::KeyNotFound(e.to_string()))?;
-        
-        let algorithm_keys = keys.get(&algorithm)
-            .ok_or_else(|| DnssecError::KeyNotFound(format!("No keys for algorithm {algorithm:?}")))?;
+        let keys = self
+            .keys
+            .read()
+            .map_err(|e| DnssecError::KeyNotFound(e.to_string()))?;
 
-        let active_key = algorithm_keys.iter()
+        let algorithm_keys = keys.get(&algorithm).ok_or_else(|| {
+            DnssecError::KeyNotFound(format!("No keys for algorithm {algorithm:?}"))
+        })?;
+
+        let active_key = algorithm_keys
+            .iter()
             .find(|key| key.metadata.is_active && key.metadata.expires_at > SystemTime::now())
-            .ok_or_else(|| DnssecError::KeyNotFound(format!("No active key for algorithm {algorithm:?}")))?;
+            .ok_or_else(|| {
+                DnssecError::KeyNotFound(format!("No active key for algorithm {algorithm:?}"))
+            })?;
 
         Ok(active_key.clone())
     }
@@ -302,7 +334,10 @@ impl DnssecKeyManager {
     pub fn needs_rotation(&self) -> bool {
         let last_rotation = self.last_rotation.read().unwrap();
         let rotation_interval = Duration::from_secs(self.config.rotation_interval);
-        SystemTime::now().duration_since(*last_rotation).unwrap_or(Duration::ZERO) > rotation_interval
+        SystemTime::now()
+            .duration_since(*last_rotation)
+            .unwrap_or(Duration::ZERO)
+            > rotation_interval
     }
 
     /// Perform key rotation
@@ -310,7 +345,11 @@ impl DnssecKeyManager {
         info!("Starting key rotation");
 
         // Generate new keys for all algorithms
-        for algorithm in [DnssecAlgorithm::HmacSha256, DnssecAlgorithm::RsaSha256, DnssecAlgorithm::EcdsaP256Sha256] {
+        for algorithm in [
+            DnssecAlgorithm::HmacSha256,
+            DnssecAlgorithm::RsaSha256,
+            DnssecAlgorithm::EcdsaP256Sha256,
+        ] {
             if let Err(e) = self.generate_key(algorithm) {
                 warn!("Failed to generate new key for {:?}: {}", algorithm, e);
             }
@@ -320,7 +359,10 @@ impl DnssecKeyManager {
         self.deactivate_old_keys()?;
 
         // Update last rotation time
-        let mut last_rotation = self.last_rotation.write().map_err(|e| DnssecError::KeyRotation(e.to_string()))?;
+        let mut last_rotation = self
+            .last_rotation
+            .write()
+            .map_err(|e| DnssecError::KeyRotation(e.to_string()))?;
         *last_rotation = SystemTime::now();
 
         info!("Key rotation completed");
@@ -329,7 +371,10 @@ impl DnssecKeyManager {
 
     /// Deactivate old keys
     fn deactivate_old_keys(&self) -> Result<(), DnssecError> {
-        let mut keys = self.keys.write().map_err(|e| DnssecError::KeyRotation(e.to_string()))?;
+        let mut keys = self
+            .keys
+            .write()
+            .map_err(|e| DnssecError::KeyRotation(e.to_string()))?;
         let now = SystemTime::now();
         let grace_period = Duration::from_secs(self.config.grace_period);
 
@@ -366,9 +411,7 @@ impl DnssecKeyManager {
 
         let key = self.get_active_key(algorithm)?;
         let signature = match &key.key_material {
-            KeyMaterial::Hmac(hmac_key) => {
-                hmac::sign(hmac_key, data).as_ref().to_vec()
-            }
+            KeyMaterial::Hmac(hmac_key) => hmac::sign(hmac_key, data).as_ref().to_vec(),
             KeyMaterial::Rsa(hmac_key) => {
                 // For now, RSA keys are stored as HMAC - this is a placeholder
                 // In production, this would use proper RSA signing
@@ -394,7 +437,7 @@ impl DnssecKeyManager {
     fn get_cached_signature(&self, cache_key: &str) -> Option<Vec<u8>> {
         let cache = self.signature_cache.read().ok()?;
         let entry = cache.get(cache_key)?;
-        
+
         // Check if entry is still valid
         if entry.created_at.elapsed().unwrap_or(Duration::MAX) < entry.ttl {
             Some(entry.signature.clone())
@@ -416,7 +459,9 @@ impl DnssecKeyManager {
             // Clean up old entries
             let now = SystemTime::now();
             cache.retain(|_, entry| {
-                now.duration_since(entry.created_at).unwrap_or(Duration::MAX) < entry.ttl
+                now.duration_since(entry.created_at)
+                    .unwrap_or(Duration::MAX)
+                    < entry.ttl
             });
         }
     }
@@ -424,28 +469,34 @@ impl DnssecKeyManager {
     /// Get key statistics
     pub fn get_key_statistics(&self) -> HashMap<String, serde_json::Value> {
         let mut stats = HashMap::new();
-        
+
         if let Ok(keys) = self.keys.read() {
             for (algorithm, algorithm_keys) in keys.iter() {
-                let active_count = algorithm_keys.iter().filter(|k| k.metadata.is_active).count();
+                let active_count = algorithm_keys
+                    .iter()
+                    .filter(|k| k.metadata.is_active)
+                    .count();
                 let total_count = algorithm_keys.len();
-                
+
                 stats.insert(
                     format!("{algorithm:?}"),
                     serde_json::json!({
                         "active_keys": active_count,
                         "total_keys": total_count,
                         "algorithm_number": algorithm.algorithm_number()
-                    })
+                    }),
                 );
             }
         }
 
         if let Ok(cache) = self.signature_cache.read() {
-            stats.insert("signature_cache".to_string(), serde_json::json!({
-                "entries": cache.len(),
-                "enabled": self.config.enable_signature_cache
-            }));
+            stats.insert(
+                "signature_cache".to_string(),
+                serde_json::json!({
+                    "entries": cache.len(),
+                    "enabled": self.config.enable_signature_cache
+                }),
+            );
         }
 
         stats.insert("last_rotation".to_string(), serde_json::json!({
@@ -469,7 +520,7 @@ impl ProductionDnssecSigner {
     /// Create a new production DNSSEC signer
     pub fn new(config: DnssecConfig) -> Result<Self, DnssecError> {
         let key_manager = Arc::new(DnssecKeyManager::new(config.clone())?);
-        
+
         Ok(Self {
             key_manager,
             config,
@@ -477,18 +528,24 @@ impl ProductionDnssecSigner {
     }
 
     /// Build an RRSIG record with production features
-    pub fn rrsig_record(&self, name: &Name, typ: RecordType, ttl: u32, rrset: &[u8]) -> Result<Record, DnssecError> {
+    pub fn rrsig_record(
+        &self,
+        name: &Name,
+        typ: RecordType,
+        ttl: u32,
+        rrset: &[u8],
+    ) -> Result<Record, DnssecError> {
         self.rrsig_record_with_algorithm(name, typ, ttl, rrset, self.config.default_algorithm)
     }
 
     /// Build an RRSIG record with specific algorithm
     pub fn rrsig_record_with_algorithm(
-        &self, 
-        name: &Name, 
-        typ: RecordType, 
-        ttl: u32, 
+        &self,
+        name: &Name,
+        typ: RecordType,
+        ttl: u32,
         rrset: &[u8],
-        algorithm: DnssecAlgorithm
+        algorithm: DnssecAlgorithm,
     ) -> Result<Record, DnssecError> {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -510,7 +567,11 @@ impl ProductionDnssecSigner {
             signature,
         );
 
-        Ok(Record::from_rdata(name.clone(), ttl, RData::DNSSEC(DNSSECRData::RRSIG(rrsig))))
+        Ok(Record::from_rdata(
+            name.clone(),
+            ttl,
+            RData::DNSSEC(DNSSECRData::RRSIG(rrsig)),
+        ))
     }
 
     /// Check if automatic key rotation is needed and perform it
@@ -608,7 +669,9 @@ pub fn production_signer() -> &'static Option<ProductionDnssecSigner> {
 /// Initialize production signer with custom configuration
 pub fn init_production_signer(config: DnssecConfig) -> Result<(), DnssecError> {
     let signer = ProductionDnssecSigner::new(config)?;
-    PRODUCTION_SIGNER.set(Some(signer)).map_err(|_| DnssecError::Configuration("Signer already initialized".to_string()))?;
+    PRODUCTION_SIGNER
+        .set(Some(signer))
+        .map_err(|_| DnssecError::Configuration("Signer already initialized".to_string()))?;
     Ok(())
 }
 
@@ -652,13 +715,13 @@ impl DnssecValidator {
         algorithm: DnssecAlgorithm,
     ) -> Result<bool, DnssecError> {
         let start_time = SystemTime::now();
-        
+
         // Update validation statistics
         self.update_validation_stats(algorithm, true);
-        
+
         // Get the key for the algorithm
         let key = self.key_manager.get_active_key(algorithm)?;
-        
+
         // Validate the signature
         let is_valid = match &key.key_material {
             KeyMaterial::Hmac(hmac_key) => {
@@ -676,44 +739,52 @@ impl DnssecValidator {
                 rrsig.sig() == expected_sig.as_ref()
             }
         };
-        
+
         // Update timing statistics
         let elapsed = start_time.elapsed().unwrap_or(Duration::ZERO);
         self.update_timing_stats(elapsed);
-        
+
         // Update success/failure counts
         self.update_validation_result(is_valid);
-        
+
         Ok(is_valid)
     }
 
     /// Validate a complete DNS message with DNSSEC signatures
-    pub fn validate_dns_message(&self, message: &hickory_proto::op::Message) -> Result<ValidationResult, DnssecError> {
+    pub fn validate_dns_message(
+        &self,
+        message: &hickory_proto::op::Message,
+    ) -> Result<ValidationResult, DnssecError> {
         let mut result = ValidationResult::default();
-        
+
         // Find all RRSIG records in the message
-        let rrsig_records: Vec<_> = message.answers().iter()
+        let rrsig_records: Vec<_> = message
+            .answers()
+            .iter()
             .filter(|record| record.record_type() == RecordType::RRSIG)
             .collect();
-        
+
         if rrsig_records.is_empty() {
             result.status = ValidationStatus::Unsigned;
             return Ok(result);
         }
-        
+
         // Validate each RRSIG
         for rrsig_record in rrsig_records {
             if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data().unwrap() {
                 // Find the corresponding RRset
-                let covered_records: Vec<_> = message.answers().iter()
+                let covered_records: Vec<_> = message
+                    .answers()
+                    .iter()
                     .filter(|record| record.record_type() == rrsig.type_covered())
                     .collect();
-                
+
                 if !covered_records.is_empty() {
                     // Encode the RRset for validation
                     let mut rrset_data = Vec::new();
                     {
-                        let mut enc = hickory_proto::serialize::binary::BinEncoder::new(&mut rrset_data);
+                        let mut enc =
+                            hickory_proto::serialize::binary::BinEncoder::new(&mut rrset_data);
                         for record in &covered_records {
                             if let Err(e) = record.emit(&mut enc) {
                                 result.errors.push(format!("Failed to encode RRset: {e}"));
@@ -721,18 +792,20 @@ impl DnssecValidator {
                             }
                         }
                     }
-                    
+
                     // Determine algorithm from RRSIG
                     let algorithm = match rrsig.algorithm() {
                         Algorithm::Unknown(253) => DnssecAlgorithm::HmacSha256,
                         Algorithm::RSASHA256 => DnssecAlgorithm::RsaSha256,
                         Algorithm::ECDSAP256SHA256 => DnssecAlgorithm::EcdsaP256Sha256,
                         _ => {
-                            result.errors.push(format!("Unsupported algorithm: {:?}", rrsig.algorithm()));
+                            result
+                                .errors
+                                .push(format!("Unsupported algorithm: {:?}", rrsig.algorithm()));
                             continue;
                         }
                     };
-                    
+
                     // Validate the signature
                     match self.validate_rrsig(rrsig, &rrset_data, algorithm) {
                         Ok(true) => {
@@ -740,7 +813,10 @@ impl DnssecValidator {
                         }
                         Ok(false) => {
                             result.invalid_signatures += 1;
-                            result.errors.push(format!("Invalid signature for {:?} record", rrsig.type_covered()));
+                            result.errors.push(format!(
+                                "Invalid signature for {:?} record",
+                                rrsig.type_covered()
+                            ));
                         }
                         Err(e) => {
                             result.validation_errors += 1;
@@ -750,7 +826,7 @@ impl DnssecValidator {
                 }
             }
         }
-        
+
         // Determine overall status
         result.status = if result.validation_errors > 0 {
             ValidationStatus::Error
@@ -761,7 +837,7 @@ impl DnssecValidator {
         } else {
             ValidationStatus::Unsigned
         };
-        
+
         Ok(result)
     }
 
@@ -771,7 +847,10 @@ impl DnssecValidator {
             if increment_total {
                 stats.total_validations += 1;
             }
-            *stats.validations_by_algorithm.entry(format!("{algorithm:?}")).or_insert(0) += 1;
+            *stats
+                .validations_by_algorithm
+                .entry(format!("{algorithm:?}"))
+                .or_insert(0) += 1;
         }
     }
 
@@ -780,8 +859,9 @@ impl DnssecValidator {
         if let Ok(mut stats) = self.validation_stats.write() {
             let elapsed_us = elapsed.as_micros() as u64;
             if stats.total_validations > 0 {
-                stats.average_validation_time_us = 
-                    (stats.average_validation_time_us * (stats.total_validations - 1) + elapsed_us) / stats.total_validations;
+                stats.average_validation_time_us =
+                    (stats.average_validation_time_us * (stats.total_validations - 1) + elapsed_us)
+                        / stats.total_validations;
             } else {
                 stats.average_validation_time_us = elapsed_us;
             }
@@ -849,23 +929,34 @@ impl ProductionDnssecSigner {
     }
 
     /// Validate a DNS message using this signer's keys
-    pub fn validate_message(&self, message: &hickory_proto::op::Message) -> Result<ValidationResult, DnssecError> {
+    pub fn validate_message(
+        &self,
+        message: &hickory_proto::op::Message,
+    ) -> Result<ValidationResult, DnssecError> {
         let validator = self.create_validator();
         validator.validate_dns_message(message)
     }
 
     /// Self-validation: sign and then validate a record
-    pub fn self_validate(&self, name: &Name, typ: RecordType, ttl: u32, rrset: &[u8]) -> Result<bool, DnssecError> {
+    pub fn self_validate(
+        &self,
+        name: &Name,
+        typ: RecordType,
+        ttl: u32,
+        rrset: &[u8],
+    ) -> Result<bool, DnssecError> {
         // Sign the record
         let rrsig_record = self.rrsig_record(name, typ, ttl, rrset)?;
-        
+
         // Extract the RRSIG
         if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data().unwrap() {
             // Validate the signature
             let validator = self.create_validator();
             validator.validate_rrsig(rrsig, rrset, self.config.default_algorithm)
         } else {
-            Err(DnssecError::SigningFailed("Failed to extract RRSIG".to_string()))
+            Err(DnssecError::SigningFailed(
+                "Failed to extract RRSIG".to_string(),
+            ))
         }
     }
 }
@@ -896,10 +987,10 @@ pub struct AlertConfig {
 impl Default for AlertConfig {
     fn default() -> Self {
         Self {
-            max_failure_rate: 5.0,      // 5% failure rate
+            max_failure_rate: 5.0, // 5% failure rate
             min_validations_for_alert: 100,
             max_avg_validation_time_us: 1000, // 1ms
-            alert_cooldown_seconds: 300,    // 5 minutes
+            alert_cooldown_seconds: 300,      // 5 minutes
         }
     }
 }
@@ -962,7 +1053,8 @@ impl DnssecMonitor {
 
         // Check failure rate
         if stats.total_validations >= self.alert_config.min_validations_for_alert {
-            let failure_rate = (stats.failed_validations as f64 / stats.total_validations as f64) * 100.0;
+            let failure_rate =
+                (stats.failed_validations as f64 / stats.total_validations as f64) * 100.0;
             if failure_rate > self.alert_config.max_failure_rate {
                 let alert = Alert {
                     alert_type: AlertType::HighFailureRate,
@@ -995,15 +1087,16 @@ impl DnssecMonitor {
 
         // Store alerts in history
         if !alerts.is_empty()
-            && let Ok(mut history) = self.alert_history.write() {
-                for alert in &alerts {
-                    history.push(alert.clone());
-                    // Keep only last 1000 alerts
-                    if history.len() > 1000 {
-                        history.remove(0);
-                    }
+            && let Ok(mut history) = self.alert_history.write()
+        {
+            for alert in &alerts {
+                history.push(alert.clone());
+                // Keep only last 1000 alerts
+                if history.len() > 1000 {
+                    history.remove(0);
                 }
             }
+        }
 
         alerts
     }
@@ -1013,11 +1106,11 @@ impl DnssecMonitor {
         if let Ok(history) = self.alert_history.read() {
             let cooldown_duration = Duration::from_secs(self.alert_config.alert_cooldown_seconds);
             let cutoff_time = SystemTime::now() - cooldown_duration;
-            
+
             // Check if there's a recent alert of the same type
-            history.iter().any(|alert| {
-                alert.alert_type == *alert_type && alert.timestamp > cutoff_time
-            })
+            history
+                .iter()
+                .any(|alert| alert.alert_type == *alert_type && alert.timestamp > cutoff_time)
         } else {
             false
         }
@@ -1027,7 +1120,8 @@ impl DnssecMonitor {
     pub fn get_recent_alerts(&self, duration: Duration) -> Vec<Alert> {
         if let Ok(history) = self.alert_history.read() {
             let cutoff_time = SystemTime::now() - duration;
-            history.iter()
+            history
+                .iter()
                 .filter(|alert| alert.timestamp > cutoff_time)
                 .cloned()
                 .collect()
@@ -1052,7 +1146,7 @@ impl DnssecMonitor {
     pub fn get_monitoring_stats(&self) -> serde_json::Value {
         let stats = self.validator.get_validation_stats();
         let recent_alerts = self.get_recent_alerts(Duration::from_secs(3600)); // Last hour
-        
+
         serde_json::json!({
             "validation_stats": stats,
             "alert_config": self.alert_config,
@@ -1094,7 +1188,7 @@ impl ProductionDnssecSigner {
     pub fn get_monitoring_info(&self) -> serde_json::Value {
         let key_stats = self.get_statistics();
         let needs_rotation = self.key_manager.needs_rotation();
-        
+
         serde_json::json!({
             "key_statistics": key_stats,
             "needs_rotation": needs_rotation,
@@ -1119,9 +1213,18 @@ mod tests {
 
     #[test]
     fn test_dnssec_algorithm_conversion() {
-        assert_eq!(DnssecAlgorithm::HmacSha256.to_hickory_algorithm(), Algorithm::Unknown(253));
-        assert_eq!(DnssecAlgorithm::RsaSha256.to_hickory_algorithm(), Algorithm::RSASHA256);
-        assert_eq!(DnssecAlgorithm::EcdsaP256Sha256.to_hickory_algorithm(), Algorithm::ECDSAP256SHA256);
+        assert_eq!(
+            DnssecAlgorithm::HmacSha256.to_hickory_algorithm(),
+            Algorithm::Unknown(253)
+        );
+        assert_eq!(
+            DnssecAlgorithm::RsaSha256.to_hickory_algorithm(),
+            Algorithm::RSASHA256
+        );
+        assert_eq!(
+            DnssecAlgorithm::EcdsaP256Sha256.to_hickory_algorithm(),
+            Algorithm::ECDSAP256SHA256
+        );
     }
 
     #[test]
@@ -1171,11 +1274,11 @@ mod tests {
     fn test_get_active_key() {
         let config = DnssecConfig::default();
         let manager = DnssecKeyManager::new(config).unwrap();
-        
+
         // Should have a key for the default algorithm
         let key = manager.get_active_key(DnssecAlgorithm::RsaSha256);
         assert!(key.is_ok());
-        
+
         let key = key.unwrap();
         assert!(key.metadata.is_active);
         assert!(key.metadata.expires_at > SystemTime::now());
@@ -1185,14 +1288,14 @@ mod tests {
     fn test_signing_hmac() {
         let config = DnssecConfig::default();
         let manager = DnssecKeyManager::new(config).unwrap();
-        
+
         // Generate HMAC key
         manager.generate_key(DnssecAlgorithm::HmacSha256).unwrap();
-        
+
         let test_data = b"test signing data";
         let signature = manager.sign(test_data, DnssecAlgorithm::HmacSha256);
         assert!(signature.is_ok());
-        
+
         let signature = signature.unwrap();
         assert!(!signature.is_empty());
         assert_eq!(signature.len(), 32); // SHA256 output length
@@ -1202,11 +1305,11 @@ mod tests {
     fn test_signing_rsa() {
         let config = DnssecConfig::default();
         let manager = DnssecKeyManager::new(config).unwrap();
-        
+
         let test_data = b"test signing data";
         let signature = manager.sign(test_data, DnssecAlgorithm::RsaSha256);
         assert!(signature.is_ok());
-        
+
         let signature = signature.unwrap();
         assert!(!signature.is_empty());
         assert_eq!(signature.len(), 32); // HMAC-SHA256 output length (placeholder)
@@ -1216,10 +1319,10 @@ mod tests {
     fn test_signing_ecdsa() {
         let config = DnssecConfig::default();
         let manager = DnssecKeyManager::new(config).unwrap();
-        
+
         let test_data = b"test signing data";
         let signature = manager.sign(test_data, DnssecAlgorithm::EcdsaP256Sha256);
-        
+
         match signature {
             Ok(sig) => {
                 assert!(!sig.is_empty());
@@ -1228,47 +1331,49 @@ mod tests {
             Err(e) => {
                 println!("ECDSA signing error: {e}");
                 // For now, this is expected since we're using placeholder implementation
-                assert!(e.to_string().contains("No active key") || e.to_string().contains("No keys"));
+                assert!(
+                    e.to_string().contains("No active key") || e.to_string().contains("No keys")
+                );
             }
         }
     }
 
     #[test]
     fn test_signature_caching() {
-        let config = DnssecConfig { 
-            enable_signature_cache: true, 
+        let config = DnssecConfig {
+            enable_signature_cache: true,
             signature_cache_ttl: 10, // 10 seconds
-            ..Default::default() 
+            ..Default::default()
         };
-        
+
         let manager = DnssecKeyManager::new(config).unwrap();
         let test_data = b"test caching data";
-        
+
         // First call should generate signature
         let signature1 = manager.sign(test_data, DnssecAlgorithm::RsaSha256).unwrap();
-        
+
         // Second call should use cached signature
         let signature2 = manager.sign(test_data, DnssecAlgorithm::RsaSha256).unwrap();
-        
+
         assert_eq!(signature1, signature2);
     }
 
     #[test]
     fn test_key_rotation_needed() {
-        let config = DnssecConfig { 
+        let config = DnssecConfig {
             rotation_interval: 1, // 1 second
-            ..Default::default() 
+            ..Default::default()
         };
-        
+
         let manager = DnssecKeyManager::new(config).unwrap();
-        
+
         // Key manager starts with last_rotation = UNIX_EPOCH, so it should need rotation
         assert!(manager.needs_rotation());
-        
+
         // After rotation, it should not need rotation immediately
         manager.rotate_keys().unwrap();
         assert!(!manager.needs_rotation());
-        
+
         // Wait for rotation interval
         std::thread::sleep(Duration::from_secs(2));
         assert!(manager.needs_rotation());
@@ -1276,13 +1381,13 @@ mod tests {
 
     #[test]
     fn test_key_rotation() {
-        let config = DnssecConfig { 
+        let config = DnssecConfig {
             rotation_interval: 1, // 1 second
-            ..Default::default() 
+            ..Default::default()
         };
-        
+
         let manager = DnssecKeyManager::new(config).unwrap();
-        
+
         // Force rotation
         let result = manager.rotate_keys();
         assert!(result.is_ok());
@@ -1292,7 +1397,7 @@ mod tests {
     fn test_key_statistics() {
         let config = DnssecConfig::default();
         let manager = DnssecKeyManager::new(config).unwrap();
-        
+
         let stats = manager.get_key_statistics();
         assert!(stats.contains_key("RsaSha256"));
         assert!(stats.contains_key("signature_cache"));
@@ -1310,15 +1415,15 @@ mod tests {
     fn test_production_signer_rrsig() {
         let config = DnssecConfig::default();
         let signer = ProductionDnssecSigner::new(config).unwrap();
-        
+
         let name = Name::from_ascii("example.com.").unwrap();
         let record_type = RecordType::A;
         let ttl = 300;
         let rrset_data = b"test_rrset_data";
-        
+
         let rrsig_record = signer.rrsig_record(&name, record_type, ttl, rrset_data);
         assert!(rrsig_record.is_ok());
-        
+
         let rrsig_record = rrsig_record.unwrap();
         assert_eq!(rrsig_record.name(), &name);
         assert_eq!(rrsig_record.record_type(), RecordType::RRSIG);
@@ -1329,23 +1434,19 @@ mod tests {
     fn test_production_signer_with_algorithm() {
         let config = DnssecConfig::default();
         let signer = ProductionDnssecSigner::new(config).unwrap();
-        
+
         let name = Name::from_ascii("example.com.").unwrap();
         let record_type = RecordType::A;
         let ttl = 300;
         let rrset_data = b"test_rrset_data";
-        
+
         // Test with algorithms that should work
-        let algorithms = [
-            DnssecAlgorithm::RsaSha256,
-            DnssecAlgorithm::HmacSha256,
-        ];
-        
+        let algorithms = [DnssecAlgorithm::RsaSha256, DnssecAlgorithm::HmacSha256];
+
         for algorithm in algorithms {
-            let rrsig_record = signer.rrsig_record_with_algorithm(
-                &name, record_type, ttl, rrset_data, algorithm
-            );
-            
+            let rrsig_record =
+                signer.rrsig_record_with_algorithm(&name, record_type, ttl, rrset_data, algorithm);
+
             match rrsig_record {
                 Ok(record) => {
                     if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = record.data().unwrap() {
@@ -1357,7 +1458,10 @@ mod tests {
                 Err(e) => {
                     println!("Algorithm {algorithm:?} failed: {e}");
                     // This is acceptable for placeholder implementation
-                    assert!(e.to_string().contains("No active key") || e.to_string().contains("No keys"));
+                    assert!(
+                        e.to_string().contains("No active key")
+                            || e.to_string().contains("No keys")
+                    );
                 }
             }
         }
@@ -1367,7 +1471,7 @@ mod tests {
     fn test_production_signer_statistics() {
         let config = DnssecConfig::default();
         let signer = ProductionDnssecSigner::new(config).unwrap();
-        
+
         let stats = signer.get_statistics();
         assert!(stats.contains_key("RsaSha256"));
         assert!(stats.contains_key("signature_cache"));
@@ -1378,7 +1482,7 @@ mod tests {
     fn test_production_signer_force_rotation() {
         let config = DnssecConfig::default();
         let signer = ProductionDnssecSigner::new(config).unwrap();
-        
+
         let result = signer.force_key_rotation();
         assert!(result.is_ok());
     }
@@ -1421,7 +1525,7 @@ mod tests {
         let legacy_signer = signer();
         // Just check that it returns a valid reference
         assert!(legacy_signer.is_some() || legacy_signer.is_none());
-        
+
         // Test production signer - should be Some
         let prod_signer = production_signer();
         assert!(prod_signer.is_some());
@@ -1437,7 +1541,7 @@ mod tests {
     #[test]
     fn test_init_production_signer() {
         let config = DnssecConfig::default();
-        
+
         // This might fail if already initialized in other tests
         // but that's expected behavior
         let _result = init_production_signer(config);
@@ -1448,10 +1552,10 @@ mod tests {
         unsafe {
             std::env::set_var("FDNS_HMAC_KEY", "test_env_key");
         }
-        
+
         let signer = HmacSigner::from_env();
         assert!(signer.is_some());
-        
+
         unsafe {
             std::env::remove_var("FDNS_HMAC_KEY");
         }
@@ -1496,11 +1600,16 @@ mod tests {
         let ttl = 300;
         let rrset_data = b"test_rrset_data";
 
-        let record_types = [RecordType::A, RecordType::AAAA, RecordType::CNAME, RecordType::MX];
+        let record_types = [
+            RecordType::A,
+            RecordType::AAAA,
+            RecordType::CNAME,
+            RecordType::MX,
+        ];
 
         for record_type in record_types {
             let rrsig_record = signer.rrsig_record(&name, record_type, ttl, rrset_data);
-            
+
             if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data().unwrap() {
                 assert_eq!(rrsig.type_covered(), record_type);
             } else {
@@ -1526,9 +1635,9 @@ mod tests {
         for name_str in names {
             let name = Name::from_ascii(name_str).unwrap();
             let rrsig_record = signer.rrsig_record(&name, record_type, ttl, rrset_data);
-            
+
             assert_eq!(rrsig_record.name(), &name);
-            
+
             if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data().unwrap() {
                 assert_eq!(rrsig.signer_name(), &name);
                 assert_eq!(rrsig.num_labels(), name.num_labels());
@@ -1562,10 +1671,10 @@ mod tests {
             // Check signature inception time
             assert!(rrsig.sig_inception() >= before_creation);
             assert!(rrsig.sig_inception() <= after_creation);
-            
+
             // Check signature expiration time
             assert_eq!(rrsig.sig_expiration(), rrsig.sig_inception() + ttl);
-            
+
             // Check original TTL
             assert_eq!(rrsig.original_ttl(), ttl);
         } else {
@@ -1584,9 +1693,9 @@ mod tests {
 
         for ttl in ttls {
             let rrsig_record = signer.rrsig_record(&name, record_type, ttl, rrset_data);
-            
+
             assert_eq!(rrsig_record.ttl(), ttl);
-            
+
             if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data().unwrap() {
                 assert_eq!(rrsig.original_ttl(), ttl);
                 assert_eq!(rrsig.sig_expiration(), rrsig.sig_inception() + ttl);
@@ -1636,7 +1745,7 @@ mod tests {
 
         // Should still create a valid RRSIG even with empty data
         assert_eq!(rrsig_record.record_type(), RecordType::RRSIG);
-        
+
         if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data().unwrap() {
             assert!(!rrsig.sig().is_empty()); // HMAC should still produce output
         } else {
@@ -1679,14 +1788,14 @@ mod tests {
         unsafe {
             std::env::set_var("FDNS_HMAC_KEY", "isolated_test_key");
         }
-        
+
         let signer = HmacSigner::from_env();
         assert!(signer.is_some());
-        
+
         unsafe {
             std::env::remove_var("FDNS_HMAC_KEY");
         }
-        
+
         let no_signer = HmacSigner::from_env();
         assert!(no_signer.is_none());
     }
@@ -1697,7 +1806,7 @@ mod tests {
         unsafe {
             std::env::remove_var("FDNS_HMAC_KEY");
         }
-        
+
         let signer = HmacSigner::from_env();
         assert!(signer.is_none());
     }
@@ -1707,7 +1816,7 @@ mod tests {
         let config = DnssecConfig::default();
         let manager = Arc::new(DnssecKeyManager::new(config).unwrap());
         let validator = DnssecValidator::new(manager);
-        
+
         let stats = validator.get_validation_stats();
         assert_eq!(stats.total_validations, 0);
         assert_eq!(stats.successful_validations, 0);
@@ -1719,11 +1828,11 @@ mod tests {
         let config = DnssecConfig::default();
         let manager = Arc::new(DnssecKeyManager::new(config).unwrap());
         let validator = DnssecValidator::new(manager);
-        
+
         // Update stats
         validator.update_validation_stats(DnssecAlgorithm::HmacSha256, true);
         validator.update_validation_result(true);
-        
+
         let stats = validator.get_validation_stats();
         assert_eq!(stats.total_validations, 1);
         assert_eq!(stats.successful_validations, 1);
@@ -1736,14 +1845,14 @@ mod tests {
         let config = DnssecConfig::default();
         let manager = Arc::new(DnssecKeyManager::new(config).unwrap());
         let validator = DnssecValidator::new(manager);
-        
+
         // Update stats
         validator.update_validation_stats(DnssecAlgorithm::HmacSha256, true);
         validator.update_validation_result(true);
-        
+
         // Reset stats
         validator.reset_validation_stats();
-        
+
         let stats = validator.get_validation_stats();
         assert_eq!(stats.total_validations, 0);
         assert_eq!(stats.successful_validations, 0);
@@ -1755,15 +1864,20 @@ mod tests {
         let config = DnssecConfig::default();
         let manager = Arc::new(DnssecKeyManager::new(config).unwrap());
         let validator = DnssecValidator::new(manager.clone());
-        
+
         // Generate a key and create a signature
         let _key_id = manager.generate_key(DnssecAlgorithm::HmacSha256).unwrap();
         let test_data = b"test_validation_data";
-        let signature = manager.sign(test_data, DnssecAlgorithm::HmacSha256).unwrap();
-        
+        let signature = manager
+            .sign(test_data, DnssecAlgorithm::HmacSha256)
+            .unwrap();
+
         // Create an RRSIG record
         let name = Name::from_ascii("test.example.com.").unwrap();
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as u32;
         let rrsig = RRSIG::new(
             RecordType::A,
             Algorithm::Unknown(253),
@@ -1775,11 +1889,13 @@ mod tests {
             name.clone(),
             signature,
         );
-        
+
         // Validate the signature
-        let is_valid = validator.validate_rrsig(&rrsig, test_data, DnssecAlgorithm::HmacSha256).unwrap();
+        let is_valid = validator
+            .validate_rrsig(&rrsig, test_data, DnssecAlgorithm::HmacSha256)
+            .unwrap();
         assert!(is_valid);
-        
+
         // Check statistics
         let stats = validator.get_validation_stats();
         assert_eq!(stats.total_validations, 1);
@@ -1791,13 +1907,16 @@ mod tests {
         let config = DnssecConfig::default();
         let manager = Arc::new(DnssecKeyManager::new(config).unwrap());
         let validator = DnssecValidator::new(manager.clone());
-        
+
         // Generate a key
         manager.generate_key(DnssecAlgorithm::HmacSha256).unwrap();
-        
+
         // Create an RRSIG record with wrong signature
         let name = Name::from_ascii("test.example.com.").unwrap();
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as u32;
         let wrong_signature = vec![0u8; 32]; // Wrong signature
         let rrsig = RRSIG::new(
             RecordType::A,
@@ -1810,12 +1929,14 @@ mod tests {
             name.clone(),
             wrong_signature,
         );
-        
+
         // Validate the signature
         let test_data = b"test_validation_data";
-        let is_valid = validator.validate_rrsig(&rrsig, test_data, DnssecAlgorithm::HmacSha256).unwrap();
+        let is_valid = validator
+            .validate_rrsig(&rrsig, test_data, DnssecAlgorithm::HmacSha256)
+            .unwrap();
         assert!(!is_valid);
-        
+
         // Check statistics
         let stats = validator.get_validation_stats();
         assert_eq!(stats.total_validations, 1);
@@ -1843,7 +1964,7 @@ mod tests {
     fn test_production_signer_validator_creation() {
         let config = DnssecConfig::default();
         let signer = ProductionDnssecSigner::new(config).unwrap();
-        
+
         let validator = signer.create_validator();
         let stats = validator.get_validation_stats();
         assert_eq!(stats.total_validations, 0);
@@ -1853,21 +1974,23 @@ mod tests {
     fn test_production_signer_self_validation() {
         let config = DnssecConfig::default();
         let signer = ProductionDnssecSigner::new(config).unwrap();
-        
+
         let name = Name::from_ascii("selftest.example.com.").unwrap();
         let record_type = RecordType::A;
         let ttl = 300;
         let rrset_data = b"self_validation_test_data";
-        
+
         // Self-validate
         let is_valid = signer.self_validate(&name, record_type, ttl, rrset_data);
-        
+
         match is_valid {
             Ok(valid) => assert!(valid),
             Err(e) => {
                 // This might fail if the key is not available, which is acceptable
                 println!("Self-validation failed: {e}");
-                assert!(e.to_string().contains("No active key") || e.to_string().contains("No keys"));
+                assert!(
+                    e.to_string().contains("No active key") || e.to_string().contains("No keys")
+                );
             }
         }
     }
@@ -1877,11 +2000,11 @@ mod tests {
         let config = DnssecConfig::default();
         let manager = Arc::new(DnssecKeyManager::new(config).unwrap());
         let validator = DnssecValidator::new(manager);
-        
+
         // Simulate timing update
         let duration = Duration::from_micros(100);
         validator.update_timing_stats(duration);
-        
+
         let stats = validator.get_validation_stats();
         assert_eq!(stats.average_validation_time_us, 100);
     }
@@ -1900,12 +2023,12 @@ mod tests {
             },
             average_validation_time_us: 50,
         };
-        
+
         // Test serialization
         let serialized = serde_json::to_string(&stats).unwrap();
         assert!(serialized.contains("total_validations"));
         assert!(serialized.contains("100"));
-        
+
         // Test deserialization
         let deserialized: ValidationStats = serde_json::from_str(&serialized).unwrap();
         assert_eq!(deserialized.total_validations, 100);
@@ -1926,7 +2049,7 @@ mod tests {
     fn test_alert_types() {
         assert_eq!(AlertType::HighFailureRate, AlertType::HighFailureRate);
         assert_ne!(AlertType::HighFailureRate, AlertType::SlowValidation);
-        
+
         // Test serialization
         let alert_type = AlertType::KeyRotationNeeded;
         let serialized = serde_json::to_string(&alert_type).unwrap();
@@ -1938,7 +2061,7 @@ mod tests {
     fn test_alert_severity() {
         assert_eq!(AlertSeverity::Critical, AlertSeverity::Critical);
         assert_ne!(AlertSeverity::Warning, AlertSeverity::Info);
-        
+
         // Test serialization
         let severity = AlertSeverity::Warning;
         let serialized = serde_json::to_string(&severity).unwrap();
@@ -1952,10 +2075,10 @@ mod tests {
         let manager = Arc::new(DnssecKeyManager::new(config).unwrap());
         let validator = Arc::new(DnssecValidator::new(manager));
         let alert_config = AlertConfig::default();
-        
+
         let monitor = DnssecMonitor::new(validator, alert_config);
         let stats = monitor.get_monitoring_stats();
-        
+
         assert!(stats.is_object());
         assert!(stats.get("validation_stats").is_some());
         assert!(stats.get("alert_config").is_some());
@@ -1970,11 +2093,11 @@ mod tests {
             timestamp: SystemTime::now(),
             stats: ValidationStats::default(),
         };
-        
+
         assert_eq!(alert.alert_type, AlertType::HighFailureRate);
         assert_eq!(alert.message, "Test alert");
         assert_eq!(alert.severity, AlertSeverity::Critical);
-        
+
         // Test serialization
         let serialized = serde_json::to_string(&alert).unwrap();
         let deserialized: Alert = serde_json::from_str(&serialized).unwrap();
@@ -1989,20 +2112,22 @@ mod tests {
         let manager = Arc::new(DnssecKeyManager::new(config).unwrap());
         let validator = Arc::new(DnssecValidator::new(manager));
         let alert_config = AlertConfig::default();
-        
+
         let monitor = DnssecMonitor::new(validator.clone(), alert_config);
-        
+
         // Simulate high failure rate
         for _ in 0..150 {
             validator.update_validation_stats(DnssecAlgorithm::HmacSha256, true);
             validator.update_validation_result(false); // All failures
         }
-        
+
         let alerts = monitor.check_alerts();
         assert!(!alerts.is_empty());
-        
+
         // Should have a high failure rate alert
-        let has_failure_alert = alerts.iter().any(|a| a.alert_type == AlertType::HighFailureRate);
+        let has_failure_alert = alerts
+            .iter()
+            .any(|a| a.alert_type == AlertType::HighFailureRate);
         assert!(has_failure_alert);
     }
 
@@ -2012,17 +2137,19 @@ mod tests {
         let manager = Arc::new(DnssecKeyManager::new(config).unwrap());
         let validator = Arc::new(DnssecValidator::new(manager));
         let alert_config = AlertConfig::default();
-        
+
         let monitor = DnssecMonitor::new(validator.clone(), alert_config);
-        
+
         // Simulate slow validation
         let slow_duration = Duration::from_micros(2000); // 2ms (above 1ms threshold)
         validator.update_timing_stats(slow_duration);
-        
+
         let alerts = monitor.check_alerts();
-        
+
         // Should have a slow validation alert
-        let has_slow_alert = alerts.iter().any(|a| a.alert_type == AlertType::SlowValidation);
+        let has_slow_alert = alerts
+            .iter()
+            .any(|a| a.alert_type == AlertType::SlowValidation);
         assert!(has_slow_alert);
     }
 
@@ -2031,16 +2158,16 @@ mod tests {
         let config = DnssecConfig::default();
         let manager = Arc::new(DnssecKeyManager::new(config).unwrap());
         let validator = Arc::new(DnssecValidator::new(manager));
-        let alert_config = AlertConfig { 
+        let alert_config = AlertConfig {
             alert_cooldown_seconds: 1, // 1 second cooldown
-            ..Default::default() 
+            ..Default::default()
         };
-        
+
         let monitor = DnssecMonitor::new(validator, alert_config);
-        
+
         // Should not suppress initially
         assert!(!monitor.should_suppress_alert(&AlertType::HighFailureRate));
-        
+
         // Add an alert to history
         let alert = Alert {
             alert_type: AlertType::HighFailureRate,
@@ -2049,15 +2176,15 @@ mod tests {
             timestamp: SystemTime::now(),
             stats: ValidationStats::default(),
         };
-        
+
         monitor.alert_history.write().unwrap().push(alert);
-        
+
         // Should suppress now
         assert!(monitor.should_suppress_alert(&AlertType::HighFailureRate));
-        
+
         // Wait for cooldown
         std::thread::sleep(Duration::from_secs(2));
-        
+
         // Should not suppress after cooldown
         assert!(!monitor.should_suppress_alert(&AlertType::HighFailureRate));
     }
@@ -2068,9 +2195,9 @@ mod tests {
         let manager = Arc::new(DnssecKeyManager::new(config).unwrap());
         let validator = Arc::new(DnssecValidator::new(manager));
         let alert_config = AlertConfig::default();
-        
+
         let monitor = DnssecMonitor::new(validator, alert_config);
-        
+
         // Add some alerts
         let alert1 = Alert {
             alert_type: AlertType::HighFailureRate,
@@ -2079,7 +2206,7 @@ mod tests {
             timestamp: SystemTime::now(),
             stats: ValidationStats::default(),
         };
-        
+
         let alert2 = Alert {
             alert_type: AlertType::SlowValidation,
             message: "Old alert".to_string(),
@@ -2087,15 +2214,15 @@ mod tests {
             timestamp: SystemTime::now() - Duration::from_secs(7200), // 2 hours ago
             stats: ValidationStats::default(),
         };
-        
+
         monitor.alert_history.write().unwrap().push(alert1);
         monitor.alert_history.write().unwrap().push(alert2);
-        
+
         // Get recent alerts (last hour)
         let recent = monitor.get_recent_alerts(Duration::from_secs(3600));
         assert_eq!(recent.len(), 1);
         assert_eq!(recent[0].message, "Recent alert");
-        
+
         // Get all alerts
         let all = monitor.get_all_alerts();
         assert_eq!(all.len(), 2);
@@ -2107,9 +2234,9 @@ mod tests {
         let manager = Arc::new(DnssecKeyManager::new(config).unwrap());
         let validator = Arc::new(DnssecValidator::new(manager));
         let alert_config = AlertConfig::default();
-        
+
         let monitor = DnssecMonitor::new(validator, alert_config);
-        
+
         // Add an alert
         let alert = Alert {
             alert_type: AlertType::HighFailureRate,
@@ -2118,10 +2245,10 @@ mod tests {
             timestamp: SystemTime::now(),
             stats: ValidationStats::default(),
         };
-        
+
         monitor.alert_history.write().unwrap().push(alert);
         assert_eq!(monitor.get_all_alerts().len(), 1);
-        
+
         // Clear history
         monitor.clear_alert_history();
         assert_eq!(monitor.get_all_alerts().len(), 0);
@@ -2132,26 +2259,26 @@ mod tests {
         let config = DnssecConfig::default();
         let signer = ProductionDnssecSigner::new(config).unwrap();
         let alert_config = AlertConfig::default();
-        
+
         let monitor = signer.create_monitor(alert_config);
         let stats = monitor.get_monitoring_stats();
-        
+
         assert!(stats.is_object());
     }
 
     #[test]
     fn test_production_signer_key_rotation_alert() {
-        let config = DnssecConfig { 
+        let config = DnssecConfig {
             rotation_interval: 1, // 1 second
-            ..Default::default() 
+            ..Default::default()
         };
-        
+
         let signer = ProductionDnssecSigner::new(config).unwrap();
-        
+
         // Should need rotation (starts at UNIX_EPOCH)
         let alert = signer.check_key_rotation_alert();
         assert!(alert.is_some());
-        
+
         let alert = alert.unwrap();
         assert_eq!(alert.alert_type, AlertType::KeyRotationNeeded);
         assert_eq!(alert.severity, AlertSeverity::Warning);
@@ -2161,9 +2288,9 @@ mod tests {
     fn test_production_signer_monitoring_info() {
         let config = DnssecConfig::default();
         let signer = ProductionDnssecSigner::new(config).unwrap();
-        
+
         let info = signer.get_monitoring_info();
-        
+
         assert!(info.is_object());
         assert!(info.get("key_statistics").is_some());
         assert!(info.get("needs_rotation").is_some());
