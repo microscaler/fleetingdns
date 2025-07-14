@@ -31,16 +31,16 @@
 //! ```
 
 use std::collections::HashMap;
+use std::future::Future;
 use std::net::Ipv4Addr;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
-use std::future::Future;
 
 use bb8::{Pool, PooledConnection};
 use bb8_redis::RedisConnectionManager;
-use redis::{pipe, AsyncCommands, RedisError, Pipeline};
+use redis::{AsyncCommands, Pipeline, RedisError, pipe};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::sync::RwLock;
@@ -284,10 +284,13 @@ impl RedisPerformanceClient {
     }
 
     /// Get a slot value with performance optimization
-    pub async fn get_slot_optimized(&self, slot: &str) -> Result<Option<Ipv4Addr>, PerformanceError> {
+    pub async fn get_slot_optimized(
+        &self,
+        slot: &str,
+    ) -> Result<Option<Ipv4Addr>, PerformanceError> {
         let slot = slot.to_string();
         let start_time = Instant::now();
-        
+
         let result = self
             .execute_with_retry(|mut conn| {
                 let slot = slot.clone();
@@ -322,13 +325,11 @@ impl RedisPerformanceClient {
     ) -> Result<(), PerformanceError> {
         let slot = slot.to_string();
         let start_time = Instant::now();
-        
+
         let result = self
             .execute_with_retry(|mut conn| {
                 let slot = slot.clone();
-                Box::pin(async move { 
-                    conn.set_ex(&slot, ip.to_string(), ttl).await 
-                })
+                Box::pin(async move { conn.set_ex(&slot, ip.to_string(), ttl).await })
             })
             .await?;
 
@@ -356,26 +357,26 @@ impl RedisPerformanceClient {
                     let chunk_operations = chunk_operations.clone();
                     Box::pin(async move {
                         let mut pipeline = Pipeline::new();
-                        
+
                         // Add all operations to pipeline
                         for (slot, ip, ttl) in &chunk_operations {
                             pipeline.set_ex(slot, ip.to_string(), *ttl);
                         }
-                        
+
                         // Execute pipeline
                         let pipeline_results: Vec<()> = pipeline.query_async(&mut conn).await?;
                         Ok(pipeline_results)
                     })
                 })
                 .await?;
-            
+
             results.extend(result);
         }
 
         // Record performance metrics
         let latency = start_time.elapsed();
         self.record_operation_latency(latency).await;
-        
+
         // Update bulk operation stats
         {
             let mut stats = self.stats.write().await;
@@ -430,41 +431,40 @@ impl RedisPerformanceClient {
                     let chunk_slots = chunk_slots.clone();
                     Box::pin(async move {
                         let mut pipeline = Pipeline::new();
-                        
+
                         // Add all get operations to pipeline
                         for slot in &chunk_slots {
                             pipeline.get(slot);
                         }
-                        
+
                         // Execute pipeline
-                        let pipeline_results: Vec<Option<String>> = pipeline.query_async(&mut conn).await?;
-                        
+                        let pipeline_results: Vec<Option<String>> =
+                            pipeline.query_async(&mut conn).await?;
+
                         // Parse results
                         let mut parsed_results = Vec::new();
                         for result in pipeline_results {
                             match result {
-                                Some(ip_str) => {
-                                    match ip_str.parse::<Ipv4Addr>() {
-                                        Ok(ip) => parsed_results.push(Some(ip)),
-                                        Err(_) => parsed_results.push(None),
-                                    }
-                                }
+                                Some(ip_str) => match ip_str.parse::<Ipv4Addr>() {
+                                    Ok(ip) => parsed_results.push(Some(ip)),
+                                    Err(_) => parsed_results.push(None),
+                                },
                                 None => parsed_results.push(None),
                             }
                         }
-                        
+
                         Ok(parsed_results)
                     })
                 })
                 .await?;
-            
+
             results.extend(result);
         }
 
         // Record performance metrics
         let latency = start_time.elapsed();
         self.record_operation_latency(latency).await;
-        
+
         // Update bulk operation stats
         {
             let mut stats = self.stats.write().await;
