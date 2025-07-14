@@ -107,11 +107,150 @@ pub use handlers::tunnels::{CreateTunnelRequest, CreateTunnelResponse, TunnelInf
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
 
     #[tokio::test]
-    async fn test_api_config() {
+    async fn test_api_config_from_env() {
+        let config = ApiConfig::from_env();
+        assert!(config.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_api_config_with_custom_values() {
+        // Set environment variables for testing
+        unsafe {
+            env::set_var("API_BIND_ADDRESS", "127.0.0.1:8080");
+            env::set_var("REDIS_URL", "redis://localhost:6379");
+            env::set_var("GITHUB_CLIENT_ID", "test_client_id");
+            env::set_var("GITHUB_CLIENT_SECRET", "test_client_secret");
+            env::set_var("JWT_SECRET", "test_jwt_secret");
+            env::set_var("BASE_DOMAIN", "test.example.com");
+            env::set_var("EDGEHUB_ADDRESS", "ssh.example.com:2222");
+        }
+
+        let config = ApiConfig::from_env().unwrap();
+        assert_eq!(config.bind_address, "127.0.0.1:8080");
+        assert_eq!(config.redis_url, "redis://localhost:6379");
+        assert_eq!(config.github_client_id, "test_client_id");
+        assert_eq!(config.github_client_secret, "test_client_secret");
+        assert_eq!(config.jwt_secret, "test_jwt_secret");
+        assert_eq!(config.base_domain, "test.example.com");
+        assert_eq!(config.edgehub_address, "ssh.example.com:2222");
+
+        // Clean up
+        unsafe {
+            env::remove_var("API_BIND_ADDRESS");
+            env::remove_var("REDIS_URL");
+            env::remove_var("GITHUB_CLIENT_ID");
+            env::remove_var("GITHUB_CLIENT_SECRET");
+            env::remove_var("JWT_SECRET");
+            env::remove_var("BASE_DOMAIN");
+            env::remove_var("EDGEHUB_ADDRESS");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_run_with_config_invalid_redis() {
+        // Set invalid Redis URL to test error handling
+        let config = ApiConfig {
+            redis_url: "invalid://redis/url".to_string(),
+            ..Default::default()
+        };
+        
+        let result = run_with_config(config).await;
+        assert!(result.is_err());
+        
+        // Verify error is related to storage or configuration
+        match result.unwrap_err() {
+            ApiError::StorageError(_) => {}, // Expected error type
+            ApiError::ConfigurationError(_) => {}, // Also acceptable
+            other => panic!("Unexpected error type: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_api_config_default_values() {
         let config = ApiConfig::default();
-        assert!(!config.bind_address.is_empty());
-        assert!(!config.github_client_id.is_empty());
+        assert_eq!(config.bind_address, "0.0.0.0:8080");
+        assert_eq!(config.redis_url, "redis://localhost:6379");
+        assert_eq!(config.base_domain, "fleetingdns.run");
+        assert_eq!(config.edgehub_address, "edgehub.fleetingdns.com:443");
+        assert_eq!(config.default_tunnel_ttl, 1800);
+        assert_eq!(config.max_tunnel_ttl, 7200);
+    }
+
+    #[test]
+    fn test_api_config_debug_format() {
+        let config = ApiConfig::default();
+        let debug_str = format!("{config:?}");
+        assert!(debug_str.contains("ApiConfig"));
+        assert!(debug_str.contains("bind_address"));
+        assert!(debug_str.contains("redis_url"));
+    }
+
+    #[test]
+    fn test_api_config_clone() {
+        let config = ApiConfig::default();
+        let cloned_config = config.clone();
+        assert_eq!(config.bind_address, cloned_config.bind_address);
+        assert_eq!(config.redis_url, cloned_config.redis_url);
+    }
+
+    #[test]
+    fn test_api_state_structure() {
+        // Test that ApiState has the expected structure
+        let _config = ApiConfig::default();
+        let _ca_config = edf_ca::CaConfig::default();
+        let _github_client = reqwest::Client::new();
+        
+        // We can't easily create real instances without Redis/CA setup
+        // but we can test the structure requirements
+        assert_eq!(std::mem::size_of::<ApiState>(), std::mem::size_of::<(Arc<ApiConfig>, Arc<edf_ca::CertificateAuthority>, Arc<storage::TunnelStorage>, reqwest::Client)>());
+    }
+
+    #[test]
+    fn test_create_router_compiles() {
+        // Test that create_router function exists and has correct signature
+        // This is a compile-time test to ensure the function is properly defined
+        use std::any::type_name;
+        
+        // Verify the function exists by checking its type
+        let fn_type = type_name::<fn(ApiState) -> Router>();
+        assert!(fn_type.contains("Router"));
+        
+        // Test that we can reference the function
+        let _fn_ref = create_router;
+    }
+
+    #[test]
+    fn test_api_state_clone_trait() {
+        // Test that ApiState implements Clone trait
+        // This is a compile-time test
+        fn assert_clone<T: Clone>() {}
+        assert_clone::<ApiState>();
+    }
+
+    #[test]
+    fn test_api_error_types() {
+        // Test that our error types work correctly
+        let config_error = ApiError::ConfigurationError("test error".to_string());
+        assert!(matches!(config_error, ApiError::ConfigurationError(_)));
+        
+        let storage_error = ApiError::StorageError("test storage error".to_string());
+        assert!(matches!(storage_error, ApiError::StorageError(_)));
+        
+        let bad_request = ApiError::BadRequest("bad request".to_string());
+        assert!(matches!(bad_request, ApiError::BadRequest(_)));
+    }
+
+    #[test]
+    fn test_api_result_type() {
+        // Test that ApiResult works as expected
+        let success: ApiResult<String> = Ok("success".to_string());
+        assert!(success.is_ok());
+        assert_eq!(success.as_ref().unwrap(), "success");
+        
+        let failure: ApiResult<String> = Err(ApiError::BadRequest("error".to_string()));
+        assert!(failure.is_err());
     }
 }

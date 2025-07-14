@@ -63,6 +63,8 @@ async fn rrsig_validates() {
         dot_addr,
         #[cfg(feature = "dot")]
         tls_config,
+        #[cfg(feature = "dot")]
+        cert_manager: None,
     };
     let handle = tokio::spawn(async move { serve(cfg).await.unwrap() });
     sleep(Duration::from_millis(50)).await;
