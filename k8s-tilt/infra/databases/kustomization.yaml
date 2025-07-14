@@ -9,6 +9,8 @@ metadata:
 resources:
 - postgresql.yaml
 - redis.yaml
+- redis-cluster.yaml
+- redis-sentinel.yaml
 
 commonLabels:
   app.kubernetes.io/name: fleetingdns-databases

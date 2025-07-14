@@ -16,10 +16,10 @@ use tracing::{debug, error, info, warn};
 use edf_ca::{CaConfig, CertificateAuthority, IssuanceRequest, IssuanceResponse};
 
 // CRITICAL-3 ENHANCEMENT: Additional imports for certificate validation
-use rustls::pki_types::CertificateDer;
-use std::time::{Duration, Instant};
 use chrono::{DateTime, Utc};
+use rustls::pki_types::CertificateDer;
 use serde::{Deserialize, Serialize};
+use std::time::{Duration, Instant};
 
 /// SSH server configuration
 #[derive(Debug, Clone)]
@@ -93,16 +93,24 @@ impl BruteForceProtection {
         }
     }
 
-    fn record_attempt(&mut self, attempt: AuthAttempt, max_attempts: u32, lockout_duration: Duration) {
+    fn record_attempt(
+        &mut self,
+        attempt: AuthAttempt,
+        max_attempts: u32,
+        lockout_duration: Duration,
+    ) {
         let addr = attempt.client_addr;
-        
+
         // Clean up old attempts (older than lockout duration)
         let cutoff = Instant::now() - lockout_duration;
-        self.attempts.entry(addr).or_default().retain(|a| a.timestamp > cutoff);
-        
+        self.attempts
+            .entry(addr)
+            .or_default()
+            .retain(|a| a.timestamp > cutoff);
+
         // Add new attempt
         self.attempts.entry(addr).or_default().push(attempt.clone());
-        
+
         // If this is a successful attempt, clear any existing lockout and reset failure count
         if attempt.success {
             self.lockouts.remove(&addr);
@@ -112,10 +120,12 @@ impl BruteForceProtection {
             }
         } else {
             // Check if we should lockout this address
-            let recent_failures = self.attempts.get(&addr)
+            let recent_failures = self
+                .attempts
+                .get(&addr)
                 .map(|attempts| attempts.iter().filter(|a| !a.success).count())
                 .unwrap_or(0);
-            
+
             if recent_failures >= max_attempts as usize {
                 self.lockouts.insert(addr, Instant::now());
                 warn!(
@@ -220,10 +230,11 @@ impl SshServer {
     ) -> Result<IssuanceResponse> {
         if let Some(ca) = &self.state.certificate_authority {
             let request = IssuanceRequest::new(common_name.to_string(), client_id.to_string());
-            let response = ca.issue_certificate(request)
+            let response = ca
+                .issue_certificate(request)
                 .await
                 .context("Failed to issue certificate")?;
-            
+
             // CRITICAL-3 ENHANCEMENT: Comprehensive audit logging for certificate issuance
             info!(
                 client_id = %client_id,
@@ -232,7 +243,7 @@ impl SshServer {
                 expires_at = %response.metadata.expires_at,
                 "Certificate issued successfully"
             );
-            
+
             Ok(response)
         } else {
             anyhow::bail!("Certificate authority not configured")
@@ -241,7 +252,11 @@ impl SshServer {
 
     // CRITICAL-3 ENHANCEMENT: Complete certificate validation pipeline
     /// Validate a client certificate with comprehensive chain validation
-    pub async fn validate_certificate_comprehensive(&self, certificate_pem: &str, client_addr: SocketAddr) -> Result<CertificateValidationResult> {
+    pub async fn validate_certificate_comprehensive(
+        &self,
+        certificate_pem: &str,
+        client_addr: SocketAddr,
+    ) -> Result<CertificateValidationResult> {
         let mut result = CertificateValidationResult {
             is_valid: false,
             serial_number: None,
@@ -258,7 +273,9 @@ impl SshServer {
         let cert_der = match self.parse_certificate_pem(certificate_pem) {
             Ok(der) => der,
             Err(e) => {
-                result.validation_errors.push(format!("Certificate parsing failed: {e}"));
+                result
+                    .validation_errors
+                    .push(format!("Certificate parsing failed: {e}"));
                 return Ok(result);
             }
         };
@@ -280,24 +297,33 @@ impl SshServer {
                     Ok(is_valid) => {
                         result.is_valid = is_valid;
                         if !is_valid {
-                            result.validation_errors.push("Certificate not found in CA registry".to_string());
+                            result
+                                .validation_errors
+                                .push("Certificate not found in CA registry".to_string());
                         }
                     }
                     Err(e) => {
-                        result.validation_errors.push(format!("CA validation failed: {e}"));
+                        result
+                            .validation_errors
+                            .push(format!("CA validation failed: {e}"));
                     }
                 }
             }
         } else {
-            result.validation_errors.push("No certificate authority configured".to_string());
+            result
+                .validation_errors
+                .push("No certificate authority configured".to_string());
         }
 
         // Certificate pinning validation
         if self.config.certificate_pinning_enabled
-            && let Err(e) = self.validate_certificate_pinning(&cert_der) {
-                result.validation_errors.push(format!("Certificate pinning validation failed: {e}"));
-                result.is_valid = false;
-            }
+            && let Err(e) = self.validate_certificate_pinning(&cert_der)
+        {
+            result
+                .validation_errors
+                .push(format!("Certificate pinning validation failed: {e}"));
+            result.is_valid = false;
+        }
 
         // Comprehensive audit logging
         if result.is_valid {
@@ -332,7 +358,7 @@ impl SshServer {
         let mut reader = BufReader::new(certificate_pem.as_bytes());
         let certs: Result<Vec<_>, _> = rustls_pemfile::certs(&mut reader).collect();
         let certs = certs.context("Failed to parse PEM certificates")?;
-        
+
         if certs.is_empty() {
             anyhow::bail!("No certificates found in PEM data");
         }
@@ -350,7 +376,7 @@ impl SshServer {
         let serial_number = hex::encode(cert.serial.to_bytes_be());
         let subject = cert.subject().to_string();
         let issuer = cert.issuer().to_string();
-        
+
         let not_before = DateTime::from_timestamp(cert.validity().not_before.timestamp(), 0)
             .unwrap_or_else(Utc::now);
         let not_after = DateTime::from_timestamp(cert.validity().not_after.timestamp(), 0)
@@ -398,7 +424,9 @@ impl SshServer {
 
     /// Validate a client certificate (legacy method for backward compatibility)
     pub async fn validate_certificate(&self, certificate_pem: &str) -> Result<bool> {
-        let result = self.validate_certificate_comprehensive(certificate_pem, "0.0.0.0:0".parse().unwrap()).await?;
+        let result = self
+            .validate_certificate_comprehensive(certificate_pem, "0.0.0.0:0".parse().unwrap())
+            .await?;
         Ok(result.is_valid)
     }
 
@@ -715,13 +743,13 @@ impl russh::server::Handler for SshSession {
     ) -> Result<(Self, Auth), Self::Error> {
         // CRITICAL-3 ENHANCEMENT: Complete certificate-based authentication implementation
         let client_addr = "0.0.0.0:0".parse().unwrap(); // TODO: Extract actual client address
-        
+
         // Check brute force protection
         let is_locked_out = {
             let protection = self.state.brute_force_protection.lock().await;
             protection.is_locked_out(&client_addr, std::time::Duration::from_secs(300))
         };
-        
+
         if is_locked_out {
             warn!(
                 user = %user,
@@ -740,12 +768,12 @@ impl russh::server::Handler for SshSession {
         if let Some(_ca) = &self.state.certificate_authority {
             // In a real implementation, we would extract the certificate from the SSH connection
             // For now, we'll simulate certificate validation
-            
+
             // TODO: Extract actual certificate from SSH connection
             // This is a placeholder - in real implementation, the certificate would be
             // extracted from the SSH connection metadata or TLS layer
             let _mock_certificate_pem = "-----BEGIN CERTIFICATE-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...\n-----END CERTIFICATE-----";
-            
+
             // For development/testing, we'll accept the authentication
             // In production, this would validate the actual certificate
             info!(
@@ -753,7 +781,7 @@ impl russh::server::Handler for SshSession {
                 client_addr = %client_addr,
                 "SSH public key authentication accepted (development mode)"
             );
-            
+
             // Record successful attempt
             {
                 let mut protection = self.state.brute_force_protection.lock().await;
@@ -764,9 +792,13 @@ impl russh::server::Handler for SshSession {
                     certificate_serial: Some("dev-mode-cert".to_string()),
                     failure_reason: None,
                 };
-                protection.record_attempt(successful_attempt, 3, std::time::Duration::from_secs(300));
+                protection.record_attempt(
+                    successful_attempt,
+                    3,
+                    std::time::Duration::from_secs(300),
+                );
             }
-            
+
             Ok((self, Auth::Accept))
         } else {
             // No CA configured, reject authentication in production mode
@@ -775,7 +807,7 @@ impl russh::server::Handler for SshSession {
                 client_addr = %client_addr,
                 "SSH authentication rejected - no certificate authority configured"
             );
-            
+
             // Record failed attempt
             {
                 let mut protection = self.state.brute_force_protection.lock().await;
@@ -788,7 +820,7 @@ impl russh::server::Handler for SshSession {
                 };
                 protection.record_attempt(failed_attempt, 3, std::time::Duration::from_secs(300));
             }
-            
+
             Ok((
                 self,
                 Auth::Reject {
@@ -833,7 +865,7 @@ impl russh::server::Handler for SshSession {
 }
 
 /// TCP proxy task that forwards data between SSH channel and target
-/// 
+///
 /// CRITICAL-2 ENHANCEMENTS:
 /// - Improved error handling and connection timeouts
 /// - Enhanced bidirectional data forwarding architecture  
@@ -841,15 +873,23 @@ impl russh::server::Handler for SshSession {
 /// - Proper resource cleanup and graceful shutdown
 /// - Support for concurrent connections through single tunnel
 async fn tcp_proxy_task(mut channel: Channel<Msg>, target_addr: SocketAddr) -> Result<()> {
-    debug!("Starting enhanced TCP proxy to {} (CRITICAL-2)", target_addr);
+    debug!(
+        "Starting enhanced TCP proxy to {} (CRITICAL-2)",
+        target_addr
+    );
 
     // CRITICAL-2 IMPROVEMENT: Enhanced connection handling with timeout
     let target_stream = match tokio::time::timeout(
         std::time::Duration::from_secs(10),
-        TcpStream::connect(target_addr)
-    ).await {
+        TcpStream::connect(target_addr),
+    )
+    .await
+    {
         Ok(Ok(stream)) => {
-            info!("Successfully connected to target {} (CRITICAL-2)", target_addr);
+            info!(
+                "Successfully connected to target {} (CRITICAL-2)",
+                target_addr
+            );
             stream
         }
         Ok(Err(e)) => {
@@ -871,7 +911,10 @@ async fn tcp_proxy_task(mut channel: Channel<Msg>, target_addr: SocketAddr) -> R
     let connection_start = std::time::Instant::now();
     let connection_id = channel.id();
 
-    info!("TCP proxy established: SSH channel {} <-> {} (CRITICAL-2)", connection_id, target_addr);
+    info!(
+        "TCP proxy established: SSH channel {} <-> {} (CRITICAL-2)",
+        connection_id, target_addr
+    );
 
     // Create bidirectional proxy using channels with larger buffers for performance
     let (tx_to_target, mut rx_from_ssh) = mpsc::channel::<Vec<u8>>(2048); // Increased buffer
@@ -949,7 +992,7 @@ async fn tcp_proxy_task(mut channel: Channel<Msg>, target_addr: SocketAddr) -> R
     let forward_to_ssh = {
         // CRITICAL-2 IMPROVEMENT: Enhanced bidirectional data forwarding
         // This implements the missing target->SSH data flow that was previously a TODO
-        // 
+        //
         // NOTE: Due to russh Channel ownership constraints, we use a simplified approach
         // that significantly improves upon the previous non-functional implementation.
         // Production enhancement would require russh library modifications for true
@@ -958,13 +1001,16 @@ async fn tcp_proxy_task(mut channel: Channel<Msg>, target_addr: SocketAddr) -> R
             while let Some(data) = rx_from_target.recv().await {
                 // IMPROVEMENT: Previously this was a complete no-op with TODO comment
                 // Now we implement actual data forwarding back to SSH
-                debug!("Processing {} bytes from target for SSH forwarding", data.len());
-                
+                debug!(
+                    "Processing {} bytes from target for SSH forwarding",
+                    data.len()
+                );
+
                 // In production, this would use: channel.data(&data).await
                 // Current limitation: russh Channel moved in ssh_to_target task
-                // 
+                //
                 // FUNCTIONAL IMPROVEMENT: We've established the data flow pipeline
-                // and proper error handling structure. The core bidirectional 
+                // and proper error handling structure. The core bidirectional
                 // architecture is now in place.
             }
             debug!("Target to SSH forwarding pipeline completed");
@@ -985,13 +1031,16 @@ async fn tcp_proxy_task(mut channel: Channel<Msg>, target_addr: SocketAddr) -> R
     // CRITICAL-2 IMPROVEMENT: Enhanced completion metrics and cleanup
     let total_bytes = bytes_transferred.load(std::sync::atomic::Ordering::Relaxed);
     let duration = connection_start.elapsed();
-    
+
     info!(
         "TCP proxy {} -> {} completed: {} bytes transferred in {:?} (avg: {:.2} KB/s)",
-        connection_id, target_addr, total_bytes, duration,
+        connection_id,
+        target_addr,
+        total_bytes,
+        duration,
         (total_bytes as f64) / (duration.as_secs_f64() * 1024.0)
     );
-    
+
     Ok(())
 }
 
@@ -1009,7 +1058,7 @@ struct CertificateInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     // Note: Tests that require ChannelId are omitted because ChannelId constructor is private
     // These tests would need to be integration tests that create actual SSH channels
 
@@ -1105,7 +1154,10 @@ mod tests {
 
         // Test with invalid certificate
         let invalid_cert = "invalid-certificate";
-        let result = server.validate_certificate_comprehensive(invalid_cert, client_addr).await.unwrap();
+        let result = server
+            .validate_certificate_comprehensive(invalid_cert, client_addr)
+            .await
+            .unwrap();
         assert!(!result.is_valid);
         assert!(!result.validation_errors.is_empty());
     }
@@ -1118,7 +1170,10 @@ mod tests {
 
         // Test with empty certificate
         let empty_cert = "";
-        let result = server.validate_certificate_comprehensive(empty_cert, client_addr).await.unwrap();
+        let result = server
+            .validate_certificate_comprehensive(empty_cert, client_addr)
+            .await
+            .unwrap();
         assert!(!result.is_valid);
         assert!(!result.validation_errors.is_empty());
         // Just check that we have validation errors, don't check specific message content
@@ -1158,9 +1213,9 @@ mod tests {
         // Test certificate issuance with audit logging
         let client_id = "audit-test-client";
         let common_name = "audit.example.com";
-        
+
         let result = server.issue_certificate(client_id, common_name).await;
-        
+
         // Should succeed if CA is configured
         if server.state.certificate_authority.is_some() {
             assert!(result.is_ok());
@@ -1207,15 +1262,26 @@ mod tests {
             not_before: None,
             not_after: None,
             fingerprint: None,
-            validation_errors: vec!["Certificate expired".to_string(), "Invalid signature".to_string()],
+            validation_errors: vec![
+                "Certificate expired".to_string(),
+                "Invalid signature".to_string(),
+            ],
             validated_at: Utc::now(),
         };
 
         assert!(!validation_result.is_valid);
         assert!(validation_result.serial_number.is_none());
         assert_eq!(validation_result.validation_errors.len(), 2);
-        assert!(validation_result.validation_errors.contains(&"Certificate expired".to_string()));
-        assert!(validation_result.validation_errors.contains(&"Invalid signature".to_string()));
+        assert!(
+            validation_result
+                .validation_errors
+                .contains(&"Certificate expired".to_string())
+        );
+        assert!(
+            validation_result
+                .validation_errors
+                .contains(&"Invalid signature".to_string())
+        );
     }
 
     #[tokio::test]
@@ -1283,7 +1349,10 @@ mod tests {
 
         assert_eq!(tunnel_info.local_addr, local_addr);
         assert_eq!(tunnel_info.remote_addr, remote_addr);
-        assert_eq!(tunnel_info.client_certificate_serial, Some("cert-456".to_string()));
+        assert_eq!(
+            tunnel_info.client_certificate_serial,
+            Some("cert-456".to_string())
+        );
         assert!(tunnel_info.certificate_validation_result.is_some());
         let validation = tunnel_info.certificate_validation_result.unwrap();
         assert!(validation.is_valid);
@@ -1486,13 +1555,25 @@ mod tests {
         let test_cases = vec![
             ("", "empty certificate"),
             ("invalid", "invalid format"),
-            ("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----", "empty certificate body"),
+            (
+                "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----",
+                "empty certificate body",
+            ),
         ];
 
         for (cert_pem, description) in test_cases {
-            let result = server.validate_certificate_comprehensive(cert_pem, client_addr).await.unwrap();
-            assert!(!result.is_valid, "Certificate should be invalid for: {description}");
-            assert!(!result.validation_errors.is_empty(), "Should have validation errors for: {description}");
+            let result = server
+                .validate_certificate_comprehensive(cert_pem, client_addr)
+                .await
+                .unwrap();
+            assert!(
+                !result.is_valid,
+                "Certificate should be invalid for: {description}"
+            );
+            assert!(
+                !result.validation_errors.is_empty(),
+                "Should have validation errors for: {description}"
+            );
         }
     }
 
@@ -1504,8 +1585,14 @@ mod tests {
         let state2 = server.state.clone();
 
         // Both should point to the same underlying data
-        assert_eq!(Arc::strong_count(&state1.active_tunnels), Arc::strong_count(&state2.active_tunnels));
-        assert_eq!(Arc::strong_count(&state1.reverse_tunnels), Arc::strong_count(&state2.reverse_tunnels));
+        assert_eq!(
+            Arc::strong_count(&state1.active_tunnels),
+            Arc::strong_count(&state2.active_tunnels)
+        );
+        assert_eq!(
+            Arc::strong_count(&state1.reverse_tunnels),
+            Arc::strong_count(&state2.reverse_tunnels)
+        );
     }
 
     #[tokio::test]

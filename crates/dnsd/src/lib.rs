@@ -7,6 +7,9 @@ use rustls::ServerConfig;
 use tokio::sync::broadcast;
 
 pub mod redis_cache;
+pub mod redis_cluster;
+pub mod redis_performance;
+pub mod redis_sentinel;
 pub mod sign;
 mod udp;
 // HIGH-1 ENHANCEMENT: Production DoT features

@@ -23,7 +23,7 @@ async fn test_e2e_tunnel_complete_flow() {
     let test_result = timeout(Duration::from_secs(30), async {
         // Try to start Redis server with its own timeout
         let redis_result = timeout(Duration::from_secs(10), start_test_redis()).await;
-        
+
         let Some((redis_url, redis_handle)) = redis_result.unwrap_or_else(|_| {
             eprintln!("Redis server startup timed out");
             None
@@ -59,7 +59,8 @@ async fn test_e2e_tunnel_complete_flow() {
 
         // Cleanup
         redis_handle.abort();
-    }).await;
+    })
+    .await;
 
     if test_result.is_err() {
         panic!("Test timed out after 30 seconds");
@@ -288,10 +289,10 @@ async fn test_graceful_cleanup() {
     // Wrap the entire test in a timeout to prevent hanging
     let test_result = timeout(Duration::from_secs(15), async {
         eprintln!("Starting Redis server...");
-        
+
         // Try to start Redis server with its own timeout
         let redis_result = timeout(Duration::from_secs(10), start_test_redis()).await;
-        
+
         let Some((redis_url, redis_handle)) = redis_result.unwrap_or_else(|_| {
             eprintln!("Redis server startup timed out");
             None
@@ -320,7 +321,7 @@ async fn test_graceful_cleanup() {
         let ttl = 60;
 
         eprintln!("Setting slot '{slot}' to '{ip}'");
-        
+
         // Try to set slot with better error handling
         match redis_cache::set_slot(&redis_pool, slot, ip, ttl).await {
             Ok(_) => eprintln!("Slot set successfully"),
@@ -359,7 +360,8 @@ async fn test_graceful_cleanup() {
 
         // Cleanup
         redis_handle.abort();
-    }).await;
+    })
+    .await;
 
     if test_result.is_err() {
         panic!("Test timed out after 15 seconds");
@@ -370,13 +372,14 @@ async fn test_graceful_cleanup() {
 #[tokio::test]
 async fn test_basic_timeout() {
     let _ = tracing_subscriber::fmt::try_init();
-    
+
     // This should complete quickly
     let test_result = timeout(Duration::from_secs(5), async {
         tokio::time::sleep(Duration::from_millis(100)).await;
         info!("Basic timeout test completed successfully");
-    }).await;
-    
+    })
+    .await;
+
     assert!(test_result.is_ok(), "Basic timeout test should not timeout");
 }
 

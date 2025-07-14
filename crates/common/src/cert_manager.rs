@@ -73,7 +73,10 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use ring::digest;
-use rustls::{ServerConfig, pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer}};
+use rustls::{
+    ServerConfig,
+    pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer},
+};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::interval;
@@ -113,7 +116,8 @@ impl Default for CertManagerConfig {
         Self {
             // HIGH-1 ENHANCEMENT: Use Let's Encrypt staging for development/testing
             // Production should set this to: "https://acme-v02.api.letsencrypt.org/directory"
-            acme_directory_url: "https://acme-staging-v02.api.letsencrypt.org/directory".to_string(),
+            acme_directory_url: "https://acme-staging-v02.api.letsencrypt.org/directory"
+                .to_string(),
             acme_contact_email: "admin@fleetingdns.run".to_string(),
             domains: vec!["fleetingdns.run".to_string()],
             cert_storage_path: PathBuf::from("/etc/fleetingdns/certs"),
@@ -129,7 +133,7 @@ impl Default for CertManagerConfig {
 
 impl CertManagerConfig {
     /// Create configuration for Let's Encrypt production endpoint
-    /// 
+    ///
     /// **WARNING**: Only use this in production! The production endpoint has strict rate limits:
     /// - 50 certificates per registered domain per week
     /// - 5 failures per account per hostname per hour
@@ -142,7 +146,7 @@ impl CertManagerConfig {
     }
 
     /// Create configuration for Let's Encrypt staging endpoint (default)
-    /// 
+    ///
     /// This is safe for development and testing with much higher rate limits:
     /// - 30,000 certificates per registered domain per week
     /// - No limit on failures
@@ -153,16 +157,18 @@ impl CertManagerConfig {
 
     /// Check if this configuration is using the production endpoint
     pub fn is_production(&self) -> bool {
-        self.acme_directory_url.contains("acme-v02.api.letsencrypt.org")
+        self.acme_directory_url
+            .contains("acme-v02.api.letsencrypt.org")
     }
 
     /// Check if this configuration is using the staging endpoint
     pub fn is_staging(&self) -> bool {
-        self.acme_directory_url.contains("acme-staging-v02.api.letsencrypt.org")
+        self.acme_directory_url
+            .contains("acme-staging-v02.api.letsencrypt.org")
     }
 
     /// Switch to production endpoint
-    /// 
+    ///
     /// **WARNING**: Only call this in production environments!
     pub fn use_production(&mut self) {
         self.acme_directory_url = "https://acme-v02.api.letsencrypt.org/directory".to_string();
@@ -170,7 +176,8 @@ impl CertManagerConfig {
 
     /// Switch to staging endpoint (safe for development/testing)
     pub fn use_staging(&mut self) {
-        self.acme_directory_url = "https://acme-staging-v02.api.letsencrypt.org/directory".to_string();
+        self.acme_directory_url =
+            "https://acme-staging-v02.api.letsencrypt.org/directory".to_string();
     }
 }
 
@@ -302,9 +309,12 @@ impl CertificateManager {
         }
 
         let spki_fingerprint = self.calculate_spki_fingerprint(cert_der)?;
-        
-        let is_pinned = self.config.pinned_spki_fingerprints.contains(&spki_fingerprint);
-        
+
+        let is_pinned = self
+            .config
+            .pinned_spki_fingerprints
+            .contains(&spki_fingerprint);
+
         if !is_pinned {
             warn!(
                 spki_fingerprint = %spki_fingerprint,
@@ -340,11 +350,12 @@ impl CertificateManager {
     async fn ensure_valid_certificate(&self) -> AppResult<()> {
         // Check if we have a stored certificate
         if let Ok(cert_info) = self.load_stored_certificate().await
-            && self.is_certificate_valid(&cert_info) {
-                info!("Using valid stored certificate");
-                self.load_certificate_from_info(&cert_info).await?;
-                return Ok(());
-            }
+            && self.is_certificate_valid(&cert_info)
+        {
+            info!("Using valid stored certificate");
+            self.load_certificate_from_info(&cert_info).await?;
+            return Ok(());
+        }
 
         // Acquire new certificate via ACME
         info!("Acquiring new certificate via ACME");
@@ -363,7 +374,7 @@ impl CertificateManager {
     fn is_certificate_valid(&self, cert_info: &CertificateInfo) -> bool {
         let now = Utc::now();
         let renewal_threshold = chrono::Duration::days(self.config.renewal_threshold_days as i64);
-        
+
         cert_info.not_after > now + renewal_threshold
     }
 
@@ -393,7 +404,7 @@ impl CertificateManager {
 
         // Parse certificate for metadata
         let cert_der = cert.cert.der().to_vec();
-        
+
         let cert_info = self.extract_certificate_info(&cert_der, CertificateSource::SelfSigned)?;
 
         // Store certificate and key
@@ -508,7 +519,11 @@ impl CertificateManager {
     }
 
     /// Extract certificate information from DER bytes
-    fn extract_certificate_info(&self, cert_der: &[u8], source: CertificateSource) -> AppResult<CertificateInfo> {
+    fn extract_certificate_info(
+        &self,
+        cert_der: &[u8],
+        source: CertificateSource,
+    ) -> AppResult<CertificateInfo> {
         let (_, cert) = X509Certificate::from_der(cert_der)
             .map_err(|e| AppError::Message(format!("Failed to parse certificate: {e}")))?;
 
@@ -573,10 +588,13 @@ impl CertificateManager {
 
         let mut reader = BufReader::new(cert_pem.as_bytes());
         let certs: Result<Vec<_>, _> = rustls_pemfile::certs(&mut reader).collect();
-        let certs = certs.map_err(|e| AppError::Message(format!("Failed to parse PEM certificate: {e}")))?;
+        let certs = certs
+            .map_err(|e| AppError::Message(format!("Failed to parse PEM certificate: {e}")))?;
 
         if certs.is_empty() {
-            return Err(AppError::Message("No certificates found in PEM data".to_string()));
+            return Err(AppError::Message(
+                "No certificates found in PEM data".to_string(),
+            ));
         }
 
         Ok(certs.into_iter().next().unwrap())
@@ -588,21 +606,26 @@ impl CertificateManager {
         use std::io::BufReader;
 
         let mut reader = BufReader::new(key_pem.as_bytes());
-        
+
         // Try PKCS8 format first
-        let pkcs8_keys: Result<Vec<_>, _> = rustls_pemfile::pkcs8_private_keys(&mut reader).collect();
+        let pkcs8_keys: Result<Vec<_>, _> =
+            rustls_pemfile::pkcs8_private_keys(&mut reader).collect();
         if let Ok(keys) = pkcs8_keys
-            && let Some(key) = keys.into_iter().next() {
-                return Ok(PrivateKeyDer::from(key));
-            }
+            && let Some(key) = keys.into_iter().next()
+        {
+            return Ok(PrivateKeyDer::from(key));
+        }
 
         // Try RSA format if PKCS8 fails
         let mut reader = BufReader::new(key_pem.as_bytes());
         let rsa_keys: Result<Vec<_>, _> = rustls_pemfile::rsa_private_keys(&mut reader).collect();
         if let Ok(keys) = rsa_keys
-            && let Some(key) = keys.into_iter().next() {
-                return Ok(PrivateKeyDer::from(PrivatePkcs8KeyDer::from(key.secret_pkcs1_der().to_vec())));
-            }
+            && let Some(key) = keys.into_iter().next()
+        {
+            return Ok(PrivateKeyDer::from(PrivatePkcs8KeyDer::from(
+                key.secret_pkcs1_der().to_vec(),
+            )));
+        }
 
         Err(AppError::Message("Failed to parse private key".to_string()))
     }
@@ -756,7 +779,10 @@ mod tests {
         let default_config = CertManagerConfig::default();
         assert!(default_config.is_staging());
         assert!(!default_config.is_production());
-        assert_eq!(default_config.acme_directory_url, "https://acme-staging-v02.api.letsencrypt.org/directory");
+        assert_eq!(
+            default_config.acme_directory_url,
+            "https://acme-staging-v02.api.letsencrypt.org/directory"
+        );
 
         // Test staging configuration
         let staging_config = CertManagerConfig::staging();
@@ -767,13 +793,16 @@ mod tests {
         let production_config = CertManagerConfig::production();
         assert!(production_config.is_production());
         assert!(!production_config.is_staging());
-        assert_eq!(production_config.acme_directory_url, "https://acme-v02.api.letsencrypt.org/directory");
+        assert_eq!(
+            production_config.acme_directory_url,
+            "https://acme-v02.api.letsencrypt.org/directory"
+        );
     }
 
     #[test]
     fn test_endpoint_switching() {
         let mut config = CertManagerConfig::staging();
-        
+
         // Start with staging
         assert!(config.is_staging());
         assert!(!config.is_production());
@@ -816,4 +845,4 @@ mod tests {
         assert!(!custom_config.is_production());
         assert!(!custom_config.is_staging());
     }
-} 
+}

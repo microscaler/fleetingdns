@@ -222,7 +222,7 @@ mod tests {
         for error in errors {
             let error_string = error.to_string();
             assert!(!error_string.is_empty());
-            
+
             // Test that they can be converted to responses
             let response = error.into_response();
             assert!(response.status().is_client_error() || response.status().is_server_error());
@@ -241,7 +241,7 @@ mod tests {
     fn test_api_error_from_edf_ca_error() {
         let ca_error = edf_ca::CaError::InvalidRequest("Invalid cert request".to_string());
         let api_error: ApiError = ca_error.into();
-        
+
         match api_error {
             ApiError::CertificateError(msg) => {
                 assert!(msg.contains("Invalid cert request"));
@@ -254,7 +254,7 @@ mod tests {
     fn test_api_error_from_io_error() {
         let io_error = std::io::Error::new(std::io::ErrorKind::NotFound, "File not found");
         let api_error: ApiError = io_error.into();
-        
+
         match api_error {
             ApiError::InternalError(msg) => {
                 assert!(msg.contains("File not found"));
@@ -277,14 +277,38 @@ mod tests {
     #[test]
     fn test_api_error_status_codes() {
         let test_cases = vec![
-            (ApiError::BadRequest("test".to_string()), StatusCode::BAD_REQUEST),
-            (ApiError::Unauthorized("test".to_string()), StatusCode::UNAUTHORIZED),
-            (ApiError::Forbidden("test".to_string()), StatusCode::FORBIDDEN),
-            (ApiError::TunnelNotFound("test".to_string()), StatusCode::NOT_FOUND),
-            (ApiError::StorageError("test".to_string()), StatusCode::INTERNAL_SERVER_ERROR),
-            (ApiError::CertificateError("test".to_string()), StatusCode::INTERNAL_SERVER_ERROR),
-            (ApiError::ConfigurationError("test".to_string()), StatusCode::INTERNAL_SERVER_ERROR),
-            (ApiError::InternalError("test".to_string()), StatusCode::INTERNAL_SERVER_ERROR),
+            (
+                ApiError::BadRequest("test".to_string()),
+                StatusCode::BAD_REQUEST,
+            ),
+            (
+                ApiError::Unauthorized("test".to_string()),
+                StatusCode::UNAUTHORIZED,
+            ),
+            (
+                ApiError::Forbidden("test".to_string()),
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                ApiError::TunnelNotFound("test".to_string()),
+                StatusCode::NOT_FOUND,
+            ),
+            (
+                ApiError::StorageError("test".to_string()),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
+            (
+                ApiError::CertificateError("test".to_string()),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
+            (
+                ApiError::ConfigurationError("test".to_string()),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
+            (
+                ApiError::InternalError("test".to_string()),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            ),
         ];
 
         for (error, expected_status) in test_cases {
@@ -297,10 +321,12 @@ mod tests {
     async fn test_api_error_response_body() {
         let error = ApiError::BadRequest("Invalid input".to_string());
         let response = error.into_response();
-        
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
         let body_str = String::from_utf8(body.to_vec()).unwrap();
-        
+
         // Should contain error information in JSON format
         assert!(body_str.contains("error"));
         assert!(body_str.contains("Invalid input"));

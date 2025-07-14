@@ -1,0 +1,347 @@
+# Redis Sentinel Configuration for FleetingDNS
+# Provides automatic failover and health monitoring for Redis Cluster
+
+# Redis Sentinel instances for EU region
+---
+apiVersion: redis.gcp.upbound.io/v1beta1
+kind: Instance
+metadata:
+  name: fleetingdns-redis-sentinel-eu-1
+  labels:
+    app.kubernetes.io/name: fleetingdns-redis-sentinel
+    app.kubernetes.io/component: database-monitor
+    app.kubernetes.io/part-of: fleetingdns
+    redis.fleetingdns.io/cluster: primary
+    redis.fleetingdns.io/role: sentinel
+    redis.fleetingdns.io/node: "1"
+spec:
+  forProvider:
+    name: fleetingdns-redis-sentinel-eu-1
+    project: fleetingdns-infra
+    region: europe-west1
+    tier: BASIC
+    memorySizeGb: 1  # Sentinel requires minimal memory
+    redisVersion: REDIS_7_0
+    displayName: "FleetingDNS EU Sentinel 1"
+    authorizedNetwork: "projects/fleetingdns-infra/global/networks/fleetingdns-infra-vpc"
+    connectMode: PRIVATE_SERVICE_ACCESS
+    authEnabled: true
+    transitEncryptionMode: SERVER_AUTHENTICATION
+    redisConfigs:
+      # Sentinel configuration
+      sentinel: "yes"
+      sentinel-announce-ip: "fleetingdns-redis-sentinel-eu-1"
+      sentinel-announce-port: "26379"
+      # Monitor the primary Redis cluster
+      sentinel-monitor: "fleetingdns-cluster fleetingdns-redis-cluster-eu-master-1 6379 2"
+      sentinel-down-after-milliseconds: "5000"
+      sentinel-failover-timeout: "10000"
+      sentinel-parallel-syncs: "1"
+      # Health check configuration
+      sentinel-auth-pass: "fleetingdns-cluster ${REDIS_AUTH_PASSWORD}"
+      # Logging and monitoring
+      loglevel: "notice"
+      logfile: "/var/log/redis/sentinel.log"
+      # Performance settings
+      tcp-keepalive: "300"
+      timeout: "30"
+    maintenancePolicy:
+      weeklyMaintenanceWindow:
+        - day: SUNDAY
+          startTime:
+            hours: 3
+            minutes: 0
+
+---
+apiVersion: redis.gcp.upbound.io/v1beta1
+kind: Instance
+metadata:
+  name: fleetingdns-redis-sentinel-eu-2
+  labels:
+    app.kubernetes.io/name: fleetingdns-redis-sentinel
+    app.kubernetes.io/component: database-monitor
+    app.kubernetes.io/part-of: fleetingdns
+    redis.fleetingdns.io/cluster: primary
+    redis.fleetingdns.io/role: sentinel
+    redis.fleetingdns.io/node: "2"
+spec:
+  forProvider:
+    name: fleetingdns-redis-sentinel-eu-2
+    project: fleetingdns-infra
+    region: europe-west1
+    tier: BASIC
+    memorySizeGb: 1
+    redisVersion: REDIS_7_0
+    displayName: "FleetingDNS EU Sentinel 2"
+    authorizedNetwork: "projects/fleetingdns-infra/global/networks/fleetingdns-infra-vpc"
+    connectMode: PRIVATE_SERVICE_ACCESS
+    authEnabled: true
+    transitEncryptionMode: SERVER_AUTHENTICATION
+    redisConfigs:
+      # Sentinel configuration
+      sentinel: "yes"
+      sentinel-announce-ip: "fleetingdns-redis-sentinel-eu-2"
+      sentinel-announce-port: "26379"
+      # Monitor the primary Redis cluster
+      sentinel-monitor: "fleetingdns-cluster fleetingdns-redis-cluster-eu-master-1 6379 2"
+      sentinel-down-after-milliseconds: "5000"
+      sentinel-failover-timeout: "10000"
+      sentinel-parallel-syncs: "1"
+      # Health check configuration
+      sentinel-auth-pass: "fleetingdns-cluster ${REDIS_AUTH_PASSWORD}"
+      # Logging and monitoring
+      loglevel: "notice"
+      logfile: "/var/log/redis/sentinel.log"
+      # Performance settings
+      tcp-keepalive: "300"
+      timeout: "30"
+    maintenancePolicy:
+      weeklyMaintenanceWindow:
+        - day: SUNDAY
+          startTime:
+            hours: 3
+            minutes: 30
+
+---
+apiVersion: redis.gcp.upbound.io/v1beta1
+kind: Instance
+metadata:
+  name: fleetingdns-redis-sentinel-eu-3
+  labels:
+    app.kubernetes.io/name: fleetingdns-redis-sentinel
+    app.kubernetes.io/component: database-monitor
+    app.kubernetes.io/part-of: fleetingdns
+    redis.fleetingdns.io/cluster: primary
+    redis.fleetingdns.io/role: sentinel
+    redis.fleetingdns.io/node: "3"
+spec:
+  forProvider:
+    name: fleetingdns-redis-sentinel-eu-3
+    project: fleetingdns-infra
+    region: europe-west1
+    tier: BASIC
+    memorySizeGb: 1
+    redisVersion: REDIS_7_0
+    displayName: "FleetingDNS EU Sentinel 3"
+    authorizedNetwork: "projects/fleetingdns-infra/global/networks/fleetingdns-infra-vpc"
+    connectMode: PRIVATE_SERVICE_ACCESS
+    authEnabled: true
+    transitEncryptionMode: SERVER_AUTHENTICATION
+    redisConfigs:
+      # Sentinel configuration
+      sentinel: "yes"
+      sentinel-announce-ip: "fleetingdns-redis-sentinel-eu-3"
+      sentinel-announce-port: "26379"
+      # Monitor the primary Redis cluster
+      sentinel-monitor: "fleetingdns-cluster fleetingdns-redis-cluster-eu-master-1 6379 2"
+      sentinel-down-after-milliseconds: "5000"
+      sentinel-failover-timeout: "10000"
+      sentinel-parallel-syncs: "1"
+      # Health check configuration
+      sentinel-auth-pass: "fleetingdns-cluster ${REDIS_AUTH_PASSWORD}"
+      # Logging and monitoring
+      loglevel: "notice"
+      logfile: "/var/log/redis/sentinel.log"
+      # Performance settings
+      tcp-keepalive: "300"
+      timeout: "30"
+    maintenancePolicy:
+      weeklyMaintenanceWindow:
+        - day: SUNDAY
+          startTime:
+            hours: 4
+            minutes: 0
+
+# Redis Sentinel instances for US region
+---
+apiVersion: redis.gcp.upbound.io/v1beta1
+kind: Instance
+metadata:
+  name: fleetingdns-redis-sentinel-us-1
+  labels:
+    app.kubernetes.io/name: fleetingdns-redis-sentinel
+    app.kubernetes.io/component: database-monitor
+    app.kubernetes.io/part-of: fleetingdns
+    redis.fleetingdns.io/cluster: us
+    redis.fleetingdns.io/role: sentinel
+    redis.fleetingdns.io/node: "1"
+spec:
+  forProvider:
+    name: fleetingdns-redis-sentinel-us-1
+    project: fleetingdns-prod-us
+    region: us-central1
+    tier: BASIC
+    memorySizeGb: 1
+    redisVersion: REDIS_7_0
+    displayName: "FleetingDNS US Sentinel 1"
+    authorizedNetwork: "projects/fleetingdns-prod-us/global/networks/fleetingdns-prod-us-vpc"
+    connectMode: PRIVATE_SERVICE_ACCESS
+    authEnabled: true
+    transitEncryptionMode: SERVER_AUTHENTICATION
+    redisConfigs:
+      # Sentinel configuration
+      sentinel: "yes"
+      sentinel-announce-ip: "fleetingdns-redis-sentinel-us-1"
+      sentinel-announce-port: "26379"
+      # Monitor the US Redis cluster
+      sentinel-monitor: "fleetingdns-cluster-us fleetingdns-redis-cluster-us-master-1 6379 2"
+      sentinel-down-after-milliseconds: "5000"
+      sentinel-failover-timeout: "10000"
+      sentinel-parallel-syncs: "1"
+      # Health check configuration
+      sentinel-auth-pass: "fleetingdns-cluster-us ${REDIS_AUTH_PASSWORD}"
+      # Logging and monitoring
+      loglevel: "notice"
+      logfile: "/var/log/redis/sentinel.log"
+      # Performance settings
+      tcp-keepalive: "300"
+      timeout: "30"
+    maintenancePolicy:
+      weeklyMaintenanceWindow:
+        - day: SUNDAY
+          startTime:
+            hours: 6
+            minutes: 0
+
+# Redis Sentinel instances for APAC region
+---
+apiVersion: redis.gcp.upbound.io/v1beta1
+kind: Instance
+metadata:
+  name: fleetingdns-redis-sentinel-apac-1
+  labels:
+    app.kubernetes.io/name: fleetingdns-redis-sentinel
+    app.kubernetes.io/component: database-monitor
+    app.kubernetes.io/part-of: fleetingdns
+    redis.fleetingdns.io/cluster: apac
+    redis.fleetingdns.io/role: sentinel
+    redis.fleetingdns.io/node: "1"
+spec:
+  forProvider:
+    name: fleetingdns-redis-sentinel-apac-1
+    project: fleetingdns-prod-apac
+    region: asia-southeast1
+    tier: BASIC
+    memorySizeGb: 1
+    redisVersion: REDIS_7_0
+    displayName: "FleetingDNS APAC Sentinel 1"
+    authorizedNetwork: "projects/fleetingdns-prod-apac/global/networks/fleetingdns-prod-apac-vpc"
+    connectMode: PRIVATE_SERVICE_ACCESS
+    authEnabled: true
+    transitEncryptionMode: SERVER_AUTHENTICATION
+    redisConfigs:
+      # Sentinel configuration
+      sentinel: "yes"
+      sentinel-announce-ip: "fleetingdns-redis-sentinel-apac-1"
+      sentinel-announce-port: "26379"
+      # Monitor the APAC Redis cluster
+      sentinel-monitor: "fleetingdns-cluster-apac fleetingdns-redis-cluster-apac-master-1 6379 2"
+      sentinel-down-after-milliseconds: "5000"
+      sentinel-failover-timeout: "10000"
+      sentinel-parallel-syncs: "1"
+      # Health check configuration
+      sentinel-auth-pass: "fleetingdns-cluster-apac ${REDIS_AUTH_PASSWORD}"
+      # Logging and monitoring
+      loglevel: "notice"
+      logfile: "/var/log/redis/sentinel.log"
+      # Performance settings
+      tcp-keepalive: "300"
+      timeout: "30"
+    maintenancePolicy:
+      weeklyMaintenanceWindow:
+        - day: SUNDAY
+          startTime:
+            hours: 9
+            minutes: 0
+
+# Health monitoring configuration
+---
+apiVersion: monitoring.gcp.upbound.io/v1beta1
+kind: AlertPolicy
+metadata:
+  name: fleetingdns-redis-sentinel-health
+  labels:
+    app.kubernetes.io/name: fleetingdns-redis-sentinel
+    app.kubernetes.io/component: monitoring
+spec:
+  forProvider:
+    displayName: "FleetingDNS Redis Sentinel Health"
+    project: fleetingdns-infra
+    conditions:
+      - displayName: "Redis Sentinel Down"
+        conditionThreshold:
+          filter: 'resource.type="redis_instance" AND resource.label.instance_id=~"fleetingdns-redis-sentinel-.*"'
+          comparison: COMPARISON_EQUAL
+          thresholdValue: 0
+          duration: "300s"
+          aggregations:
+            - alignmentPeriod: "60s"
+              perSeriesAligner: ALIGN_MEAN
+              crossSeriesReducer: REDUCE_MEAN
+              groupByFields: ["resource.label.instance_id"]
+    alertStrategy:
+      autoClose: "1800s"
+    combiner: OR
+    enabled: true
+    notificationChannels: []
+
+---
+apiVersion: monitoring.gcp.upbound.io/v1beta1
+kind: AlertPolicy
+metadata:
+  name: fleetingdns-redis-cluster-failover
+  labels:
+    app.kubernetes.io/name: fleetingdns-redis-sentinel
+    app.kubernetes.io/component: monitoring
+spec:
+  forProvider:
+    displayName: "FleetingDNS Redis Cluster Failover"
+    project: fleetingdns-infra
+    conditions:
+      - displayName: "Redis Master Failover Detected"
+        conditionThreshold:
+          filter: 'resource.type="redis_instance" AND resource.label.instance_id=~"fleetingdns-redis-cluster-.*-master-.*"'
+          comparison: COMPARISON_GREATER_THAN
+          thresholdValue: 0
+          duration: "60s"
+          aggregations:
+            - alignmentPeriod: "60s"
+              perSeriesAligner: ALIGN_RATE
+              crossSeriesReducer: REDUCE_SUM
+              groupByFields: ["resource.label.instance_id"]
+    alertStrategy:
+      autoClose: "3600s"
+    combiner: OR
+    enabled: true
+    notificationChannels: []
+
+# Development environment simplified configuration
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fleetingdns-redis-sentinel-dev
+  namespace: fleetingdns-dev
+  labels:
+    app.kubernetes.io/name: fleetingdns-redis-sentinel
+    app.kubernetes.io/component: config
+    app.kubernetes.io/part-of: fleetingdns
+    environment: development
+data:
+  sentinel.conf: |
+    # Redis Sentinel configuration for development
+    port 26379
+    sentinel monitor fleetingdns-cluster redis-cluster 6379 2
+    sentinel down-after-milliseconds fleetingdns-cluster 5000
+    sentinel failover-timeout fleetingdns-cluster 10000
+    sentinel parallel-syncs fleetingdns-cluster 1
+    sentinel auth-pass fleetingdns-cluster dev-password
+    # Logging
+    loglevel notice
+    logfile ""
+    # Performance
+    tcp-keepalive 300
+    timeout 30
+    # Development optimizations
+    sentinel-announce-ip 127.0.0.1
+    sentinel-announce-port 26379 

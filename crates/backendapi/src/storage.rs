@@ -206,7 +206,7 @@ impl TunnelStorage {
     /// Clean up expired tunnels
     pub async fn cleanup_expired_tunnels(&self) -> ApiResult<u32> {
         let mut conn = self.get_connection().await?;
-        
+
         // Get all tunnel keys
         let tunnel_keys: Vec<String> = conn
             .keys("tunnel:*")
@@ -256,7 +256,6 @@ mod tests {
     use super::*;
     use crate::models::TunnelStatus;
 
-
     // Mock Redis connection for testing
     #[allow(dead_code)]
     struct MockRedisConnection;
@@ -288,7 +287,7 @@ mod tests {
         let user_id = "user123";
         let subdomain = "myapp";
         let expected_key = format!("tunnel:{user_id}:{subdomain}");
-        
+
         // This would be the key format used in the storage methods
         assert_eq!(expected_key, "tunnel:user123:myapp");
     }
@@ -440,7 +439,7 @@ mod tests {
     #[tokio::test]
     async fn test_tunnel_timing_fields() {
         let before_creation = chrono::Utc::now();
-        
+
         let tunnel = Tunnel::new(
             "timing_user".to_string(),
             "timing_username".to_string(),
@@ -488,7 +487,7 @@ mod tests {
             "max-app".to_string(),
             "max.com",
             65535, // Max port
-            9999, // Large slot
+            9999,  // Large slot
             "cert-max".to_string(),
             86400, // 24 hours
         );
@@ -527,7 +526,7 @@ mod tests {
     async fn test_storage_error_handling() {
         // Test that storage errors are properly handled
         // This would normally test Redis connection errors, timeouts, etc.
-        
+
         // Mock a Redis error scenario
         let error_result: Result<(), redis::RedisError> = Err(redis::RedisError::from((
             redis::ErrorKind::IoError,
@@ -563,7 +562,7 @@ mod tests {
 
         // Test JSON serialization produces expected fields
         let json_value: serde_json::Value = serde_json::to_value(&tunnel).unwrap();
-        
+
         assert_eq!(json_value["github_user_id"], "json_user");
         assert_eq!(json_value["subdomain"], "json-app");
         assert_eq!(json_value["fqdn"], "json-app.json.com");
@@ -580,7 +579,7 @@ mod tests {
     #[tokio::test]
     async fn test_tunnel_validation_logic() {
         // Test various validation scenarios that storage might need
-        
+
         // Valid subdomain
         let valid_tunnel = Tunnel::new(
             "valid_user".to_string(),
@@ -593,16 +592,21 @@ mod tests {
             3600,
         );
 
-        assert!(valid_tunnel.subdomain.chars().all(|c| c.is_alphanumeric() || c == '-'));
+        assert!(
+            valid_tunnel
+                .subdomain
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '-')
+        );
         assert!(!valid_tunnel.subdomain.is_empty());
         assert!(valid_tunnel.local_port > 0);
         assert!(valid_tunnel.slot > 0);
 
         // Test edge case subdomains
         let edge_cases = vec![
-            "a",           // Single character
-            "a-b",         // With hyphen
-            "app123",      // With numbers
+            "a",                        // Single character
+            "a-b",                      // With hyphen
+            "app123",                   // With numbers
             "very-long-subdomain-name", // Long name
         ];
 
