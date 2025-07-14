@@ -1158,96 +1158,63 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_certificate_validation_result_structure() {
+    async fn test_certificate_validation_result_serialization() {
         let result = CertificateValidationResult {
             is_valid: true,
-            serial_number: Some("test-serial".to_string()),
-            subject: Some("CN=test".to_string()),
-            issuer: Some("CN=test-ca".to_string()),
+            serial_number: Some("12345".to_string()),
+            subject: Some("CN=test.example.com".to_string()),
+            issuer: Some("CN=Test CA".to_string()),
             not_before: Some(Utc::now()),
-            not_after: Some(Utc::now()),
-            fingerprint: Some("test-fingerprint".to_string()),
-            validation_errors: Vec::new(),
+            not_after: Some(Utc::now() + chrono::Duration::hours(1)),
+            fingerprint: Some("sha256:abcd1234".to_string()),
+            validation_errors: vec!["Warning: self-signed".to_string()],
             validated_at: Utc::now(),
         };
 
-        assert!(result.is_valid);
-        assert_eq!(result.serial_number, Some("test-serial".to_string()));
-        assert!(result.validation_errors.is_empty());
-    }
+        let serialized = serde_json::to_string(&result).unwrap();
+        assert!(serialized.contains("test.example.com"));
+        assert!(serialized.contains("12345"));
 
-    #[tokio::test]
-    async fn test_tunnel_info_with_certificate_validation() {
-        let validation_result = CertificateValidationResult {
-            is_valid: true,
-            serial_number: Some("test-serial".to_string()),
-            subject: Some("CN=test".to_string()),
-            issuer: Some("CN=test-ca".to_string()),
-            not_before: Some(Utc::now()),
-            not_after: Some(Utc::now()),
-            fingerprint: Some("test-fingerprint".to_string()),
-            validation_errors: Vec::new(),
-            validated_at: Utc::now(),
-        };
-
-        let tunnel_info = TunnelInfo {
-            local_addr: "127.0.0.1:8080".parse().unwrap(),
-            remote_addr: "127.0.0.1:9090".parse().unwrap(),
-            created_at: std::time::Instant::now(),
-            client_certificate_serial: Some("test-serial".to_string()),
-            certificate_validation_result: Some(validation_result),
-        };
-
-        assert_eq!(tunnel_info.client_certificate_serial, Some("test-serial".to_string()));
-        assert!(tunnel_info.certificate_validation_result.is_some());
-    }
-
-    #[tokio::test]
-    async fn test_certificate_validation_result_serialization() {
-        let validation_result = CertificateValidationResult {
-            is_valid: true,
-            serial_number: Some("test-serial".to_string()),
-            subject: Some("CN=test".to_string()),
-            issuer: Some("CN=test-ca".to_string()),
-            not_before: Some(Utc::now()),
-            not_after: Some(Utc::now()),
-            fingerprint: Some("test-fingerprint".to_string()),
-            validation_errors: Vec::new(),
-            validated_at: Utc::now(),
-        };
-
-        // Test that the structure can be serialized/deserialized
-        let serialized = serde_json::to_string(&validation_result).unwrap();
         let deserialized: CertificateValidationResult = serde_json::from_str(&serialized).unwrap();
-        
-        assert_eq!(deserialized.is_valid, validation_result.is_valid);
-        assert_eq!(deserialized.serial_number, validation_result.serial_number);
-        assert_eq!(deserialized.subject, validation_result.subject);
+        assert_eq!(deserialized.is_valid, result.is_valid);
+        assert_eq!(deserialized.serial_number, result.serial_number);
+    }
+
+    #[tokio::test]
+    async fn test_certificate_validation_result_structure() {
+        let result = CertificateValidationResult {
+            is_valid: false,
+            serial_number: None,
+            subject: None,
+            issuer: None,
+            not_before: None,
+            not_after: None,
+            fingerprint: None,
+            validation_errors: vec!["Certificate expired".to_string()],
+            validated_at: Utc::now(),
+        };
+
+        assert!(!result.is_valid);
+        assert!(result.serial_number.is_none());
+        assert!(!result.validation_errors.is_empty());
+        assert_eq!(result.validation_errors[0], "Certificate expired");
     }
 
     #[tokio::test]
     async fn test_auth_attempt_tracking() {
+        let client_addr = "192.168.1.100:12345".parse().unwrap();
         let attempt = AuthAttempt {
             timestamp: Instant::now(),
-            client_addr: "127.0.0.1:12345".parse().unwrap(),
-            success: true,
-            certificate_serial: Some("test-serial".to_string()),
-            failure_reason: None,
+            client_addr,
+            success: false,
+            certificate_serial: Some("cert-123".to_string()),
+            failure_reason: Some("Invalid certificate".to_string()),
         };
 
-        assert!(attempt.success);
-        assert_eq!(attempt.certificate_serial, Some("test-serial".to_string()));
-        assert!(attempt.failure_reason.is_none());
-    }
-
-    #[tokio::test]
-    async fn test_certificate_pinning_configuration() {
-        let config = SshConfig {
-            certificate_pinning_enabled: true,
-            ..Default::default()
-        };
-
-        assert!(config.certificate_pinning_enabled);
+        assert_eq!(attempt.client_addr, client_addr);
+        assert!(!attempt.success);
+        assert_eq!(attempt.certificate_serial, Some("cert-123".to_string()));
+        assert_eq!(attempt.failure_reason, Some("Invalid certificate".to_string()));
     }
 
     #[tokio::test]
@@ -1260,5 +1227,343 @@ mod tests {
 
         assert_eq!(config.max_auth_attempts, 5);
         assert_eq!(config.auth_lockout_duration, Duration::from_secs(600));
+    }
+
+    #[tokio::test]
+    async fn test_certificate_pinning_configuration() {
+        let config = SshConfig {
+            certificate_pinning_enabled: true,
+            require_client_certificates: true,
+            ..Default::default()
+        };
+
+        assert!(config.certificate_pinning_enabled);
+        assert!(config.require_client_certificates);
+    }
+
+    #[tokio::test]
+    async fn test_tunnel_info_with_certificate_validation() {
+        let local_addr = "127.0.0.1:8080".parse().unwrap();
+        let remote_addr = "192.168.1.1:443".parse().unwrap();
+        let validation_result = CertificateValidationResult {
+            is_valid: true,
+            serial_number: Some("cert-456".to_string()),
+            subject: Some("CN=client.example.com".to_string()),
+            issuer: Some("CN=Test CA".to_string()),
+            not_before: Some(Utc::now()),
+            not_after: Some(Utc::now() + chrono::Duration::hours(24)),
+            fingerprint: Some("sha256:xyz789".to_string()),
+            validation_errors: vec![],
+            validated_at: Utc::now(),
+        };
+
+        let tunnel_info = TunnelInfo {
+            local_addr,
+            remote_addr,
+            created_at: std::time::Instant::now(),
+            client_certificate_serial: Some("cert-456".to_string()),
+            certificate_validation_result: Some(validation_result.clone()),
+        };
+
+        assert_eq!(tunnel_info.local_addr, local_addr);
+        assert_eq!(tunnel_info.remote_addr, remote_addr);
+        assert_eq!(tunnel_info.client_certificate_serial, Some("cert-456".to_string()));
+        assert!(tunnel_info.certificate_validation_result.is_some());
+        let validation = tunnel_info.certificate_validation_result.unwrap();
+        assert!(validation.is_valid);
+        assert_eq!(validation.serial_number, Some("cert-456".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_register_reverse_tunnel() {
+        let config = SshConfig::default();
+        let server = SshServer::new(config).await.unwrap();
+        let channel_id = russh::ChannelId(1);
+
+        let public_url = server
+            .register_reverse_tunnel(
+                "myapp".to_string(),
+                3000,
+                channel_id,
+                "developer123".to_string(),
+                Some("cert-789".to_string()),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(public_url, "https://myapp.fleetingdns.run");
+
+        // Check that the tunnel was registered
+        let tunnel_info = server.find_reverse_tunnel("myapp").await;
+        assert!(tunnel_info.is_some());
+        let tunnel = tunnel_info.unwrap();
+        assert_eq!(tunnel.subdomain, "myapp");
+        assert_eq!(tunnel.local_port, 3000);
+        assert_eq!(tunnel.channel_id, channel_id);
+        assert_eq!(tunnel.developer_id, "developer123");
+        assert_eq!(tunnel.certificate_serial, Some("cert-789".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_find_reverse_tunnel_not_found() {
+        let config = SshConfig::default();
+        let server = SshServer::new(config).await.unwrap();
+
+        let tunnel_info = server.find_reverse_tunnel("nonexistent").await;
+        assert!(tunnel_info.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_handle_reverse_tunnel_request() {
+        let config = SshConfig::default();
+        let server = SshServer::new(config).await.unwrap();
+        let channel_id = russh::ChannelId(1);
+
+        // Register a tunnel first
+        let _public_url = server
+            .register_reverse_tunnel(
+                "testapp".to_string(),
+                4000,
+                channel_id,
+                "dev456".to_string(),
+                None,
+            )
+            .await
+            .unwrap();
+
+        // Handle a request to the tunnel
+        let request_data = b"GET / HTTP/1.1\r\nHost: testapp.fleetingdns.run\r\n\r\n".to_vec();
+        let response = server
+            .handle_reverse_tunnel_request("testapp", request_data)
+            .await
+            .unwrap();
+
+        let response_str = String::from_utf8(response).unwrap();
+        assert!(response_str.contains("HTTP/1.1 200 OK"));
+        assert!(response_str.contains("testapp:4000"));
+    }
+
+    #[tokio::test]
+    async fn test_handle_reverse_tunnel_request_not_found() {
+        let config = SshConfig::default();
+        let server = SshServer::new(config).await.unwrap();
+
+        let request_data = b"GET / HTTP/1.1\r\nHost: unknown.fleetingdns.run\r\n\r\n".to_vec();
+        let response = server
+            .handle_reverse_tunnel_request("unknown", request_data)
+            .await
+            .unwrap();
+
+        let response_str = String::from_utf8(response).unwrap();
+        assert!(response_str.contains("HTTP/1.1 404 Not Found"));
+        assert!(response_str.contains("Tunnel not found"));
+    }
+
+    #[tokio::test]
+    async fn test_brute_force_protection_cleanup() {
+        let mut protection = BruteForceProtection::default();
+        let client_addr = "10.0.0.1:54321".parse().unwrap();
+        let lockout_duration = Duration::from_millis(100); // Short duration for testing
+
+        // Add old attempts
+        let old_attempt = AuthAttempt {
+            timestamp: Instant::now() - Duration::from_millis(200), // Older than lockout duration
+            client_addr,
+            success: false,
+            certificate_serial: None,
+            failure_reason: Some("Old failure".to_string()),
+        };
+
+        protection.record_attempt(old_attempt, 3, lockout_duration);
+
+        // Wait for cleanup
+        tokio::time::sleep(Duration::from_millis(150)).await;
+
+        // Add new attempt - should trigger cleanup of old attempts
+        let new_attempt = AuthAttempt {
+            timestamp: Instant::now(),
+            client_addr,
+            success: false,
+            certificate_serial: None,
+            failure_reason: Some("New failure".to_string()),
+        };
+
+        protection.record_attempt(new_attempt, 3, lockout_duration);
+
+        // Should only have the new attempt
+        assert_eq!(protection.attempts.get(&client_addr).unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_multiple_client_brute_force_protection() {
+        let mut protection = BruteForceProtection::default();
+        let client1 = "192.168.1.1:12345".parse().unwrap();
+        let client2 = "192.168.1.2:12345".parse().unwrap();
+        let lockout_duration = Duration::from_secs(300);
+
+        // Client 1 fails 3 times
+        for i in 0..3 {
+            let attempt = AuthAttempt {
+                timestamp: Instant::now(),
+                client_addr: client1,
+                success: false,
+                certificate_serial: None,
+                failure_reason: Some(format!("Client 1 failure {}", i + 1)),
+            };
+            protection.record_attempt(attempt, 3, lockout_duration);
+        }
+
+        // Client 2 fails 2 times
+        for i in 0..2 {
+            let attempt = AuthAttempt {
+                timestamp: Instant::now(),
+                client_addr: client2,
+                success: false,
+                certificate_serial: None,
+                failure_reason: Some(format!("Client 2 failure {}", i + 1)),
+            };
+            protection.record_attempt(attempt, 3, lockout_duration);
+        }
+
+        // Client 1 should be locked out, client 2 should not
+        assert!(protection.is_locked_out(&client1, lockout_duration));
+        assert!(!protection.is_locked_out(&client2, lockout_duration));
+    }
+
+    #[tokio::test]
+    async fn test_successful_auth_resets_lockout() {
+        let mut protection = BruteForceProtection::default();
+        let client_addr = "172.16.0.1:9999".parse().unwrap();
+        let lockout_duration = Duration::from_secs(300);
+
+        // Fail 2 times
+        for i in 0..2 {
+            let attempt = AuthAttempt {
+                timestamp: Instant::now(),
+                client_addr,
+                success: false,
+                certificate_serial: None,
+                failure_reason: Some(format!("Failure {}", i + 1)),
+            };
+            protection.record_attempt(attempt, 3, lockout_duration);
+        }
+
+        // Should not be locked out yet
+        assert!(!protection.is_locked_out(&client_addr, lockout_duration));
+
+        // Successful authentication
+        let success_attempt = AuthAttempt {
+            timestamp: Instant::now(),
+            client_addr,
+            success: true,
+            certificate_serial: Some("valid-cert".to_string()),
+            failure_reason: None,
+        };
+        protection.record_attempt(success_attempt, 3, lockout_duration);
+
+        // Should still not be locked out
+        assert!(!protection.is_locked_out(&client_addr, lockout_duration));
+    }
+
+    #[tokio::test]
+    async fn test_parse_certificate_pem_invalid() {
+        let config = SshConfig::default();
+        let server = SshServer::new(config).await.unwrap();
+
+        let invalid_pem = "-----BEGIN CERTIFICATE-----\nInvalid data\n-----END CERTIFICATE-----";
+        let result = server.parse_certificate_pem(invalid_pem);
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_extract_certificate_serial_invalid() {
+        let config = SshConfig::default();
+        let server = SshServer::new(config).await.unwrap();
+
+        let invalid_pem = "not a certificate";
+        let result = server.extract_certificate_serial(invalid_pem).await.unwrap();
+        assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_generate_subdomain_uniqueness() {
+        let config = SshConfig::default();
+        let server = SshServer::new(config).await.unwrap();
+
+        let subdomain1 = server.generate_subdomain("test").await;
+        let subdomain2 = server.generate_subdomain("test").await;
+
+        assert!(subdomain1.starts_with("test"));
+        assert!(subdomain2.starts_with("test"));
+        assert_ne!(subdomain1, subdomain2); // Should be different due to random suffix
+        assert_eq!(subdomain1.len(), "test".len() + 8); // 8 random characters
+    }
+
+    #[tokio::test]
+    async fn test_certificate_validation_with_errors() {
+        let config = SshConfig::default();
+        let server = SshServer::new(config).await.unwrap();
+        let client_addr = "203.0.113.1:443".parse().unwrap();
+
+        // Test with various invalid certificate formats
+        let test_cases = vec![
+            ("", "empty certificate"),
+            ("invalid", "invalid format"),
+            ("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----", "empty certificate body"),
+        ];
+
+        for (cert_pem, description) in test_cases {
+            let result = server.validate_certificate_comprehensive(cert_pem, client_addr).await.unwrap();
+            assert!(!result.is_valid, "Certificate should be invalid for: {}", description);
+            assert!(!result.validation_errors.is_empty(), "Should have validation errors for: {}", description);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_ssh_server_state_clone() {
+        let config = SshConfig::default();
+        let server = SshServer::new(config).await.unwrap();
+        let state1 = server.state.clone();
+        let state2 = server.state.clone();
+
+        // Both should point to the same underlying data
+        assert_eq!(Arc::strong_count(&state1.active_tunnels), Arc::strong_count(&state2.active_tunnels));
+        assert_eq!(Arc::strong_count(&state1.reverse_tunnels), Arc::strong_count(&state2.reverse_tunnels));
+    }
+
+    #[tokio::test]
+    async fn test_tunnel_info_created_at() {
+        let local_addr = "127.0.0.1:8080".parse().unwrap();
+        let remote_addr = "192.168.1.1:443".parse().unwrap();
+        let created_at = std::time::Instant::now();
+
+        let tunnel_info = TunnelInfo {
+            local_addr,
+            remote_addr,
+            created_at,
+            client_certificate_serial: None,
+            certificate_validation_result: None,
+        };
+
+        assert!(tunnel_info.created_at.elapsed() < Duration::from_secs(1));
+    }
+
+    #[tokio::test]
+    async fn test_reverse_tunnel_info_created_at() {
+        let created_at = std::time::Instant::now();
+        let channel_id = russh::ChannelId(42);
+
+        let tunnel_info = ReverseTunnelInfo {
+            subdomain: "test-app".to_string(),
+            local_port: 8080,
+            channel_id,
+            created_at,
+            developer_id: "dev123".to_string(),
+            certificate_serial: None,
+            certificate_validation_result: None,
+        };
+
+        assert!(tunnel_info.created_at.elapsed() < Duration::from_secs(1));
+        assert_eq!(tunnel_info.channel_id, channel_id);
     }
 }
