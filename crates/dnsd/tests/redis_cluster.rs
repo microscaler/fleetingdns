@@ -58,10 +58,18 @@ async fn test_cluster_config_custom() {
         "redis://custom-node-2:6379".to_string(),
     ];
 
-    let mut config = ClusterConfig::default();
-    config.nodes = custom_nodes.clone();
-    config.pool_config.max_size = 50;
-    config.performance_config.enable_pipelining = false;
+    let config = ClusterConfig { 
+        nodes: custom_nodes.clone(),
+        pool_config: dnsd::redis_cluster::PoolConfig {
+            max_size: 50,
+            ..Default::default()
+        },
+        performance_config: dnsd::redis_cluster::PerformanceConfig {
+            enable_pipelining: false,
+            ..Default::default()
+        },
+        ..Default::default() 
+    };
 
     assert_eq!(config.nodes, custom_nodes);
     assert_eq!(config.pool_config.max_size, 50);
@@ -91,17 +99,14 @@ async fn test_slot_calculation_consistency() {
         // Verify slot is within valid range
         assert!(
             slot < 16384,
-            "Slot {} for key '{}' exceeds maximum",
-            slot,
-            key
+            "Slot {slot} for key '{key}' exceeds maximum"
         );
 
         // Verify consistency - same key should always produce same slot
         let slot2 = client.calculate_slot(key);
         assert_eq!(
             slot, slot2,
-            "Slot calculation inconsistent for key '{}'",
-            key
+            "Slot calculation inconsistent for key '{key}'"
         );
     }
 }
@@ -141,7 +146,7 @@ async fn test_cluster_client_creation_without_redis() {
                 }
                 Err(e) => {
                     // This is expected when Redis is not available
-                    println!("Redis cluster not available: {}", e);
+                    println!("Redis cluster not available: {e}");
                     assert!(matches!(
                         e,
                         ClusterError::DiscoveryFailed | ClusterError::ConnectionFailed(_, _)
@@ -301,7 +306,7 @@ impl MockClusterClient {
 
     fn calculate_slot(&self, key: &str) -> u16 {
         // Use the same CRC16 calculation as the real client
-        let mut hasher = crc16::State::<crc16::XMODEM>::new();
+        let mut hasher = crc16::State::<crc16::Xmodem>::new();
         hasher.update(key.as_bytes());
         hasher.get() % 16384
     }
@@ -314,9 +319,9 @@ mod crc16 {
         value: u16,
     }
 
-    pub struct XMODEM;
+    pub struct Xmodem;
 
-    impl State<XMODEM> {
+    impl State<Xmodem> {
         pub fn new() -> Self {
             Self {
                 _phantom: std::marker::PhantomData,
@@ -326,9 +331,8 @@ mod crc16 {
 
         pub fn update(&mut self, data: &[u8]) {
             for &byte in data {
-                self.value = ((self.value << 8)
-                    ^ CRC16_XMODEM_TABLE[((self.value >> 8) ^ byte as u16) as usize % 64])
-                    & 0xFFFF;
+                self.value = (self.value << 8)
+                    ^ CRC16_XMODEM_TABLE[((self.value >> 8) ^ byte as u16) as usize % 64];
             }
         }
 
@@ -347,7 +351,7 @@ mod crc16 {
     ];
 }
 
-#[cfg(feature = "redis-integration-tests")]
+#[cfg(feature = "redis-cluster-integration")]
 mod integration_tests {
     use super::*;
     use mini_redis::server;
@@ -377,8 +381,10 @@ mod integration_tests {
             return;
         };
 
-        let mut config = ClusterConfig::default();
-        config.nodes = vec![redis_url];
+        let _config = ClusterConfig {
+            nodes: vec![redis_url],
+            ..Default::default()
+        };
 
         // This test would need to be adapted for actual cluster testing
         // For now, it demonstrates the testing pattern
@@ -393,8 +399,10 @@ mod integration_tests {
             return;
         };
 
-        let mut config = ClusterConfig::default();
-        config.nodes = vec![redis_url];
+        let _config = ClusterConfig {
+            nodes: vec![redis_url],
+            ..Default::default()
+        };
 
         // Test basic operations
         // This would be expanded for full cluster testing

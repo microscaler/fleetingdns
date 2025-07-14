@@ -59,6 +59,7 @@ async fn kdig_dot_returns_loopback() {
         dot_addr,
         tls_config,
         cert_manager: None,
+        dnssec_config: None,
     };
 
     let handle = tokio::spawn(async move { serve(cfg).await.unwrap() });

@@ -228,7 +228,7 @@ async fn test_bulk_operation_batching() {
     let operations: Vec<(String, Ipv4Addr, u64)> = (0..125)
         .map(|i| {
             (
-                format!("slot{}", i),
+                format!("slot{i}"),
                 Ipv4Addr::new(127, 0, 0, (i % 255) as u8 + 1),
                 3600,
             )
@@ -239,7 +239,7 @@ async fn test_bulk_operation_batching() {
 
     // This would be split into 3 batches: 50 + 50 + 25
     let expected_batches =
-        (125 + config.pipeline_config.batch_size - 1) / config.pipeline_config.batch_size;
+        125_usize.div_ceil(config.pipeline_config.batch_size);
     assert_eq!(expected_batches, 3);
 }
 
@@ -310,7 +310,7 @@ async fn test_performance_client_integration() {
                 .await;
             match result {
                 Ok(_) => println!("Single operation successful"),
-                Err(e) => println!("Single operation failed: {}", e),
+                Err(e) => println!("Single operation failed: {e}"),
             }
 
             // Test bulk operations
@@ -335,7 +335,7 @@ async fn test_performance_client_integration() {
             let result = client.bulk_set_slots(operations).await;
             match result {
                 Ok(_) => println!("Bulk operation successful"),
-                Err(e) => println!("Bulk operation failed: {}", e),
+                Err(e) => println!("Bulk operation failed: {e}"),
             }
 
             // Test bulk get operations
@@ -353,7 +353,7 @@ async fn test_performance_client_integration() {
                         println!("  {}: {:?}", slots[i], ip);
                     }
                 }
-                Err(e) => println!("Bulk get failed: {}", e),
+                Err(e) => println!("Bulk get failed: {e}"),
             }
 
             // Test statistics
@@ -366,7 +366,7 @@ async fn test_performance_client_integration() {
             println!("  Operations per second: {:.2}", stats.ops_per_second);
         }
         Err(e) => {
-            println!("Expected failure without Redis: {}", e);
+            println!("Expected failure without Redis: {e}");
         }
     }
 }
@@ -428,8 +428,7 @@ async fn test_timeout_configurations() {
             // Should fail quickly (within a reasonable time)
             assert!(
                 elapsed < Duration::from_secs(5),
-                "Took too long to fail: {:?}",
-                elapsed
+                "Took too long to fail: {elapsed:?}"
             );
         }
     }
