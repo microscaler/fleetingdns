@@ -7,6 +7,19 @@
 //! - mTLS client authentication
 //! - Performance monitoring and metrics
 //! - Certificate pinning validation
+//!
+//! ## Development Status
+//!
+//! This module contains both implemented features and infrastructure for future enhancements:
+//! - ✅ Basic enhanced DoT server with certificate manager integration
+//! - ✅ Configuration structures and basic connection handling
+//! - 🚧 Full metrics integration (placeholder structs provided)
+//! - 🚧 Advanced connection monitoring (fields reserved in ConnectionInfo)
+//! - 🚧 Alternative connection handling implementations (methods marked with #[allow(dead_code)])
+//! - 🚧 Task-based connection processing optimizations
+//!
+//! Code marked with `#[allow(dead_code)]` represents future functionality that is
+//! architecturally planned but not yet fully implemented.
 
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
@@ -59,17 +72,20 @@ impl DotGauge {
     fn set(&self, _value: f64) {}
 }
 
-#[allow(dead_code)]
+// Placeholder metrics structs for future metrics integration
+// These are used by the dot_counter! and dot_histogram! macros throughout the code
+// but currently just provide no-op implementations until the full metrics system is integrated
+#[allow(dead_code)] // Future metrics infrastructure
 struct DotHistogram;
 impl DotHistogram {
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Future metrics infrastructure
     fn record(&self, _value: f64) {}
 }
 
-#[allow(dead_code)]
+#[allow(dead_code)] // Future metrics infrastructure
 struct DotCounter;
 impl DotCounter {
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Future metrics infrastructure
     fn increment(&self, _value: u64) {}
 }
 
@@ -116,16 +132,19 @@ impl Default for DotServerConfig {
 }
 
 /// Connection statistics and metadata
+/// Connection information for monitoring and statistics
+/// Currently only queries_processed and last_activity are used,
+/// but other fields are reserved for future connection monitoring features
 #[derive(Debug, Clone)]
 struct ConnectionInfo {
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Future connection monitoring
     peer_addr: SocketAddr,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Future connection monitoring
     established_at: Instant,
     queries_processed: u64,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Future connection monitoring
     bytes_received: u64,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Future connection monitoring
     bytes_sent: u64,
     last_activity: Instant,
 }
@@ -337,7 +356,8 @@ impl EnhancedDotServer {
     }
 
     /// Handle a TLS connection
-    #[allow(dead_code)]
+    /// Alternative implementation for future connection handling optimizations
+    #[allow(dead_code)] // Alternative implementation for future use
     async fn handle_connection(
         &self,
         acceptor: TlsAcceptor,
@@ -373,7 +393,8 @@ impl EnhancedDotServer {
     }
 
     /// Handle DNS queries over the TLS connection
-    #[allow(dead_code)]
+    /// Alternative implementation for future DNS query processing optimizations
+    #[allow(dead_code)] // Alternative implementation for future use
     async fn handle_dns_queries(
         &self,
         mut tls_stream: tokio_rustls::server::TlsStream<tokio::net::TcpStream>,
@@ -615,7 +636,8 @@ impl EnhancedDotServer {
     }
 
     /// Update connection statistics
-    #[allow(dead_code)]
+    /// Used for future connection monitoring and performance metrics
+    #[allow(dead_code)] // Future connection monitoring
     async fn update_connection_stats(
         &self,
         connection_id: &str,
@@ -638,7 +660,8 @@ impl EnhancedDotServer {
     }
 
     /// Clean up a connection
-    #[allow(dead_code)]
+    /// Alternative implementation for future connection cleanup optimizations
+    #[allow(dead_code)] // Alternative implementation for future use
     async fn cleanup_connection(&self, connection_id: &str) {
         {
             let mut connections = self.active_connections.write().await;
@@ -672,14 +695,15 @@ impl EnhancedDotServer {
 }
 
 /// Simplified server for connection handling tasks
+/// Some fields are reserved for future task-based connection handling optimizations
 #[derive(Clone, Debug)]
 struct EnhancedDotServerTask {
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Future task-based connection handling
     config: DotServerConfig,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Future task-based connection handling
     current_tls_config: Arc<ArcSwap<Option<ServerConfig>>>,
     active_connections: Arc<RwLock<HashMap<String, ConnectionInfo>>>,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Future task-based connection handling
     ip_rate_limits: Arc<Mutex<HashMap<IpAddr, IpRateLimit>>>,
 }
 
@@ -702,7 +726,9 @@ impl EnhancedDotServerTask {
         connections.remove(connection_id);
     }
 
-    #[allow(dead_code)]
+    /// Update connection statistics in background task
+    /// Used for future task-based connection monitoring
+    #[allow(dead_code)] // Future task-based connection monitoring
     async fn update_connection_stats(
         &self,
         connection_id: &str,

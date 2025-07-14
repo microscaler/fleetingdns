@@ -7,6 +7,21 @@
 //! - Certificate lifecycle management
 //! - Performance optimization for TLS operations
 //!
+//! ## Development Status
+//!
+//! Current implementation status:
+//! - ✅ Certificate manager infrastructure and configuration
+//! - ✅ Self-signed certificate generation (development/testing)
+//! - ✅ Certificate information extraction and validation
+//! - ✅ Background renewal task framework
+//! - ✅ Let's Encrypt staging/production endpoint configuration
+//! - 🚧 Full ACME protocol implementation (placeholder methods provided)
+//! - 🚧 Certificate storage and persistence
+//! - 🚧 Advanced certificate lifecycle management
+//!
+//! Code marked with `#[allow(dead_code)]` represents infrastructure for the
+//! full ACME implementation that is architecturally planned but not yet complete.
+//!
 //! ## ⚠️ IMPORTANT: Let's Encrypt Rate Limits
 //!
 //! **ALWAYS use staging endpoint for development and testing!**
@@ -26,7 +41,7 @@
 //!
 //! ### Safe Usage Patterns
 //! ```rust
-//! use common::cert_manager::{CertManagerConfig, CertificateManager};
+//! use common::cert_manager::CertManagerConfig;
 //!
 //! // ✅ SAFE: Use staging for development (default)
 //! let config = CertManagerConfig::default(); // Uses staging
@@ -37,7 +52,8 @@
 //!
 //! // 🔧 Runtime switching (be careful!)
 //! let mut config = CertManagerConfig::staging();
-//! if is_production_environment() {
+//! // Example: Check environment variable or deployment flag
+//! if std::env::var("ENVIRONMENT").unwrap_or_default() == "production" {
 //!     config.use_production(); // Only switch in production
 //! }
 //! ```
@@ -471,7 +487,8 @@ impl CertificateManager {
     }
 
     /// Check if certificate needs renewal and renew if necessary
-    #[allow(dead_code)]
+    /// Called by background renewal task - clippy doesn't detect usage in spawned tasks
+    #[allow(dead_code)] // Used by background renewal task
     async fn check_and_renew_certificate(&self) -> AppResult<()> {
         let current_cert = self.current_certificate.read().await.clone();
 
@@ -602,15 +619,17 @@ impl CertificateManager {
 }
 
 /// Simplified certificate manager for background tasks
+/// Background task handler for certificate management
+/// Fields are reserved for future ACME certificate renewal implementation
 #[derive(Clone)]
 struct CertificateManagerTask {
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Future ACME implementation
     config: CertManagerConfig,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Future ACME implementation
     current_certificate: Arc<RwLock<Option<CertificateInfo>>>,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Future ACME implementation
     current_server_config: Arc<RwLock<Option<ServerConfig>>>,
-    #[allow(dead_code)]
+    #[allow(dead_code)] // Future ACME implementation
     certificate_cache: Arc<Mutex<HashMap<String, CertificateInfo>>>,
 }
 
