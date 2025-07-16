@@ -2,6 +2,7 @@ pub mod auth;
 pub mod certificates;
 pub mod stats;
 pub mod tunnels;
+pub mod admin;
 
 use crate::ApiResult;
 use axum::Json;

@@ -4,7 +4,6 @@
 //! with per-token rate tracking using DashMap for efficient concurrent access.
 
 use crate::{ApiError};
-use crate::models::UserTier;
 use axum::{
     extract::{Request, State},
     http::{HeaderValue},
@@ -17,29 +16,46 @@ use serde::{Deserialize, Serialize};
 use std::{
     num::NonZeroU32,
     sync::Arc,
+    collections::HashMap,
 };
 use tracing::{debug, warn};
 
-/// Rate limit configuration for different user tiers
+/// Policy for rate limiting (requests per minute, burst, etc.)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RateLimitPolicy {
+    /// Allowed requests per minute
+    pub requests_per_minute: u32,
+    /// Optional burst capacity (max requests in a short window)
+    pub burst: Option<u32>,
+    /// Optional window size in seconds (default: 60)
+    pub window_seconds: Option<u32>,
+    // Extend with more fields as needed
+}
+
+/// Complete rate limit configuration, supporting per-tier and per-endpoint overrides
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RateLimitConfig {
-    /// Free tier API calls per minute
-    pub free_tier_limit: u32,
-    /// Pro tier API calls per minute
-    pub pro_tier_limit: u32,
-    /// Enterprise tier API calls per minute
-    pub enterprise_tier_limit: u32,
-    /// Default rate limit for unauthenticated requests
-    pub default_limit: u32,
+    /// Default policy if no override is found
+    pub default: RateLimitPolicy,
+    /// Optional per-endpoint overrides (e.g., "/api/v1/tunnel")
+    pub per_endpoint: Option<HashMap<String, RateLimitPolicy>>,
 }
 
 impl Default for RateLimitConfig {
     fn default() -> Self {
+        let mut per_endpoint = HashMap::new();
+        per_endpoint.insert("/api/v1/tunnel".to_string(), RateLimitPolicy {
+            requests_per_minute: 60,
+            burst: None,
+            window_seconds: None,
+        });
         Self {
-            free_tier_limit: 60,     // 1 per second
-            pro_tier_limit: 300,     // 5 per second
-            enterprise_tier_limit: 600, // 10 per second
-            default_limit: 20,       // Very low for unauthenticated
+            default: RateLimitPolicy {
+                requests_per_minute: 60,
+                burst: None,
+                window_seconds: None,
+            },
+            per_endpoint: Some(per_endpoint),
         }
     }
 }
@@ -54,7 +70,7 @@ pub struct RateLimitState {
     // Per-token tunnel creation limiters
     tunnel_limiters: DashMap<String, Arc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>>>,
     // User tier cache
-    user_tiers: DashMap<String, UserTier>,
+    user_tiers: DashMap<String, String>,
     // Bypass tokens for testing/admin
     bypass_tokens: DashMap<String, bool>,
 }
@@ -72,7 +88,7 @@ impl RateLimitState {
     }
 
     /// Set user tier for a token
-    pub fn set_user_tier(&self, token: &str, tier: UserTier) {
+    pub fn set_user_tier(&self, token: &str, tier: String) {
         self.user_tiers.insert(token.to_string(), tier);
     }
 
@@ -92,20 +108,32 @@ impl RateLimitState {
     }
 
     /// Get user tier for a token
-    pub fn get_user_tier(&self, token: &str) -> UserTier {
-        self.user_tiers.get(token).map(|v| *v).unwrap_or(UserTier::Free)
+    pub fn get_user_tier(&self, token: &str) -> String {
+        self.user_tiers.get(token).map(|v| v.clone()).unwrap_or("Free".to_string())
     }
 
     /// Create API rate limiter for a user tier
-    fn create_api_limiter(&self, tier: UserTier) -> Arc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>> {
-        let limit = tier.api_rate_limit();
+    fn create_api_limiter(&self, tier: String) -> Arc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>> {
+        let limit = match tier.as_str() {
+            "Free" => 60,
+            "Pro" => 300,
+            "Enterprise" => 600,
+            "Admin" => 600,
+            _ => 60, // Default to Free
+        };
         let quota = Quota::per_minute(NonZeroU32::new(limit).unwrap());
         Arc::new(RateLimiter::keyed(quota))
     }
 
     /// Create tunnel rate limiter for a user tier  
-    fn create_tunnel_limiter(&self, tier: UserTier) -> Arc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>> {
-        let limit = tier.tunnel_creation_limit().min(60); // Max 60 per minute
+    fn create_tunnel_limiter(&self, tier: String) -> Arc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>> {
+        let limit = match tier.as_str() {
+            "Free" => 60,
+            "Pro" => 60,
+            "Enterprise" => 60,
+            "Admin" => 60,
+            _ => 60, // Default to Free
+        };
         let quota = Quota::per_minute(NonZeroU32::new(limit).unwrap());
         Arc::new(RateLimiter::keyed(quota))
     }
@@ -228,10 +256,8 @@ mod tests {
     #[test]
     fn test_rate_limit_config_default() {
         let config = RateLimitConfig::default();
-        assert_eq!(config.free_tier_limit, 60);
-        assert_eq!(config.pro_tier_limit, 300);
-        assert_eq!(config.enterprise_tier_limit, 600);
-        assert_eq!(config.default_limit, 20);
+        assert_eq!(config.default.requests_per_minute, 60);
+        assert_eq!(config.per_endpoint.as_ref().unwrap().get("/api/v1/tunnel").map(|p| p.requests_per_minute), Some(60));
     }
 
     #[test]
@@ -240,19 +266,19 @@ mod tests {
         let token = "test-token";
 
         // Default should be free tier
-        assert_eq!(state.get_user_tier(token), UserTier::Free);
+        assert_eq!(state.get_user_tier(token), "Free".to_string());
 
         // Set to pro tier
-        state.set_user_tier(token, UserTier::Pro);
-        assert_eq!(state.get_user_tier(token), UserTier::Pro);
+        state.set_user_tier(token, "Pro".to_string());
+        assert_eq!(state.get_user_tier(token), "Pro".to_string());
 
-        state.set_user_tier("test-token", UserTier::Pro);
-        assert_eq!(state.get_user_tier("test-token"), UserTier::Pro);
+        state.set_user_tier("test-token", "Pro".to_string());
+        assert_eq!(state.get_user_tier("test-token"), "Pro".to_string());
 
-        assert_eq!(state.get_user_tier("admin-token"), UserTier::Free);
+        assert_eq!(state.get_user_tier("admin-token"), "Free".to_string());
         state.add_bypass_token("admin-token");
         assert!(state.is_bypass_token("admin-token"));
-        assert_eq!(state.get_user_tier("admin-token"), UserTier::Free); // Bypass overrides tier
+        assert_eq!(state.get_user_tier("admin-token"), "Free".to_string()); // Bypass overrides tier
     }
 
     #[test]
@@ -311,15 +337,15 @@ mod tests {
     fn test_rate_limit_getters() {
         let state = RateLimitState::new(RateLimitConfig::default());
         
-        assert_eq!(state.get_user_tier("test-token"), UserTier::Free);
-        assert_eq!(state.get_user_tier("admin-token"), UserTier::Free); // Default to Free
+        assert_eq!(state.get_user_tier("test-token"), "Free".to_string());
+        assert_eq!(state.get_user_tier("admin-token"), "Free".to_string()); // Default to Free
 
-        state.set_user_tier("test-token", UserTier::Pro);
-        assert_eq!(state.get_user_tier("test-token"), UserTier::Pro);
+        state.set_user_tier("test-token", "Pro".to_string());
+        assert_eq!(state.get_user_tier("test-token"), "Pro".to_string());
 
-        assert_eq!(state.get_user_tier("admin-token"), UserTier::Free);
+        assert_eq!(state.get_user_tier("admin-token"), "Free".to_string());
         state.add_bypass_token("admin-token");
         assert!(state.is_bypass_token("admin-token"));
-        assert_eq!(state.get_user_tier("admin-token"), UserTier::Free); // Bypass overrides tier
+        assert_eq!(state.get_user_tier("admin-token"), "Free".to_string()); // Bypass overrides tier
     }
 } 

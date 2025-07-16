@@ -103,6 +103,9 @@ fn create_router(state: ApiState) -> Router {
         )
         // Statistics and monitoring
         .route("/v1/stats", get(handlers::stats::get_stats))
+        // Admin endpoints for rate limit policy management
+        .route("/admin/rate-limit-policy", get(handlers::admin::get_rate_limit_policy))
+        .route("/admin/rate-limit-policy", axum::routing::put(handlers::admin::update_rate_limit_policy))
         // Add middleware layers (order matters - rate limiting first)
         .layer(axum::middleware::from_fn_with_state(
             state.rate_limiter.clone(),
