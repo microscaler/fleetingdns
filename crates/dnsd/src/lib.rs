@@ -12,6 +12,9 @@ mod udp;
 // HIGH-1 ENHANCEMENT: Production DoT features
 #[cfg(feature = "dot")]
 pub mod dot_enhanced;
+pub mod redis_performance;
+pub mod redis_sentinel;
+pub mod redis_cluster;
 
 /// Configuration for the DNS server.
 #[derive(Debug, Clone)]

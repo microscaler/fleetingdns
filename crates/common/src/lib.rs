@@ -3,7 +3,7 @@
 //! Provides application-wide tracing initialization, a basic error type,
 //! and re-exports of helpful metrics macros.
 
-use std::time::Duration;
+
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, fmt};
 use thiserror::Error;
@@ -12,6 +12,7 @@ pub mod metrics;
 pub mod shutdown;
 pub mod cert_manager;
 pub mod ddos_protection;
+pub mod tls;
 
 // Re-export metrics for convenience
 pub use metrics::*;

@@ -7,7 +7,7 @@ use tracing::info;
 #[cfg(feature = "dot")]
 use common::tls;
 use common::{init_tracing, init_metrics, shutdown::GracefulShutdown};
-use dnsd::{Config, redis_cache};
+use dnsd::{redis_cache};
 
 #[derive(Parser)]
 #[command(name = "dnsd-bin")]
@@ -28,7 +28,7 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> common::AppResult<()> {
-    init_tracing("dnsd")?;
+    init_tracing("dnsd").map_err(|e| common::AppError::Message(e.to_string()))?;
     init_metrics();
     let args = Args::parse();
 

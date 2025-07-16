@@ -18,7 +18,8 @@ mod storage;
 pub use config::ApiConfig;
 pub use error::{ApiError, ApiResult};
 pub use models::*;
-pub use rate_limiting::{RateLimitConfig, RateLimitState, UserTier};
+// Do not re-export UserTier from rate_limiting
+pub use rate_limiting::{RateLimitConfig, RateLimitState};
 
 /// Main API server state
 #[derive(Clone)]

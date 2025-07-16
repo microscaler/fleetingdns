@@ -3,15 +3,16 @@
 //! This module implements comprehensive rate limiting using the Tower middleware framework
 //! with per-token rate tracking using DashMap for efficient concurrent access.
 
-use crate::{ApiError, UserTier};
+use crate::{ApiError};
+use crate::models::UserTier;
 use axum::{
     extract::{Request, State},
-    http::{HeaderMap, HeaderValue},
+    http::{HeaderValue},
     middleware::Next,
     response::{IntoResponse, Response},
 };
 use dashmap::DashMap;
-use governor::{clock::DefaultClock, Quota, RateLimiter};
+use governor::{clock::DefaultClock, state::keyed::DashMapStateStore, Quota, RateLimiter};
 use serde::{Deserialize, Serialize};
 use std::{
     num::NonZeroU32,
@@ -47,9 +48,9 @@ impl Default for RateLimitConfig {
 pub struct RateLimitState {
     config: RateLimitConfig,
     // Per-token API rate limiters
-    api_limiters: DashMap<String, Arc<RateLimiter<String, DefaultClock>>>,
+    api_limiters: DashMap<String, Arc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>>>,
     // Per-token tunnel creation limiters
-    tunnel_limiters: DashMap<String, Arc<RateLimiter<String, DefaultClock>>>,
+    tunnel_limiters: DashMap<String, Arc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>>>,
     // User tier cache
     user_tiers: DashMap<String, UserTier>,
     // Bypass tokens for testing/admin
@@ -94,14 +95,14 @@ impl RateLimitState {
     }
 
     /// Create API rate limiter for a user tier
-    fn create_api_limiter(&self, tier: UserTier) -> Arc<RateLimiter<String, DefaultClock>> {
+    fn create_api_limiter(&self, tier: UserTier) -> Arc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>> {
         let limit = tier.api_rate_limit();
         let quota = Quota::per_minute(NonZeroU32::new(limit).unwrap());
         Arc::new(RateLimiter::keyed(quota))
     }
 
     /// Create tunnel rate limiter for a user tier  
-    fn create_tunnel_limiter(&self, tier: UserTier) -> Arc<RateLimiter<String, DefaultClock>> {
+    fn create_tunnel_limiter(&self, tier: UserTier) -> Arc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>> {
         let limit = tier.tunnel_creation_limit().min(60); // Max 60 per minute
         let quota = Quota::per_minute(NonZeroU32::new(limit).unwrap());
         Arc::new(RateLimiter::keyed(quota))
@@ -205,13 +206,13 @@ pub async fn rate_limit_middleware(
         Err(error_msg) => {
             warn!(token = token, path = path, error = error_msg, "Rate limit exceeded");
             
-            let mut response = ApiError::RateLimitExceeded(error_msg).into_response();
-            
+            let mut response = ApiError::RateLimitExceeded.into_response();
             // Add rate limit headers
             let headers = response.headers_mut();
             headers.insert("X-RateLimit-Remaining", HeaderValue::from_static("0"));
             headers.insert("Retry-After", HeaderValue::from_static("60"));
-            
+            // Optionally, add the error message to the response body as JSON
+            // (requires custom error response type if desired)
             Err(response)
         }
     }
@@ -220,6 +221,7 @@ pub async fn rate_limit_middleware(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::http::HeaderMap;
 
     #[test]
     fn test_rate_limit_config_default() {
@@ -253,7 +255,7 @@ mod tests {
 
     #[test]
     fn test_bypass_token_check() {
-        let mut state = RateLimitState::new(RateLimitConfig::default());
+        let state = RateLimitState::new(RateLimitConfig::default());
         let bypass_token = "admin-token";
         let regular_token = "regular-token";
 
