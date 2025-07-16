@@ -159,6 +159,16 @@ erDiagram
         string features_json
         datetime created_at
     }
+    PRICING {
+        string id PK
+        string service_plan_id FK
+        float price
+        string currency
+        string region
+        datetime valid_from
+        datetime valid_to
+        string description
+    }
     USER_SERVICE_PLAN {
         string id PK
         string user_id FK
@@ -250,6 +260,7 @@ erDiagram
     }
     USER ||--o{ USER_SERVICE_PLAN : has
     SERVICE_PLAN ||--o{ USER_SERVICE_PLAN : assigned_to
+    SERVICE_PLAN ||--o{ PRICING : has
     USER ||--o{ TUNNEL : owns
     USER ||--o{ AUTH_TOKEN : has
     USER ||--o{ PAYMENT_INFO : payment
@@ -268,6 +279,7 @@ erDiagram
 |------------------|-----------------------------------------------------------------------------------|
 | USER             | id, github_id, username, email, avatar_url, created_at                             |
 | SERVICE_PLAN     | id, name, api_rate_limit, tunnel_creation_limit, dns_provisioning_limit, features  |
+| PRICING          | id, service_plan_id, price, currency, region, valid_from, valid_to, description    |
 | USER_SERVICE_PLAN| id, user_id, service_plan_id, start_date, end_date, is_active                      |
 | TUNNEL           | id, user_id, subdomain, fqdn, local_port, slot, certificate_serial, status         |
 | AUTH_TOKEN       | token, token_type, expires_at, user_id                                             |
@@ -299,6 +311,10 @@ erDiagram
     - Feature flags and custom plan features (`features_json` on `ServicePlan`)
     - Easy integration with payment providers (via `PaymentInfo`)
     - Analytics and monitoring (via `ApiStats`, `CaStats`)
+    - **Time-delimited pricing and historical price tracking (`PRICING`):**
+      - Each `SERVICE_PLAN` can have multiple `PRICING` records, each with a validity period (`valid_from`, `valid_to`).
+      - Supports promotions, discounts, region/currency-specific pricing, and historical audit of what a user was charged at any time.
+      - For billing and audit, always resolve the price from `PRICING` based on the user's plan and the billing date.
   - New entities can be added as needed (e.g., support tickets, notifications, etc.)
 
 - **Actionable Next Steps:**
