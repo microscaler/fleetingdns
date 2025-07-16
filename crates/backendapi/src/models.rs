@@ -570,81 +570,6 @@ pub struct UserServicePlan {
     pub is_active: bool,
 }
 
-/// DEPRECATED: Use ServicePlan and UserServicePlan instead
-#[deprecated(note = "Use ServicePlan and UserServicePlan for all new logic. Remove after migration.")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, Hash)]
-pub enum UserTier {
-    /// Free tier with basic limits
-    #[default]
-    Free,
-    /// Pro tier with higher limits
-    Pro,
-    /// Enterprise tier with maximum limits
-    Enterprise,
-    /// Admin tier with unlimited access
-    Admin,
-}
-
-/// DEPRECATED: These methods are for legacy compatibility only. Remove after migration to ServicePlan.
-impl UserTier {
-    pub fn api_rate_limit(&self) -> u32 {
-        match self {
-            UserTier::Free => 60,
-            UserTier::Pro => 300,
-            UserTier::Enterprise => 600,
-            UserTier::Admin => u32::MAX,
-        }
-    }
-    pub fn tunnel_creation_limit(&self) -> u32 {
-        match self {
-            UserTier::Free => 5,
-            UserTier::Pro => 50,
-            UserTier::Enterprise => 500,
-            UserTier::Admin => u32::MAX,
-        }
-    }
-    pub fn dns_provisioning_limit(&self) -> u32 {
-        match self {
-            UserTier::Free => 10,
-            UserTier::Pro => 100,
-            UserTier::Enterprise => 1000,
-            UserTier::Admin => u32::MAX,
-        }
-    }
-    pub fn max_concurrent_tunnels(&self) -> u32 {
-        match self {
-            UserTier::Free => 3,
-            UserTier::Pro => 20,
-            UserTier::Enterprise => 100,
-            UserTier::Admin => u32::MAX,
-        }
-    }
-    pub fn has_premium_features(&self) -> bool {
-        matches!(self, UserTier::Pro | UserTier::Enterprise | UserTier::Admin)
-    }
-    pub fn is_admin(&self) -> bool {
-        matches!(self, UserTier::Admin)
-    }
-}
-
-/// DEPRECATED: Use ServicePlan and UserServicePlan instead
-#[deprecated(note = "Use ServicePlan and UserServicePlan for all new logic. Remove after migration.")]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UserSubscription {
-    /// User ID
-    pub user_id: i64,
-    /// Subscription tier
-    pub tier: UserTier,
-    /// When subscription was created
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    /// When subscription expires (None for permanent)
-    pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
-    /// Whether subscription is active
-    pub active: bool,
-    /// Payment information
-    pub payment_info: Option<PaymentInfo>,
-}
-
 /// Usage statistics for a user
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserUsage {
@@ -660,26 +585,4 @@ pub struct UserUsage {
     pub dns_operations_count: u32,
     /// Currently active tunnels
     pub active_tunnels_count: u32,
-}
-
-/// Request to upgrade user subscription
-#[derive(Debug, Deserialize)]
-pub struct SubscriptionUpgradeRequest {
-    /// Target tier to upgrade to
-    pub target_tier: UserTier,
-    /// Payment method token (from Stripe)
-    pub payment_method_token: Option<String>,
-}
-
-/// Subscription upgrade response
-#[derive(Debug, Serialize)]
-pub struct SubscriptionUpgradeResponse {
-    /// Whether upgrade was successful
-    pub success: bool,
-    /// New subscription details
-    pub subscription: Option<UserSubscription>,
-    /// Error message if upgrade failed
-    pub error: Option<String>,
-    /// Stripe client secret for payment confirmation
-    pub client_secret: Option<String>,
 }

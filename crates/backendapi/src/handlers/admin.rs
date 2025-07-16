@@ -1,4 +1,4 @@
-use crate::{ApiResult, ApiState, rate_limiting::RateLimitConfig, models::UserTier, auth::{extract_bearer_token, validate_jwt_token}};
+use crate::{ApiResult, ApiState, rate_limiting::RateLimitConfig, auth::{extract_bearer_token, validate_jwt_token}};
 use axum::{Json, extract::{State}, http::HeaderMap};
 use std::sync::{Arc, RwLock};
 
@@ -55,15 +55,11 @@ mod tests {
     #[tokio::test]
     async fn test_get_rate_limit_policy_requires_admin() {
         // Setup dummy state
-        let config = RateLimitConfig {
-            default: RateLimitPolicy { requests_per_minute: 10, burst: None, window_seconds: None },
-            per_tier: HashMap::new(),
-            per_endpoint: None,
-        };
+        let config = RateLimitConfig::default();
         let shared = Arc::new(RwLock::new(config.clone()));
         // TODO: Mock ApiState with admin user
         // ...
         // This is a placeholder for actual integration test
-        assert_eq!(config.default.requests_per_minute, 10);
+        assert_eq!(config.default.requests_per_minute, 60);
     }
 } 
