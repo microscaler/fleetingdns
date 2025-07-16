@@ -29,6 +29,7 @@ use std::time::{Duration, Instant};
 use arc_swap::ArcSwap;
 use common::AppResult;
 use common::cert_manager::CertificateManager;
+use common::ddos_protection::{DdosConfig, DdosProtection};
 use common::shutdown::ShutdownSignal;
 use common::{counter, gauge, histogram};
 use rustls::ServerConfig;
@@ -66,6 +67,10 @@ pub struct DotServerConfig {
     pub tls_buffer_size: usize,
     /// Enable performance metrics
     pub enable_metrics: bool,
+    /// DDoS protection configuration
+    pub ddos_config: DdosConfig,
+    /// Enable DDoS protection
+    pub enable_ddos_protection: bool,
 }
 
 impl Default for DotServerConfig {
@@ -81,6 +86,8 @@ impl Default for DotServerConfig {
             max_query_size: 4096,
             tls_buffer_size: 8192,
             enable_metrics: true,
+            ddos_config: DdosConfig::default(),
+            enable_ddos_protection: true,
         }
     }
 }
@@ -129,17 +136,19 @@ pub struct EnhancedDotServer {
     current_tls_config: Arc<ArcSwap<Option<ServerConfig>>>,
     active_connections: Arc<RwLock<HashMap<String, ConnectionInfo>>>,
     ip_rate_limits: Arc<Mutex<HashMap<IpAddr, IpRateLimit>>>,
+    ddos_protection: Arc<DdosProtection>,
 }
 
 impl EnhancedDotServer {
     /// Create a new enhanced DoT server
     pub fn new(cert_manager: Arc<CertificateManager>, config: DotServerConfig) -> Self {
         Self {
-            config,
+            config: config.clone(),
             cert_manager,
             current_tls_config: Arc::new(ArcSwap::new(Arc::new(None))),
             active_connections: Arc::new(RwLock::new(HashMap::new())),
             ip_rate_limits: Arc::new(Mutex::new(HashMap::new())),
+            ddos_protection: Arc::new(DdosProtection::new(config.ddos_config.clone())),
         }
     }
 
@@ -249,11 +258,26 @@ impl EnhancedDotServer {
     ) -> AppResult<()> {
         let peer_ip = peer.ip();
 
+        // DDoS protection check (if enabled)
+        if self.config.enable_ddos_protection
+            && let Err(ddos_error) = self.ddos_protection.check_connection_limit(peer_ip) {
+                debug!(peer = %peer, error = %ddos_error, "Connection rejected by DDoS protection");
+                if self.config.enable_metrics {
+                    counter!("dot_connections_rejected_total", "reason" => "ddos_protection").increment(1);
+                }
+                return Ok(());
+            }
+
+
         // Check rate limiting and connection limits
         if !self.check_rate_limit_and_connections(peer_ip).await? {
             debug!(peer = %peer, "Connection rejected due to rate limiting");
             if self.config.enable_metrics {
                 counter!("dot_connections_rejected_total", "reason" => "rate_limit").increment(1);
+            }
+            // Record connection closure for DDoS protection
+            if self.config.enable_ddos_protection {
+                self.ddos_protection.connection_closed(peer_ip);
             }
             return Ok(());
         }
@@ -266,6 +290,10 @@ impl EnhancedDotServer {
                 warn!("No TLS configuration available, rejecting connection");
                 if self.config.enable_metrics {
                     counter!("dot_connections_rejected_total", "reason" => "no_tls_config").increment(1);
+                }
+                // Record connection closure for DDoS protection
+                if self.config.enable_ddos_protection {
+                    self.ddos_protection.connection_closed(peer_ip);
                 }
                 return Ok(());
             }
@@ -384,21 +412,25 @@ impl EnhancedDotServer {
 
             match read_result {
                 Ok(Ok(_)) => {
-                    let query_len = u16::from_be_bytes(len_buf) as usize;
-
-                    // Validate query size
+                    let query_len = u16::from_be_bytes([len_buf[0], len_buf[1]]) as usize;
                     if query_len == 0 || query_len > self.config.max_query_size {
-                        warn!(
-                            peer = %peer,
-                            query_len = query_len,
-                            max_size = self.config.max_query_size,
-                            "Invalid query size"
-                        );
+                        debug!(peer = %peer, query_len = query_len, max_size = self.config.max_query_size, "Invalid query size");
                         if self.config.enable_metrics {
                             counter!("dns_queries_total", "protocol" => "dot", "status" => "error").increment(1);
                         }
                         break;
                     }
+
+                    // DDoS protection: check request size
+                    if self.config.enable_ddos_protection
+                        && let Err(size_error) = self.ddos_protection.check_request_size(query_len) {
+                            debug!(peer = %peer, query_len = query_len, error = %size_error, "Request size rejected by DDoS protection");
+                            if self.config.enable_metrics {
+                                counter!("dns_queries_total", "protocol" => "dot", "status" => "oversized").increment(1);
+                            }
+                            break;
+                        }
+
 
                     // Read query data
                     let mut query_buf = vec![0u8; query_len];
@@ -670,11 +702,16 @@ impl EnhancedDotServer {
     #[allow(dead_code)] // Future connection cleanup functionality
     async fn cleanup_connection(&self, connection_id: &str) {
         let mut connections = self.active_connections.write().await;
-        connections.remove(connection_id);
-        
-        if self.config.enable_metrics {
-            counter!("dot_connections_total", "status" => "closed").increment(1);
-            gauge!("dot_active_connections").set(connections.len() as f64);
+        if let Some(conn_info) = connections.remove(connection_id) {
+            // Record connection closure for DDoS protection
+            if self.config.enable_ddos_protection {
+                self.ddos_protection.connection_closed(conn_info.peer_addr.ip());
+            }
+            
+            if self.config.enable_metrics {
+                counter!("dot_connections_total", "status" => "closed").increment(1);
+                gauge!("dot_active_connections").set(connections.len() as f64);
+            }
         }
     }
 
@@ -682,6 +719,14 @@ impl EnhancedDotServer {
     async fn shutdown_connections(&self) {
         let mut connections = self.active_connections.write().await;
         let connection_count = connections.len();
+        
+        // Record all connection closures for DDoS protection
+        if self.config.enable_ddos_protection {
+            for conn_info in connections.values() {
+                self.ddos_protection.connection_closed(conn_info.peer_addr.ip());
+            }
+        }
+        
         connections.clear();
         
         if self.config.enable_metrics {

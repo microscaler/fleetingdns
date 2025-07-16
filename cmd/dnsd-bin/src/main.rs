@@ -7,7 +7,7 @@ use tracing::info;
 #[cfg(feature = "dot")]
 use common::tls;
 use common::{init_tracing, init_metrics, shutdown::GracefulShutdown};
-use dnsd::{Config, redis_cache};
+use dnsd::{redis_cache};
 
 #[derive(Parser)]
 #[command(name = "dnsd-bin")]
@@ -28,7 +28,7 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> common::AppResult<()> {
-    init_tracing();
+    init_tracing("dnsd").map_err(|e| common::AppError::Message(e.to_string()))?;
     init_metrics();
     let args = Args::parse();
 
@@ -65,9 +65,11 @@ async fn main() -> common::AppResult<()> {
     // Start DNS server with shutdown signal
     let shutdown_rx = shutdown.subscribe();
     let serve_result = dnsd::serve_with_shutdown(
-        Config {
+        dnsd::Config {
             addr: args.addr,
             redis_pool: pool,
+            ddos_config: common::ddos_protection::DdosConfig::default(),
+            enable_ddos_protection: true,
             #[cfg(feature = "dot")]
             dot_addr: SocketAddr::new(args.addr.ip(), 853),
             #[cfg(feature = "dot")]

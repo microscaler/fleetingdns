@@ -24,7 +24,7 @@ struct Args {
 /// Execute the slot insertion logic.
 #[tracing::instrument]
 async fn run(args: Args) -> AppResult<()> {
-    init_tracing();
+    let _ = init_tracing("slot-setter");
     let pool = redis_cache::new_pool(&args.redis)
         .await
         .map_err(|e| common::AppError::Message(e.to_string()))?;

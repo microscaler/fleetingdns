@@ -480,3 +480,175 @@ mod tests {
         assert!(user_without_name.email.is_none());
     }
 }
+
+/// User information from GitHub OAuth
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct User {
+    pub id: i64,
+    pub login: String,
+    pub name: Option<String>,
+    pub email: Option<String>,
+    pub avatar_url: String,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+/// Fields are required for future tunnel creation and management implementations.
+pub struct CreateTunnelRequest {
+    /// Subdomain for the tunnel (e.g., "myapp" for myapp.fleetingdns.com)
+    pub subdomain: String,
+    /// Optional SSH public key for SSH tunnel access
+    pub ssh_public_key: Option<String>,
+    /// Optional description for the tunnel
+    pub description: Option<String>,
+}
+
+/// Tunnel response
+#[derive(Debug, Serialize)]
+pub struct TunnelResponse {
+    pub id: Uuid,
+    pub subdomain: String,
+    pub dns_name: String,
+    pub ssh_host: Option<String>,
+    pub ssh_port: Option<u16>,
+    pub certificate_pem: Option<String>,
+    pub private_key_pem: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub status: String,
+    pub description: Option<String>,
+}
+
+/// User subscription information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserSubscription {
+    /// User ID
+    pub user_id: i64,
+    /// Subscription tier
+    pub tier: UserTier,
+    /// When subscription was created
+    pub created_at: DateTime<Utc>,
+    /// When subscription expires (None for permanent)
+    pub expires_at: Option<DateTime<Utc>>,
+    /// Whether subscription is active
+    pub active: bool,
+    /// Payment information
+    pub payment_info: Option<PaymentInfo>,
+}
+
+/// Payment information for subscriptions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PaymentInfo {
+    /// Stripe customer ID
+    pub stripe_customer_id: Option<String>,
+    /// Stripe subscription ID
+    pub stripe_subscription_id: Option<String>,
+    /// Last payment date
+    pub last_payment_date: Option<DateTime<Utc>>,
+    /// Next payment date
+    pub next_payment_date: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum UserTier {
+    /// Free tier with basic limits
+    #[default]
+    Free,
+    /// Pro tier with higher limits
+    Pro,
+    /// Enterprise tier with maximum limits
+    Enterprise,
+    /// Admin tier with unlimited access
+    Admin,
+}
+
+impl UserTier {
+    /// Get API rate limit (requests per minute)
+    pub fn api_rate_limit(&self) -> u32 {
+        match self {
+            UserTier::Free => 60,      // 1 request per second
+            UserTier::Pro => 300,      // 5 requests per second
+            UserTier::Enterprise => 600, // 10 requests per second
+            UserTier::Admin => u32::MAX, // No limit
+        }
+    }
+
+    /// Get tunnel creation limit (per day)
+    pub fn tunnel_creation_limit(&self) -> u32 {
+        match self {
+            UserTier::Free => 5,
+            UserTier::Pro => 50,
+            UserTier::Enterprise => 500,
+            UserTier::Admin => u32::MAX,
+        }
+    }
+
+    /// Get DNS provisioning limit (operations per hour)
+    pub fn dns_provisioning_limit(&self) -> u32 {
+        match self {
+            UserTier::Free => 10,
+            UserTier::Pro => 100,
+            UserTier::Enterprise => 1000,
+            UserTier::Admin => u32::MAX,
+        }
+    }
+
+    /// Get maximum concurrent tunnels
+    pub fn max_concurrent_tunnels(&self) -> u32 {
+        match self {
+            UserTier::Free => 3,
+            UserTier::Pro => 20,
+            UserTier::Enterprise => 100,
+            UserTier::Admin => u32::MAX,
+        }
+    }
+
+    /// Check if tier has premium features
+    pub fn has_premium_features(&self) -> bool {
+        matches!(self, UserTier::Pro | UserTier::Enterprise | UserTier::Admin)
+    }
+
+    /// Check if tier has admin privileges
+    pub fn is_admin(&self) -> bool {
+        matches!(self, UserTier::Admin)
+    }
+}
+
+/// Usage statistics for a user
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserUsage {
+    /// User ID
+    pub user_id: i64,
+    /// Current period start
+    pub period_start: DateTime<Utc>,
+    /// API calls made in current period
+    pub api_calls_count: u32,
+    /// Tunnels created in current period
+    pub tunnels_created_count: u32,
+    /// DNS operations in current period
+    pub dns_operations_count: u32,
+    /// Currently active tunnels
+    pub active_tunnels_count: u32,
+}
+
+/// Request to upgrade user subscription
+#[derive(Debug, Deserialize)]
+pub struct SubscriptionUpgradeRequest {
+    /// Target tier to upgrade to
+    pub target_tier: UserTier,
+    /// Payment method token (from Stripe)
+    pub payment_method_token: Option<String>,
+}
+
+/// Subscription upgrade response
+#[derive(Debug, Serialize)]
+pub struct SubscriptionUpgradeResponse {
+    /// Whether upgrade was successful
+    pub success: bool,
+    /// New subscription details
+    pub subscription: Option<UserSubscription>,
+    /// Error message if upgrade failed
+    pub error: Option<String>,
+    /// Stripe client secret for payment confirmation
+    pub client_secret: Option<String>,
+}
