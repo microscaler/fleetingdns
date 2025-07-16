@@ -17,29 +17,43 @@ use serde::{Deserialize, Serialize};
 use std::{
     num::NonZeroU32,
     sync::Arc,
+    collections::HashMap,
 };
 use tracing::{debug, warn};
 
-/// Rate limit configuration for different user tiers
+/// Policy for rate limiting (requests per minute, burst, etc.)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RateLimitPolicy {
+    /// Allowed requests per minute
+    pub requests_per_minute: u32,
+    /// Optional burst capacity (max requests in a short window)
+    pub burst: Option<u32>,
+    /// Optional window size in seconds (default: 60)
+    pub window_seconds: Option<u32>,
+    // Extend with more fields as needed
+}
+
+/// Complete rate limit configuration, supporting per-tier and per-endpoint overrides
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RateLimitConfig {
-    /// Free tier API calls per minute
-    pub free_tier_limit: u32,
-    /// Pro tier API calls per minute
-    pub pro_tier_limit: u32,
-    /// Enterprise tier API calls per minute
-    pub enterprise_tier_limit: u32,
-    /// Default rate limit for unauthenticated requests
-    pub default_limit: u32,
+    /// Default policy if no override is found
+    pub default: RateLimitPolicy,
+    /// Per-user-tier overrides (Free, Pro, Enterprise, Admin)
+    pub per_tier: HashMap<UserTier, RateLimitPolicy>,
+    /// Optional per-endpoint overrides (e.g., "/api/v1/tunnel")
+    pub per_endpoint: Option<HashMap<String, RateLimitPolicy>>,
 }
 
 impl Default for RateLimitConfig {
     fn default() -> Self {
         Self {
-            free_tier_limit: 60,     // 1 per second
-            pro_tier_limit: 300,     // 5 per second
-            enterprise_tier_limit: 600, // 10 per second
-            default_limit: 20,       // Very low for unauthenticated
+            default: RateLimitPolicy {
+                requests_per_minute: 60,
+                burst: None,
+                window_seconds: None,
+            },
+            per_tier: HashMap::new(),
+            per_endpoint: None,
         }
     }
 }
@@ -228,10 +242,11 @@ mod tests {
     #[test]
     fn test_rate_limit_config_default() {
         let config = RateLimitConfig::default();
-        assert_eq!(config.free_tier_limit, 60);
-        assert_eq!(config.pro_tier_limit, 300);
-        assert_eq!(config.enterprise_tier_limit, 600);
-        assert_eq!(config.default_limit, 20);
+        assert_eq!(config.default.requests_per_minute, 60);
+        assert_eq!(config.per_tier.get(&UserTier::Free).map(|p| p.requests_per_minute), Some(60));
+        assert_eq!(config.per_tier.get(&UserTier::Pro).map(|p| p.requests_per_minute), Some(300));
+        assert_eq!(config.per_tier.get(&UserTier::Enterprise).map(|p| p.requests_per_minute), Some(600));
+        assert_eq!(config.per_tier.get(&UserTier::Admin).map(|p| p.requests_per_minute), Some(600)); // Default to Admin
     }
 
     #[test]
