@@ -12,11 +12,13 @@ mod config;
 mod error;
 mod handlers;
 mod models;
+mod rate_limiting;
 mod storage;
 
 pub use config::ApiConfig;
 pub use error::{ApiError, ApiResult};
 pub use models::*;
+pub use rate_limiting::{RateLimitConfig, RateLimitState, UserTier};
 
 /// Main API server state
 #[derive(Clone)]
@@ -25,6 +27,7 @@ pub struct ApiState {
     pub ca: Arc<edf_ca::CertificateAuthority>,
     pub storage: Arc<storage::TunnelStorage>,
     pub github_client: reqwest::Client,
+    pub rate_limiter: Arc<RateLimitState>,
 }
 
 /// Run the API server
@@ -50,12 +53,17 @@ pub async fn run_with_config(config: ApiConfig) -> ApiResult<()> {
     // Initialize HTTP client for GitHub OAuth
     let github_client = reqwest::Client::new();
 
+    // Initialize rate limiting
+    let rate_limit_config = RateLimitConfig::default(); // TODO: Load from config
+    let rate_limiter = Arc::new(RateLimitState::new(rate_limit_config));
+
     // Create application state
     let state = ApiState {
         config: Arc::new(config.clone()),
         ca,
         storage,
         github_client,
+        rate_limiter,
     };
 
     // Build the router
@@ -94,7 +102,11 @@ fn create_router(state: ApiState) -> Router {
         )
         // Statistics and monitoring
         .route("/v1/stats", get(handlers::stats::get_stats))
-        // Add middleware
+        // Add middleware layers (order matters - rate limiting first)
+        .layer(axum::middleware::from_fn_with_state(
+            state.rate_limiter.clone(),
+            rate_limiting::rate_limit_middleware,
+        ))
         .layer(TraceLayer::new_for_http())
         .layer(CorsLayer::permissive())
         .with_state(state)

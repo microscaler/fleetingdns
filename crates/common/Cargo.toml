@@ -27,6 +27,8 @@ x509-parser = "0.16"
 chrono = { workspace = true, features = ["serde"] }
 uuid = { workspace = true }
 hex = "0.4"
+# HIGH-5 ENHANCEMENT: DDoS protection dependencies
+dashmap = "5.5"
 
 [dev-dependencies]
 tracing-test = "0.2"

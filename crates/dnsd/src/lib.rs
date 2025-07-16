@@ -1,23 +1,17 @@
 use std::net::SocketAddr;
 
-use common::AppResult;
-use common::shutdown::ShutdownSignal;
-#[cfg(feature = "dot")]
-use rustls::ServerConfig;
+use common::{AppResult, shutdown::ShutdownSignal};
+use common::ddos_protection::DdosConfig;
+use tokio::net::UdpSocket;
 use tokio::sync::broadcast;
+use tracing::{info, instrument};
 
 pub mod redis_cache;
-pub mod redis_cluster;
-pub mod redis_performance;
-pub mod redis_sentinel;
 pub mod sign;
 mod udp;
 // HIGH-1 ENHANCEMENT: Production DoT features
 #[cfg(feature = "dot")]
 pub mod dot_enhanced;
-
-use tokio::net::UdpSocket;
-use tracing::{info, instrument};
 
 /// Configuration for the DNS server.
 #[derive(Debug, Clone)]
@@ -26,16 +20,20 @@ pub struct Config {
     pub addr: SocketAddr,
     /// Redis connection pool for slot lookups.
     pub redis_pool: redis_cache::RedisPool,
+    /// DDoS protection configuration
+    pub ddos_config: DdosConfig,
+    /// Enable DDoS protection
+    pub enable_ddos_protection: bool,
     #[cfg(feature = "dot")]
     /// Address for DNS-over-TLS.
     pub dot_addr: SocketAddr,
     #[cfg(feature = "dot")]
-    /// TLS configuration for DoT.
-    pub tls_config: ServerConfig,
+    /// TLS configuration.
+    pub tls_config: rustls::ServerConfig,
     #[cfg(feature = "dot")]
-    /// Certificate manager for production DoT features
+    /// Certificate manager for enhanced DoT.
     pub cert_manager: Option<std::sync::Arc<common::cert_manager::CertificateManager>>,
-    /// DNSSEC configuration
+    /// DNSSEC configuration (planned future enhancement)
     pub dnssec_config: Option<sign::DnssecConfig>,
 }
 
@@ -204,6 +202,8 @@ mod tests {
         let cfg = Config {
             addr,
             redis_pool: pool.clone(),
+            ddos_config: DdosConfig::default(),
+            enable_ddos_protection: false, // Disabled in tests
             #[cfg(feature = "dot")]
             dot_addr,
             #[cfg(feature = "dot")]
