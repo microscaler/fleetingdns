@@ -1,5 +1,11 @@
 # ServicePlan Enhancements – Product Requirements Document (PRD)
 
+## Migration Crate Location Policy
+- The canonical location for all database migration logic, tests, and binaries is **./crates/migration/**.
+- Do **not** use a root-level migration/ crate. All migration code, tests, and binaries must reside in crates/migration/.
+- All workspace, CI, and Docker references must use crates/migration/.
+- Rationale: Consistency, binary packaging, and workspace hygiene.
+
 ## Overview
 This PRD defines the requirements and implementation plan for enhancing the ServicePlan and UserServicePlan system in FleetingDNS. The goal is to provide robust, flexible, and production-grade subscription, feature, and quota management, supporting both admin and user workflows, billing integration, and future extensibility.
 

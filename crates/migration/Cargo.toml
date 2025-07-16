@@ -1,0 +1,13 @@
+[package]
+name = "migration"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+sea-orm-migration = "1.1"
+
+[dev-dependencies]
+testcontainers = "0.24.0"
+testcontainers-modules = { version = "0.12.1", features = ["postgres"] }
+
+# If a rust-toolchain.toml is needed for nightly, create it in this directory. 

@@ -23,7 +23,7 @@ members = [
     "cmd/feed_webhook-bin",
     "cmd/fleetingdns-ctl",
     "cmd/intake_collector-bin",
-    "cmd/ml_scorer-bin",
+    "cmd/ml_scorer-bin", "migration",
 ]
 exclude = [
     "crates/bin"
