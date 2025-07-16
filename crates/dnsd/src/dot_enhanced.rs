@@ -143,7 +143,7 @@ impl EnhancedDotServer {
     /// Create a new enhanced DoT server
     pub fn new(cert_manager: Arc<CertificateManager>, config: DotServerConfig) -> Self {
         Self {
-            config,
+            config: config.clone(),
             cert_manager,
             current_tls_config: Arc::new(ArcSwap::new(Arc::new(None))),
             active_connections: Arc::new(RwLock::new(HashMap::new())),
@@ -259,15 +259,15 @@ impl EnhancedDotServer {
         let peer_ip = peer.ip();
 
         // DDoS protection check (if enabled)
-        if self.config.enable_ddos_protection {
-            if let Err(ddos_error) = self.ddos_protection.check_connection_limit(peer_ip) {
+        if self.config.enable_ddos_protection
+            && let Err(ddos_error) = self.ddos_protection.check_connection_limit(peer_ip) {
                 debug!(peer = %peer, error = %ddos_error, "Connection rejected by DDoS protection");
                 if self.config.enable_metrics {
                     counter!("dot_connections_rejected_total", "reason" => "ddos_protection").increment(1);
                 }
                 return Ok(());
             }
-        }
+
 
         // Check rate limiting and connection limits
         if !self.check_rate_limit_and_connections(peer_ip).await? {
@@ -422,15 +422,15 @@ impl EnhancedDotServer {
                     }
 
                     // DDoS protection: check request size
-                    if self.config.enable_ddos_protection {
-                        if let Err(size_error) = self.ddos_protection.check_request_size(query_len) {
+                    if self.config.enable_ddos_protection
+                        && let Err(size_error) = self.ddos_protection.check_request_size(query_len) {
                             debug!(peer = %peer, query_len = query_len, error = %size_error, "Request size rejected by DDoS protection");
                             if self.config.enable_metrics {
                                 counter!("dns_queries_total", "protocol" => "dot", "status" => "oversized").increment(1);
                             }
                             break;
                         }
-                    }
+
 
                     // Read query data
                     let mut query_buf = vec![0u8; query_len];

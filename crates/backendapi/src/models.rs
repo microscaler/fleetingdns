@@ -491,8 +491,9 @@ pub struct User {
     pub avatar_url: String,
 }
 
-/// Request to create a new tunnel
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
+/// Fields are required for future tunnel creation and management implementations.
 pub struct CreateTunnelRequest {
     /// Subdomain for the tunnel (e.g., "myapp" for myapp.fleetingdns.com)
     pub subdomain: String,
@@ -548,23 +549,17 @@ pub struct PaymentInfo {
     pub next_payment_date: Option<DateTime<Utc>>,
 }
 
-/// User tier levels for rate limiting and features
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum UserTier {
     /// Free tier with basic limits
+    #[default]
     Free,
-    /// Pro tier with increased limits
+    /// Pro tier with higher limits
     Pro,
-    /// Enterprise tier with high limits
+    /// Enterprise tier with maximum limits
     Enterprise,
-    /// Admin tier with no limits
+    /// Admin tier with unlimited access
     Admin,
-}
-
-impl Default for UserTier {
-    fn default() -> Self {
-        UserTier::Free
-    }
 }
 
 impl UserTier {

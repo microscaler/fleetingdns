@@ -7,9 +7,10 @@ use std::{
     time::{Duration, Instant},
 };
 use tracing::{debug, warn};
+use serde::{Serialize, Deserialize};
 
 /// DDoS protection configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DdosConfig {
     /// Maximum connections per IP address
     pub max_connections_per_ip: u32,

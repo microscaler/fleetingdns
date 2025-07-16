@@ -45,6 +45,8 @@ impl Default for RateLimitConfig {
 }
 
 /// Rate limiting state manager
+#[allow(dead_code)]
+/// The config field is reserved for future dynamic rate limit policy updates.
 pub struct RateLimitState {
     config: RateLimitConfig,
     // Per-token API rate limiters
