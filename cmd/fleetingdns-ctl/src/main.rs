@@ -65,7 +65,7 @@ impl From<ShutdownSignalArg> for ShutdownSignal {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Err(e) = common::init_tracing("fleetingdns-ctl") {
-        eprintln!("Failed to initialize tracing: {}", e);
+        eprintln!("Failed to initialize tracing: {e}");
     }
 
     let cli = Cli::parse();

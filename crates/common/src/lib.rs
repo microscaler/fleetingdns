@@ -1,3 +1,4 @@
+#![feature(let_chains)]
 //! Common utilities shared across `FleetingDNS` crates.
 //!
 //! Provides application-wide tracing initialization, a basic error type,

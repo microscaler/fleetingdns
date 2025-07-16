@@ -33,7 +33,7 @@ struct Args {
 }
 
 async fn run(args: Args) -> AppResult<()> {
-    init_tracing("edgehub-bin");
+    let _ =init_tracing("edgehub-bin");
     init_metrics();
 
     // Initialize graceful shutdown framework

@@ -63,13 +63,11 @@ impl DdosProtection {
 
     /// Check if an IP address is currently blocked
     pub fn is_blocked(&self, ip: IpAddr) -> bool {
-        if let Some(info) = self.ip_info.get(&ip) {
-            if let Some(blocked_until) = info.blocked_until {
-                if Instant::now() < blocked_until {
-                    debug!(ip = %ip, "IP is blocked");
-                    return true;
-                }
-            }
+        if let Some(info) = self.ip_info.get(&ip) 
+            && info.blocked_until.is_some_and(|blocked_until| Instant::now() < blocked_until) 
+        {
+            debug!(ip = %ip, "IP is blocked");
+            return true;
         }
         false
     }
@@ -135,9 +133,7 @@ impl DdosProtection {
     /// Record connection closure for an IP
     pub fn connection_closed(&self, ip: IpAddr) {
         if let Some(mut info_ref) = self.ip_info.get_mut(&ip) {
-            if info_ref.active_connections > 0 {
-                info_ref.active_connections -= 1;
-            }
+            info_ref.active_connections = info_ref.active_connections.saturating_sub(1);
         }
     }
 
@@ -162,10 +158,8 @@ impl DdosProtection {
         let now = Instant::now();
         for entry in self.ip_info.iter() {
             let info = entry.value();
-            if let Some(blocked_until) = info.blocked_until {
-                if now < blocked_until {
-                    blocked_ips += 1;
-                }
+            if info.blocked_until.is_some_and(|blocked_until| now < blocked_until) {
+                blocked_ips += 1;
             }
             total_active_connections += info.active_connections;
         }
