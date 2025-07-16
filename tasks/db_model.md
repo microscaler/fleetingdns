@@ -1,8 +1,104 @@
 # Database Entity Model: Service Plan Management
 
-This model supports associating users with service plans (tiers) independently of the GitHubUser struct.
+## 1. Current Database Model (as implemented)
+
+```mermaid
+erDiagram
+    TUNNEL {
+        string id PK
+        string github_user_id
+        string github_username
+        string subdomain
+        string fqdn
+        int local_port
+        int slot
+        string certificate_serial
+        datetime created_at
+        datetime expires_at
+        string status
+        int bytes_transferred
+        int request_count
+    }
+    GITHUB_USER {
+        string id PK
+        string login
+        string name
+        string email
+        string avatar_url
+    }
+    AUTH_TOKEN {
+        string token PK
+        string token_type
+        datetime expires_at
+        string user_id FK
+    }
+    CERTIFICATE_INFO {
+        string serial PK
+        string certificate
+        string private_key
+        string fingerprint
+        datetime issued_at
+        datetime expires_at
+        string subject
+    }
+    SSH_KEY_PAIR {
+        string private_key
+        string public_key
+        string fingerprint
+    }
+    API_STATS {
+        int active_tunnels
+        int tunnels_created_today
+        int bytes_transferred_today
+        int uptime_seconds
+        string ca_stats_id FK
+    }
+    CA_STATS {
+        int certificates_issued
+        int active_certificates
+        int expired_certificates
+        float issuance_rate
+    }
+    USER {
+        int id PK
+        string login
+        string name
+        string email
+        string avatar_url
+    }
+    USER_SUBSCRIPTION {
+        int user_id FK
+        string tier
+        datetime created_at
+        datetime expires_at
+        bool active
+        string payment_info_id FK
+    }
+    PAYMENT_INFO {
+        string stripe_customer_id
+        string stripe_subscription_id
+        datetime last_payment_date
+        datetime next_payment_date
+    }
+    USER_USAGE {
+        int user_id FK
+        datetime period_start
+        int api_calls_count
+        int tunnels_created_count
+        int dns_operations_count
+        int active_tunnels_count
+    }
+    TUNNEL o|--|| GITHUB_USER : owner
+    AUTH_TOKEN }|--|| GITHUB_USER : user
+    USER_SUBSCRIPTION }|--|| USER : user
+    USER_SUBSCRIPTION }|--|| PAYMENT_INFO : payment
+    API_STATS }|--|| CA_STATS : ca_stats
+    USER_USAGE }|--|| USER : user
+```
 
 ---
+
+## 2. Proposed Database Model (Service Plan Management)
 
 ```mermaid
 erDiagram
@@ -41,7 +137,20 @@ erDiagram
 
 ---
 
-## Notes
-- **GitHubUser** does not have a `tier` field. User tier/plan is determined by joining `User` to `ServicePlan` via `UserServicePlan`.
-- The API should look up the user's active service plan to determine rate limits and features.
-- This model supports plan upgrades, history, and future extensibility (e.g., trial periods, custom plans). 
+## Summary: Differences and Migration Path
+
+- **Current Model:**
+  - User tier/subscription is managed via `UserSubscription` and `UserTier` enums, with payment info and usage tracked in separate tables.
+  - Tunnel, certificate, and stats entities are directly linked to users and their GitHub identity.
+  - No explicit service plan abstraction; tier is an enum, not a DB entity.
+
+- **Proposed Model:**
+  - Introduces `ServicePlan` as a first-class entity, allowing flexible plan definitions and features.
+  - `UserServicePlan` join table enables users to have plan history, upgrades, and custom plans.
+  - Decouples user identity from plan/tier logic, supporting future extensibility (e.g., trials, enterprise features).
+
+- **Migration Path:**
+  - Migrate `UserTier`/`UserSubscription` to `ServicePlan`/`UserServicePlan`.
+  - Move tier logic from enums to DB-driven configuration.
+  - Update API logic to resolve user plan via join, not enum.
+  - Retain usage and payment tracking, but link to new plan model. 
