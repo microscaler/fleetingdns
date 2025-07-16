@@ -230,6 +230,7 @@ mod tests {
         let config = DdosConfig {
             max_connections_per_ip: 2,
             connection_rate_per_minute: 100,
+            block_duration: Duration::from_millis(50), // Short block for test
             ..Default::default()
         };
         let ddos = DdosProtection::new(config);
@@ -242,8 +243,9 @@ mod tests {
         // Third connection should be blocked
         assert!(ddos.check_connection_limit(ip).is_err());
 
-        // After closing a connection, should allow another
+        // After closing a connection, should allow another after block expires
         ddos.connection_closed(ip);
+        std::thread::sleep(Duration::from_millis(60)); // Wait for block to expire
         assert!(ddos.check_connection_limit(ip).is_ok());
     }
 

@@ -224,7 +224,8 @@ mod tests {
                 Arc<ApiConfig>,
                 Arc<edf_ca::CertificateAuthority>,
                 Arc<storage::TunnelStorage>,
-                reqwest::Client
+                reqwest::Client,
+                Arc<RateLimitState>
             )>()
         );
     }
