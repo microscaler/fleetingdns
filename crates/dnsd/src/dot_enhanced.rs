@@ -148,7 +148,7 @@ impl EnhancedDotServer {
             current_tls_config: Arc::new(ArcSwap::new(Arc::new(None))),
             active_connections: Arc::new(RwLock::new(HashMap::new())),
             ip_rate_limits: Arc::new(Mutex::new(HashMap::new())),
-            ddos_protection: Arc::new(DdosProtection::new(config.ddos_config)),
+            ddos_protection: Arc::new(DdosProtection::new(config.ddos_config.clone())),
         }
     }
 
