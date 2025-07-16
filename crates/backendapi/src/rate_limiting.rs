@@ -46,13 +46,34 @@ pub struct RateLimitConfig {
 
 impl Default for RateLimitConfig {
     fn default() -> Self {
+        let mut per_tier = HashMap::new();
+        per_tier.insert(UserTier::Free, RateLimitPolicy {
+            requests_per_minute: 60,
+            burst: None,
+            window_seconds: None,
+        });
+        per_tier.insert(UserTier::Pro, RateLimitPolicy {
+            requests_per_minute: 300,
+            burst: None,
+            window_seconds: None,
+        });
+        per_tier.insert(UserTier::Enterprise, RateLimitPolicy {
+            requests_per_minute: 600,
+            burst: None,
+            window_seconds: None,
+        });
+        per_tier.insert(UserTier::Admin, RateLimitPolicy {
+            requests_per_minute: 600,
+            burst: None,
+            window_seconds: None,
+        });
         Self {
             default: RateLimitPolicy {
                 requests_per_minute: 60,
                 burst: None,
                 window_seconds: None,
             },
-            per_tier: HashMap::new(),
+            per_tier,
             per_endpoint: None,
         }
     }

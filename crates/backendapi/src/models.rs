@@ -519,23 +519,6 @@ pub struct TunnelResponse {
     pub description: Option<String>,
 }
 
-/// User subscription information
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UserSubscription {
-    /// User ID
-    pub user_id: i64,
-    /// Subscription tier
-    pub tier: UserTier,
-    /// When subscription was created
-    pub created_at: DateTime<Utc>,
-    /// When subscription expires (None for permanent)
-    pub expires_at: Option<DateTime<Utc>>,
-    /// Whether subscription is active
-    pub active: bool,
-    /// Payment information
-    pub payment_info: Option<PaymentInfo>,
-}
-
 /// Payment information for subscriptions
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaymentInfo {
@@ -549,7 +532,47 @@ pub struct PaymentInfo {
     pub next_payment_date: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+/// Service plan definition (replaces UserTier)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServicePlan {
+    /// Unique plan ID
+    pub id: String,
+    /// Plan name (e.g., Free, Pro, Enterprise)
+    pub name: String,
+    /// API rate limit (requests per minute)
+    pub api_rate_limit: u32,
+    /// Tunnel creation limit (per day)
+    pub tunnel_creation_limit: u32,
+    /// DNS provisioning limit (per hour)
+    pub dns_provisioning_limit: u32,
+    /// Max concurrent tunnels
+    pub max_concurrent_tunnels: u32,
+    /// JSON-encoded feature flags or custom plan features
+    pub features_json: Option<String>,
+    /// When the plan was created
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// User's assigned service plan (replaces UserSubscription)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserServicePlan {
+    /// Unique assignment ID
+    pub id: String,
+    /// User ID (FK)
+    pub user_id: String,
+    /// Service plan ID (FK)
+    pub service_plan_id: String,
+    /// When the plan assignment started
+    pub start_date: chrono::DateTime<chrono::Utc>,
+    /// When the plan assignment ends (if applicable)
+    pub end_date: Option<chrono::DateTime<chrono::Utc>>,
+    /// Whether this assignment is currently active
+    pub is_active: bool,
+}
+
+/// DEPRECATED: Use ServicePlan and UserServicePlan instead
+#[deprecated(note = "Use ServicePlan and UserServicePlan for all new logic. Remove after migration.")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, Hash)]
 pub enum UserTier {
     /// Free tier with basic limits
     #[default]
@@ -562,18 +585,16 @@ pub enum UserTier {
     Admin,
 }
 
+/// DEPRECATED: These methods are for legacy compatibility only. Remove after migration to ServicePlan.
 impl UserTier {
-    /// Get API rate limit (requests per minute)
     pub fn api_rate_limit(&self) -> u32 {
         match self {
-            UserTier::Free => 60,      // 1 request per second
-            UserTier::Pro => 300,      // 5 requests per second
-            UserTier::Enterprise => 600, // 10 requests per second
-            UserTier::Admin => u32::MAX, // No limit
+            UserTier::Free => 60,
+            UserTier::Pro => 300,
+            UserTier::Enterprise => 600,
+            UserTier::Admin => u32::MAX,
         }
     }
-
-    /// Get tunnel creation limit (per day)
     pub fn tunnel_creation_limit(&self) -> u32 {
         match self {
             UserTier::Free => 5,
@@ -582,8 +603,6 @@ impl UserTier {
             UserTier::Admin => u32::MAX,
         }
     }
-
-    /// Get DNS provisioning limit (operations per hour)
     pub fn dns_provisioning_limit(&self) -> u32 {
         match self {
             UserTier::Free => 10,
@@ -592,8 +611,6 @@ impl UserTier {
             UserTier::Admin => u32::MAX,
         }
     }
-
-    /// Get maximum concurrent tunnels
     pub fn max_concurrent_tunnels(&self) -> u32 {
         match self {
             UserTier::Free => 3,
@@ -602,16 +619,30 @@ impl UserTier {
             UserTier::Admin => u32::MAX,
         }
     }
-
-    /// Check if tier has premium features
     pub fn has_premium_features(&self) -> bool {
         matches!(self, UserTier::Pro | UserTier::Enterprise | UserTier::Admin)
     }
-
-    /// Check if tier has admin privileges
     pub fn is_admin(&self) -> bool {
         matches!(self, UserTier::Admin)
     }
+}
+
+/// DEPRECATED: Use ServicePlan and UserServicePlan instead
+#[deprecated(note = "Use ServicePlan and UserServicePlan for all new logic. Remove after migration.")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserSubscription {
+    /// User ID
+    pub user_id: i64,
+    /// Subscription tier
+    pub tier: UserTier,
+    /// When subscription was created
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    /// When subscription expires (None for permanent)
+    pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// Whether subscription is active
+    pub active: bool,
+    /// Payment information
+    pub payment_info: Option<PaymentInfo>,
 }
 
 /// Usage statistics for a user

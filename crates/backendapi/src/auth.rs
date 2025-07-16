@@ -4,6 +4,8 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::models::{GitHubUser, ServicePlan, UserServicePlan};
+
 /// GitHub OAuth authorization request
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
@@ -226,6 +228,41 @@ pub fn validate_jwt_token(token: &str, secret: &str) -> ApiResult<crate::models:
         name: None,
         email: None,
         avatar_url: String::new(),
+    })
+}
+
+/// Authenticated user with resolved service plan
+#[derive(Debug, Clone)]
+pub struct AuthenticatedUserWithPlan {
+    pub user: GitHubUser,
+    pub service_plan: ServicePlan,
+}
+
+/// Validate JWT token and resolve user's active service plan
+///
+/// Returns AuthenticatedUserWithPlan (user + plan)
+pub fn validate_jwt_token_with_plan(token: &str, secret: &str) -> ApiResult<AuthenticatedUserWithPlan> {
+    // Validate JWT as before
+    let user = validate_jwt_token(token, secret)?;
+
+    // --- BEGIN MOCK DB LOOKUP ---
+    // In production, replace this with a real DB lookup for UserServicePlan and ServicePlan
+    // For now, return a hardcoded "Pro" plan for demonstration
+    let plan = ServicePlan {
+        id: "pro".to_string(),
+        name: "Pro".to_string(),
+        api_rate_limit: 300,
+        tunnel_creation_limit: 50,
+        dns_provisioning_limit: 100,
+        max_concurrent_tunnels: 20,
+        features_json: None,
+        created_at: chrono::Utc::now(),
+    };
+    // --- END MOCK DB LOOKUP ---
+
+    Ok(AuthenticatedUserWithPlan {
+        user,
+        service_plan: plan,
     })
 }
 
