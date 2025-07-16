@@ -47,6 +47,7 @@ struct IpConnectionInfo {
 }
 
 /// DDoS protection state manager
+#[derive(Debug, Clone)]
 pub struct DdosProtection {
     config: DdosConfig,
     ip_info: Arc<DashMap<IpAddr, IpConnectionInfo>>,
