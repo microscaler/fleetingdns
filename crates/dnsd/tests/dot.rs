@@ -60,6 +60,8 @@ async fn kdig_dot_returns_loopback() {
         tls_config,
         cert_manager: None,
         dnssec_config: None,
+        ddos_config: common::ddos_protection::DdosConfig::default(),
+        enable_ddos_protection: false,
     };
 
     let handle = tokio::spawn(async move { serve(cfg).await.unwrap() });
