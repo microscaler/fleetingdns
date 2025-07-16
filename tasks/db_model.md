@@ -185,11 +185,18 @@ erDiagram
         int local_port
         int slot
         string certificate_serial FK
+        string ssh_key_pair_id FK
         datetime created_at
         datetime expires_at
         string status
         int bytes_transferred
         int request_count
+    }
+    SSH_KEY_PAIR {
+        string id PK
+        string private_key
+        string public_key
+        string fingerprint
     }
     AUTH_TOKEN {
         string token PK
@@ -205,11 +212,6 @@ erDiagram
         datetime issued_at
         datetime expires_at
         string subject
-    }
-    SSH_KEY_PAIR {
-        string private_key
-        string public_key
-        string fingerprint
     }
     API_STATS {
         int active_tunnels
@@ -262,6 +264,7 @@ erDiagram
     SERVICE_PLAN ||--o{ USER_SERVICE_PLAN : assigned_to
     SERVICE_PLAN ||--o{ PRICING : has
     USER ||--o{ TUNNEL : owns
+    TUNNEL ||--|| SSH_KEY_PAIR : uses
     USER ||--o{ AUTH_TOKEN : has
     USER ||--o{ PAYMENT_INFO : payment
     USER ||--o{ USER_USAGE : usage
@@ -281,10 +284,10 @@ erDiagram
 | SERVICE_PLAN     | id, name, api_rate_limit, tunnel_creation_limit, dns_provisioning_limit, features  |
 | PRICING          | id, service_plan_id, price, currency, region, valid_from, valid_to, description    |
 | USER_SERVICE_PLAN| id, user_id, service_plan_id, start_date, end_date, is_active                      |
-| TUNNEL           | id, user_id, subdomain, fqdn, local_port, slot, certificate_serial, status         |
+| TUNNEL           | id, user_id, subdomain, fqdn, local_port, slot, certificate_serial, ssh_key_pair_id, status |
+| SSH_KEY_PAIR     | id, private_key, public_key, fingerprint                                           |
 | AUTH_TOKEN       | token, token_type, expires_at, user_id                                             |
 | CERTIFICATE_INFO | serial, certificate, private_key, fingerprint, issued_at, expires_at, subject      |
-| SSH_KEY_PAIR     | private_key, public_key, fingerprint                                               |
 | API_STATS        | active_tunnels, tunnels_created_today, bytes_transferred_today, uptime_seconds     |
 | CA_STATS         | certificates_issued, active_certificates, expired_certificates, issuance_rate      |
 | PAYMENT_INFO     | id, user_id, stripe_customer_id, subscription_id, last/next payment                |
@@ -315,6 +318,8 @@ erDiagram
       - Each `SERVICE_PLAN` can have multiple `PRICING` records, each with a validity period (`valid_from`, `valid_to`).
       - Supports promotions, discounts, region/currency-specific pricing, and historical audit of what a user was charged at any time.
       - For billing and audit, always resolve the price from `PRICING` based on the user's plan and the billing date.
+    - **Per-tunnel SSH key isolation:**
+      - Each `TUNNEL` has a one-to-one relationship with an `SSH_KEY_PAIR` (`ssh_key_pair_id`), ensuring every ephemeral tunnel uses its own unique SSH credentials for security and isolation.
   - New entities can be added as needed (e.g., support tickets, notifications, etc.)
 
 - **Actionable Next Steps:**
