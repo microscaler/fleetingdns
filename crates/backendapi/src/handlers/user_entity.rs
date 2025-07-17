@@ -1,15 +1,16 @@
 use sea_orm::entity::prelude::*;
+use chrono::NaiveDateTime;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "user")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: String,
+    pub github_id: String,
+    pub username: String,
     pub email: String,
-    pub password_hash: String,
-    pub created_at: i64,
-    pub last_login: i64,
-    pub is_active: bool,
+    pub avatar_url: String,
+    pub created_at: NaiveDateTime,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter)]

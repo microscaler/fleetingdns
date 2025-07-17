@@ -44,6 +44,7 @@ mod tests {
 } 
 
 mod m20250716_191521_create_full_serviceplan_schema;
+mod m20250716_191522_add_constraints;
 
 pub struct Migrator;
 
@@ -52,6 +53,7 @@ impl sea_orm_migration::MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn sea_orm_migration::MigrationTrait>> {
         vec![
             Box::new(m20250716_191521_create_full_serviceplan_schema::Migration),
+            Box::new(m20250716_191522_add_constraints::Migration),
         ]
     }
 }

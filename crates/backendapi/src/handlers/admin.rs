@@ -147,8 +147,19 @@ mod e2e_serviceplan_tests {
         assert!(dup_result.is_err(), "Duplicate name should fail");
 
         // --- UserServicePlan assignment ---
-        // Assign
+        // Create a user first
         let user_id = Uuid::new_v4().to_string();
+        let user = crate::handlers::user_entity::ActiveModel {
+            id: sea_orm::Set(user_id.clone()),
+            github_id: sea_orm::Set("test_github_id".to_string()),
+            username: sea_orm::Set("test_user".to_string()),
+            email: sea_orm::Set("test@example.com".to_string()),
+            avatar_url: sea_orm::Set("https://example.com/avatar.png".to_string()),
+            created_at: sea_orm::Set(now),
+        };
+        let _ = crate::handlers::user_entity::Entity::insert(user).exec(&db).await.expect("create user");
+
+        // Assign
         let start_date = Utc::now().naive_utc();
         let end_date = start_date + chrono::Duration::days(30);
         let assignment = UserServicePlanActiveModel {
@@ -157,7 +168,7 @@ mod e2e_serviceplan_tests {
             service_plan_id: sea_orm::Set(plan_id.clone()),
             start_date: sea_orm::Set(start_date),
             end_date: sea_orm::Set(end_date),
-            status: sea_orm::Set("active".to_string()),
+            is_active: sea_orm::Set(true),
         };
         let assigned = UserServicePlanEntity::insert(assignment).exec(&db).await.expect("assign");
         assert_eq!(assigned.last_insert_id, assigned.last_insert_id);

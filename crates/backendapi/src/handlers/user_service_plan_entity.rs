@@ -10,7 +10,7 @@ pub struct Model {
     pub service_plan_id: String,
     pub start_date: NaiveDateTime,
     pub end_date: NaiveDateTime,
-    pub status: String,
+    pub is_active: bool,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter)]
