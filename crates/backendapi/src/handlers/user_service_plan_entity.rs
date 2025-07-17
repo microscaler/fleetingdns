@@ -1,38 +1,25 @@
-use sea_orm::{EntityTrait, PrimaryKeyTrait, DeriveColumn, DerivePrimaryKey, DeriveRelation, EnumIter, Set, ActiveModelBehavior};
-use uuid::Uuid;
-use chrono::Utc;
+use sea_orm::entity::prelude::*;
+use chrono::NaiveDateTime;
 
-#[derive(Clone, Debug, sea_orm::DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "user_service_plan")]
 pub struct Model {
     #[sea_orm(primary_key)]
-    pub id: Uuid,
-    pub user_id: Uuid,
-    pub service_plan_id: Uuid,
-    pub assigned_at: chrono::DateTime<Utc>,
+    pub id: String,
+    pub user_id: String,
+    pub service_plan_id: String,
+    pub start_date: NaiveDateTime,
+    pub end_date: NaiveDateTime,
+    pub status: String,
 }
 
-#[derive(Clone, Debug, Default, sea_orm::DeriveActiveModel)]
-pub struct ActiveModel {
-    pub id: Set<Uuid>,
-    pub user_id: Set<Uuid>,
-    pub service_plan_id: Set<Uuid>,
-    pub assigned_at: Set<chrono::DateTime<Utc>>,
-}
-impl ActiveModelBehavior for ActiveModel {}
-
-#[derive(Copy, Clone, Debug, EnumIter, DeriveColumn)]
-pub enum Column { Id, UserId, ServicePlanId, AssignedAt }
-#[derive(Copy, Clone, Debug, EnumIter, DerivePrimaryKey)]
-pub enum PrimaryKey { Id }
-impl PrimaryKeyTrait for PrimaryKey { type ValueType = Uuid; fn auto_increment() -> bool { false } }
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+#[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {}
-pub struct Entity;
-impl EntityTrait for Entity {
-    type Model = Model;
-    type Column = Column;
-    type PrimaryKey = PrimaryKey;
-    type Relation = Relation;
-    type ActiveModel = ActiveModel;
-} 
+
+impl RelationTrait for Relation {
+    fn def(&self) -> RelationDef {
+        panic!("No relations defined")
+    }
+}
+
+impl ActiveModelBehavior for ActiveModel {} 

@@ -73,7 +73,7 @@ mod e2e_serviceplan_tests {
     use migration::Migrator;
     use sea_orm_migration::MigratorTrait;
     use uuid::Uuid;
-    use chrono::Utc;
+    use chrono::{Utc, NaiveDateTime};
     use crate::handlers::service_plan_entity;
     use crate::handlers::user_service_plan_entity;
 
@@ -106,18 +106,19 @@ mod e2e_serviceplan_tests {
         type UserServicePlanActiveModel = crate::handlers::user_service_plan_entity::ActiveModel;
 
         // Create
-        let plan_id = Uuid::new_v4();
+        let plan_id = Uuid::new_v4().to_string();
+        let now = Utc::now().naive_utc();
         let plan = ServicePlanActiveModel {
-            id: sea_orm::Set(plan_id),
+            id: sea_orm::Set(plan_id.clone()),
             name: sea_orm::Set("Pro".to_string()),
             api_rate_limit: sea_orm::Set(1000),
-            created_at: sea_orm::Set(Utc::now()),
+            created_at: sea_orm::Set(now),
         };
         let inserted = ServicePlanEntity::insert(plan).exec(&db).await.expect("insert");
         assert_eq!(inserted.last_insert_id, plan_id);
 
         // Read
-        let found = ServicePlanEntity::find_by_id(plan_id).one(&db).await.expect("find").unwrap();
+        let found = ServicePlanEntity::find_by_id(plan_id.clone()).one(&db).await.expect("find").unwrap();
         assert_eq!(found.name, "Pro");
         assert_eq!(found.api_rate_limit, 1000);
 
@@ -129,28 +130,32 @@ mod e2e_serviceplan_tests {
 
         // Unique name validation
         let dup_plan = ServicePlanActiveModel {
-            id: sea_orm::Set(Uuid::new_v4()),
+            id: sea_orm::Set(Uuid::new_v4().to_string()),
             name: sea_orm::Set("Pro".to_string()),
             api_rate_limit: sea_orm::Set(500),
-            created_at: sea_orm::Set(Utc::now()),
+            created_at: sea_orm::Set(now),
         };
         let dup_result = ServicePlanEntity::insert(dup_plan).exec(&db).await;
         assert!(dup_result.is_err(), "Duplicate name should fail");
 
         // --- UserServicePlan assignment ---
         // Assign
-        let user_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4().to_string();
+        let start_date = Utc::now().naive_utc();
+        let end_date = start_date + chrono::Duration::days(30);
         let assignment = UserServicePlanActiveModel {
-            id: sea_orm::Set(Uuid::new_v4()),
+            id: sea_orm::Set(Uuid::new_v4().to_string()),
             user_id: sea_orm::Set(user_id),
-            service_plan_id: sea_orm::Set(plan_id),
-            assigned_at: sea_orm::Set(Utc::now()),
+            service_plan_id: sea_orm::Set(plan_id.clone()),
+            start_date: sea_orm::Set(start_date),
+            end_date: sea_orm::Set(end_date),
+            status: sea_orm::Set("active".to_string()),
         };
         let assigned = UserServicePlanEntity::insert(assignment).exec(&db).await.expect("assign");
         assert_eq!(assigned.last_insert_id, assigned.last_insert_id);
 
         // Prevent deletion of ServicePlan in use
-        let del_result = ServicePlanEntity::delete_by_id(plan_id).exec(&db).await;
+        let del_result = ServicePlanEntity::delete_by_id(plan_id.clone()).exec(&db).await;
         assert!(del_result.is_err(), "Should not delete plan in use");
 
         // Unassign
@@ -159,6 +164,6 @@ mod e2e_serviceplan_tests {
 
         // Now deletion should succeed
         let del_result2 = ServicePlanEntity::delete_by_id(plan_id).exec(&db).await;
-        assert!(del_result2.rows_affected == 1, "Plan should be deleted after unassignment");
+        assert!(del_result2.unwrap().rows_affected == 1, "Plan should be deleted after unassignment");
     }
 } 
