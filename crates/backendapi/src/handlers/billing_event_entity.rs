@@ -1,16 +1,22 @@
 use sea_orm::{EntityTrait, PrimaryKeyTrait, DeriveColumn, DerivePrimaryKey, DeriveRelation, EnumIter, Set, ActiveModelBehavior};
-use chrono::Utc;
+use chrono::NaiveDateTime;
 
 #[derive(Clone, Debug, sea_orm::DeriveEntityModel)]
 #[sea_orm(table_name = "billing_event")]
 pub struct Model {
-    #[sea_orm(primary_key)]
+    #[sea_orm(primary_key, column_name = "id")]
     pub id: String,
+    #[sea_orm(column_name = "user_id")]
     pub user_id: String,
+    #[sea_orm(column_name = "service_plan_id")]
     pub service_plan_id: String,
+    #[sea_orm(column_name = "event_type")]
     pub event_type: String,
+    #[sea_orm(column_name = "amount")]
     pub amount: f64,
-    pub event_time: chrono::DateTime<Utc>,
+    #[sea_orm(column_name = "event_time")]
+    pub event_time: NaiveDateTime,
+    #[sea_orm(column_name = "details_json")]
     pub details_json: String,
 }
 
@@ -21,7 +27,7 @@ pub struct ActiveModel {
     pub service_plan_id: Set<String>,
     pub event_type: Set<String>,
     pub amount: Set<f64>,
-    pub event_time: Set<chrono::DateTime<Utc>>,
+    pub event_time: Set<NaiveDateTime>,
     pub details_json: Set<String>,
 }
 impl ActiveModelBehavior for ActiveModel {}
