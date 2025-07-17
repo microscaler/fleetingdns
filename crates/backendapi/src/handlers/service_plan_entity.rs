@@ -8,6 +8,10 @@ pub struct Model {
     pub id: String,
     pub name: String,
     pub api_rate_limit: i32,
+    pub tunnel_creation_limit: i32,
+    pub dns_provisioning_limit: i32,
+    pub max_concurrent_tunnels: i32,
+    pub features_json: String,
     pub created_at: NaiveDateTime,
 }
 

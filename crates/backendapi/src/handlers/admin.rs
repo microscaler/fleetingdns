@@ -112,6 +112,10 @@ mod e2e_serviceplan_tests {
             id: sea_orm::Set(plan_id.clone()),
             name: sea_orm::Set("Pro".to_string()),
             api_rate_limit: sea_orm::Set(1000),
+            tunnel_creation_limit: sea_orm::Set(10),
+            dns_provisioning_limit: sea_orm::Set(5),
+            max_concurrent_tunnels: sea_orm::Set(3),
+            features_json: sea_orm::Set("{}".to_string()),
             created_at: sea_orm::Set(now),
         };
         let inserted = ServicePlanEntity::insert(plan).exec(&db).await.expect("insert");
@@ -133,6 +137,10 @@ mod e2e_serviceplan_tests {
             id: sea_orm::Set(Uuid::new_v4().to_string()),
             name: sea_orm::Set("Pro".to_string()),
             api_rate_limit: sea_orm::Set(500),
+            tunnel_creation_limit: sea_orm::Set(10),
+            dns_provisioning_limit: sea_orm::Set(5),
+            max_concurrent_tunnels: sea_orm::Set(3),
+            features_json: sea_orm::Set("{}".to_string()),
             created_at: sea_orm::Set(now),
         };
         let dup_result = ServicePlanEntity::insert(dup_plan).exec(&db).await;
