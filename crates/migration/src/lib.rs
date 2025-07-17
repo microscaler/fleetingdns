@@ -2,19 +2,19 @@
 // Do not use a root-level migration crate. All workspace, CI, and Docker references must use crates/migration/.
 //
 // See ServicePlan PRD for policy details.
+use async_trait::async_trait;
 #[cfg(test)]
 mod tests {
-    use testcontainers::{clients, RunnableImage};
+    use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::postgres::Postgres;
     use sea_orm_migration::{MigratorTrait, SchemaManager, sea_orm::Database};
     use std::env;
+    use crate::Migrator; // Ensure Migrator is public and imported
 
     #[tokio::test]
     async fn test_migration_runs_on_postgres_18() {
-        let docker = clients::Cli::default();
-        let pg_image = RunnableImage::from(Postgres::default().with_version(18));
-        let container = docker.run(pg_image);
-        let port = container.get_host_port_ipv4(5432);
+        let container = Postgres::default().start().await.expect("Failed to start Postgres");
+        let port = container.get_host_port_ipv4(5432).await.unwrap();
         let url = format!("postgres://postgres:postgres@127.0.0.1:{}/postgres", port);
 
         // Wait for DB to be ready
@@ -31,7 +31,7 @@ mod tests {
         };
 
         // Run all migrations
-        super::Migrator::up(&db, None).await.expect("Migration should succeed");
+        Migrator::up(&db, None).await.expect("Migration should succeed");
 
         // Verify all tables exist
         let schema = SchemaManager::new(&db);
@@ -44,3 +44,14 @@ mod tests {
 } 
 
 mod m20250716_191521_create_full_serviceplan_schema;
+
+pub struct Migrator;
+
+#[async_trait::async_trait]
+impl sea_orm_migration::MigratorTrait for Migrator {
+    fn migrations() -> Vec<Box<dyn sea_orm_migration::MigrationTrait>> {
+        vec![
+            Box::new(m20250716_191521_create_full_serviceplan_schema::Migration),
+        ]
+    }
+}

@@ -62,4 +62,38 @@ mod tests {
         // This is a placeholder for actual integration test
         assert_eq!(config.default.requests_per_minute, 60);
     }
+}
+
+#[cfg(test)]
+mod e2e_serviceplan_tests {
+    use testcontainers::runners::AsyncRunner;
+    use testcontainers_modules::postgres::Postgres;
+    use sea_orm::{Database};
+    // TODO: Add SeaORM entity/model imports as needed
+
+    #[tokio::test]
+    async fn serviceplan_crud_and_assignment_e2e() {
+        // Start Postgres container using modern async API
+        let container = Postgres::default().start().await.expect("Failed to start Postgres");
+        let port = container.get_host_port_ipv4(5432).await.unwrap();
+        let url = format!("postgres://postgres:postgres@127.0.0.1:{}/postgres", port);
+
+        // Wait for DB to be ready
+        let mut retries = 10;
+        let db = loop {
+            match Database::connect(&url).await {
+                Ok(db) => break db,
+                Err(_) if retries > 0 => {
+                    retries -= 1;
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                }
+                Err(e) => panic!("Failed to connect to Postgres: {e}"),
+            }
+        };
+
+        // TODO: Run migrations using migration::Migrator
+        // TODO: Implement ServicePlan CRUD and assignment logic using SeaORM
+        todo!("Implement ServicePlan CRUD and assignment e2e tests using modern testcontainers and SeaORM");
+    }
+    // TODO: Refactor other e2e tests similarly, using the modern async testcontainers API
 } 

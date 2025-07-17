@@ -4,10 +4,12 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-sea-orm-migration = "1.1"
+sea-orm-migration = "1.1.13"
+async-trait = "0.1"
 
 [dev-dependencies]
-testcontainers = "0.24.0"
-testcontainers-modules = { version = "0.12.1", features = ["postgres"] }
+tokio = { version = "1.37", features = ["macros", "rt-multi-thread"] }
+testcontainers = { workspace = true }
+testcontainers-modules = { workspace = true }
 
 # If a rust-toolchain.toml is needed for nightly, create it in this directory. 
