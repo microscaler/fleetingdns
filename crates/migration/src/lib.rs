@@ -5,6 +5,7 @@
 use async_trait::async_trait;
 #[cfg(test)]
 mod tests {
+    use serial_test::serial;
     use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::postgres::Postgres;
     use sea_orm_migration::{MigratorTrait, SchemaManager, sea_orm::Database};
@@ -67,6 +68,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_migration_runs_on_postgres_18() {
         let (container, port) = setup_test_container().await;
         let db = connect_to_database(port).await;
@@ -84,6 +86,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_postgres_container_basic_connectivity() {
         use tokio_postgres::{NoTls, Client, Connection};
         
@@ -119,6 +122,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_seaorm_connectivity() {
         use sea_orm::{Database, DatabaseConnection, Statement};
         use sea_orm::ConnectionTrait;
