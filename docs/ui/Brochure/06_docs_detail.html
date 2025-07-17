@@ -87,7 +87,7 @@
                 <path d="M12 22V16M12 16L20 12M12 16L4 12M12 2V8M12 8L4 12M12 8L20 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
             </svg>
             <div class="ml-2">
-                <h1 class="text-xl font-bold">EDF</h1>
+                <h1 class="text-xl font-bold">FleetingDNS</h1>
                 <h2 class="text-sm text-gray-400">Documentation</h2>
             </div>
         </div>
@@ -260,7 +260,7 @@
                     <img src="https://storage.googleapis.com/uxpilot-auth.appspot.com/avatars/avatar-2.jpg" alt="Author" class="w-10 h-10 rounded-full mr-3">
                     <div>
                         <p class="text-sm font-medium">Written by Alex Johnson</p>
-                        <p class="text-xs text-gray-500">Last updated: June 15, 2023</p>
+                        <p class="text-xs text-gray-500">Last updated: June 15, 2025</p>
                     </div>
                 </div>
                 <div class="flex space-x-2">
@@ -288,7 +288,7 @@
                     </li>
                     <li class="text-sm text-primary-600 hover:text-primary-700 cursor-pointer">
                         <i class="fa-solid fa-link text-xs mr-1"></i>
-                        Implementation in EDF
+                        Implementation in FleetingDNS
                     </li>
                     <li class="text-sm text-primary-600 hover:text-primary-700 cursor-pointer">
                         <i class="fa-solid fa-link text-xs mr-1"></i>
@@ -413,21 +413,21 @@
 
             <section id="implementation-in-edf" class="mb-10">
                 <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center">
-                    Implementation in EDF
+                    Implementation in FleetingDNS
                     <span class="ml-2 text-gray-400 hover:text-primary-600 cursor-pointer">
                             <i class="fa-solid fa-link text-sm"></i>
                         </span>
                 </h2>
 
                 <p class="text-gray-700 mb-6 leading-relaxed">
-                    EDF implements Zero-Trust principles at its core, providing a secure tunneling solution that maintains strict access controls for all connections. Here's how EDF enforces Zero-Trust security:
+                   FleetingDNSimplements Zero-Trust principles at its core, providing a secure tunneling solution that maintains strict access controls for all connections. Here's how FleetingDNS enforces Zero-Trust security:
                 </p>
 
                 <div class="space-y-6 mb-6">
                     <div class="bg-white border-l-4 border-primary-500 p-5 rounded-r-lg shadow-sm">
                         <h3 class="text-lg font-semibold text-gray-800 mb-2">Mutual TLS Authentication (mTLS)</h3>
                         <p class="text-gray-700">
-                            EDF uses mTLS for bidirectional authentication, ensuring both the client and server verify each other's identity. Certificates are automatically rotated every 30 minutes, minimizing the impact of potential credential theft.
+                           FleetingDNSuses mTLS for bidirectional authentication, ensuring both the client and server verify each other's identity. Certificates are automatically rotated every 30 minutes, minimizing the impact of potential credential theft.
                         </p>
                         <div class="mt-3">
                             <span class="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-2">Certificate Rotation</span>
@@ -439,7 +439,7 @@
                     <div class="bg-white border-l-4 border-secondary-500 p-5 rounded-r-lg shadow-sm">
                         <h3 class="text-lg font-semibold text-gray-800 mb-2">DNSSEC Signing</h3>
                         <p class="text-gray-700">
-                            All EDF domains are DNSSEC-signed, preventing DNS spoofing attacks and ensuring that users connect to legitimate EDF infrastructure rather than malicious impersonators.
+                            All FleetingDNS domains are DNSSEC-signed, preventing DNS spoofing attacks and ensuring that users connect to legitimateFleetingDNSinfrastructure rather than malicious impersonators.
                         </p>
                         <div class="mt-3">
                             <span class="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-2">DNS Security</span>
@@ -450,7 +450,7 @@
                     <div class="bg-white border-l-4 border-green-500 p-5 rounded-r-lg shadow-sm">
                         <h3 class="text-lg font-semibold text-gray-800 mb-2">OIDC Integration</h3>
                         <p class="text-gray-700">
-                            EDF integrates with OpenID Connect (OIDC) providers, allowing enterprises to leverage their existing identity infrastructure for user authentication and authorization.
+                           FleetingDNSintegrates with OpenID Connect (OIDC) providers, allowing enterprises to leverage their existing identity infrastructure for user authentication and authorization.
                         </p>
                         <div class="mt-3">
                             <span class="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded mr-2">Identity Federation</span>
@@ -481,12 +481,12 @@
                 </h2>
 
                 <p class="text-gray-700 mb-6 leading-relaxed">
-                    The EDF authentication flow combines multiple security layers to ensure comprehensive protection:
+                    The FleetingDNS authentication flow combines multiple security layers to ensure comprehensive protection:
                 </p>
 
                 <div class="bg-white border border-gray-200 rounded-lg overflow-hidden mb-6">
                     <div class="border-b border-gray-200 bg-gray-50 px-4 py-3">
-                        <h3 class="text-lg font-medium text-gray-800">EDF Zero-Trust Authentication Flow</h3>
+                        <h3 class="text-lg font-medium text-gray-800">FleetingDNS Zero-Trust Authentication Flow</h3>
                     </div>
                     <div class="p-6">
                         <div class="flex flex-col space-y-4">
@@ -494,7 +494,7 @@
                                 <div class="bg-gray-100 rounded-full h-8 w-8 flex items-center justify-center text-gray-700 font-bold mr-4 mt-1">1</div>
                                 <div>
                                     <h4 class="font-medium text-gray-800 mb-1">Initial Connection Request</h4>
-                                    <p class="text-gray-600 text-sm">Client initiates connection to an EDF tunnel endpoint.</p>
+                                    <p class="text-gray-600 text-sm">Client initiates connection to a FleetingDNS tunnel endpoint.</p>
                                 </div>
                             </div>
 
@@ -524,7 +524,7 @@
                                 <div class="bg-gray-100 rounded-full h-8 w-8 flex items-center justify-center text-gray-700 font-bold mr-4 mt-1">4</div>
                                 <div>
                                     <h4 class="font-medium text-gray-800 mb-1">Authorization Check</h4>
-                                    <p class="text-gray-600 text-sm">EDF verifies that the authenticated identity has permission to access the requested tunnel.</p>
+                                    <p class="text-gray-600 text-sm">FleetingDNS verifies that the authenticated identity has permission to access the requested tunnel.</p>
                                 </div>
                             </div>
 
@@ -602,7 +602,7 @@ $ edf tunnel 8080 --oidc-provider=okta --require-auth --rate-limit=100
                             Enable OIDC Integration
                         </h3>
                         <p class="text-gray-700 text-sm">
-                            Whenever possible, integrate EDF with your organization's identity provider through OIDC to leverage existing user management and authentication policies.
+                            Whenever possible, integrate FleetingDNS with your organization's identity provider through OIDC to leverage existing user management and authentication policies.
                         </p>
                     </div>
 
@@ -622,7 +622,7 @@ $ edf tunnel 8080 --oidc-provider=okta --require-auth --rate-limit=100
                             Monitor Audit Logs
                         </h3>
                         <p class="text-gray-700 text-sm">
-                            Regularly review EDF audit logs and set up alerts for suspicious activities, such as access attempts outside normal business hours or from unusual locations.
+                            Regularly review FleetingDNS audit logs and set up alerts for suspicious activities, such as access attempts outside normal business hours or from unusual locations.
                         </p>
                     </div>
 
@@ -669,7 +669,7 @@ $ edf tunnel 8080 --oidc-provider=okta --require-auth --rate-limit=100
                     <div class="mb-4">
                         <label class="flex items-start space-x-2">
                             <input class="mt-1" type="checkbox">
-                            <span class="text-gray-700">Allow EDF to contact me about my documentation feedback.</span>
+                            <span class="text-gray-700">Allow FleetingDNS to contact me about my documentation feedback.</span>
                         </label>
                     </div>
                     <button class="bg-primary-600 text-white px-4 py-2 rounded hover:bg-primary-700 transition mb-4">
@@ -710,7 +710,7 @@ $ edf tunnel 8080 --oidc-provider=okta --require-auth --rate-limit=100
                     <path d="M12 2L4 6V18L12 22L20 18V6L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
                     <path d="M12 22V16M12 16L20 12M12 16L4 12M12 2V8M12 8L4 12M12 8L20 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
                 </svg>
-                <span class="ml-2 text-xl font-bold text-white">EDF</span>
+                <span class="ml-2 text-xl font-bold text-white">FleetingDNS</span>
             </div>
             <p class="mb-4">Instant, Zero-Trust Tunnels for Modern Dev &amp; Edge Workloads.</p>
             <div class="flex space-x-4">
@@ -759,7 +759,7 @@ $ edf tunnel 8080 --oidc-provider=okta --require-auth --rate-limit=100
         </div>
     </div>
     <div class="max-w-7xl mx-auto mt-8 pt-8 border-t border-gray-800 text-sm">
-        <p>© 2023 EDF. All rights reserved.</p>
+        <p>© 2025 FleetingDNS. All rights reserved.</p>
     </div>
 </footer>
 
