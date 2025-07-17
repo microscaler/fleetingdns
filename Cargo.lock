@@ -438,6 +438,7 @@ dependencies = [
  "redis 0.32.3",
  "reqwest 0.12.22",
  "sea-orm",
+ "sea-orm-migration",
  "serde",
  "serde_json",
  "tempfile",

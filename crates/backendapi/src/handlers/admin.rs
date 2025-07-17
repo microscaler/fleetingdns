@@ -66,14 +66,20 @@ mod tests {
 
 #[cfg(test)]
 mod e2e_serviceplan_tests {
+    use super::*;
     use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::postgres::Postgres;
-    use sea_orm::{Database};
-    // TODO: Add SeaORM entity/model imports as needed
+    use sea_orm::{Database, ActiveModelTrait, EntityTrait};
+    use migration::Migrator;
+    use sea_orm_migration::MigratorTrait;
+    use uuid::Uuid;
+    use chrono::Utc;
+    use crate::handlers::service_plan_entity;
+    use crate::handlers::user_service_plan_entity;
 
     #[tokio::test]
     async fn serviceplan_crud_and_assignment_e2e() {
-        // Start Postgres container using modern async API
+        // Start Postgres 18 container
         let container = Postgres::default().start().await.expect("Failed to start Postgres");
         let port = container.get_host_port_ipv4(5432).await.unwrap();
         let url = format!("postgres://postgres:postgres@127.0.0.1:{}/postgres", port);
@@ -85,15 +91,74 @@ mod e2e_serviceplan_tests {
                 Ok(db) => break db,
                 Err(_) if retries > 0 => {
                     retries -= 1;
-                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                 }
-                Err(e) => panic!("Failed to connect to Postgres: {e}"),
+                Err(e) => panic!("Failed to connect to Postgres: {e:?}"),
             }
         };
 
-        // TODO: Run migrations using migration::Migrator
-        // TODO: Implement ServicePlan CRUD and assignment logic using SeaORM
-        todo!("Implement ServicePlan CRUD and assignment e2e tests using modern testcontainers and SeaORM");
+        // Run migrations
+        Migrator::up(&db, None).await.expect("Migration failed");
+
+        type ServicePlanEntity = crate::handlers::service_plan_entity::Entity;
+        type ServicePlanActiveModel = crate::handlers::service_plan_entity::ActiveModel;
+        type UserServicePlanEntity = crate::handlers::user_service_plan_entity::Entity;
+        type UserServicePlanActiveModel = crate::handlers::user_service_plan_entity::ActiveModel;
+
+        // Create
+        let plan_id = Uuid::new_v4();
+        let plan = ServicePlanActiveModel {
+            id: sea_orm::Set(plan_id),
+            name: sea_orm::Set("Pro".to_string()),
+            api_rate_limit: sea_orm::Set(1000),
+            created_at: sea_orm::Set(Utc::now()),
+        };
+        let inserted = ServicePlanEntity::insert(plan).exec(&db).await.expect("insert");
+        assert_eq!(inserted.last_insert_id, plan_id);
+
+        // Read
+        let found = ServicePlanEntity::find_by_id(plan_id).one(&db).await.expect("find").unwrap();
+        assert_eq!(found.name, "Pro");
+        assert_eq!(found.api_rate_limit, 1000);
+
+        // Update
+        let mut to_update: ServicePlanActiveModel = found.clone().into();
+        to_update.api_rate_limit = sea_orm::Set(2000);
+        let updated = to_update.update(&db).await.expect("update");
+        assert_eq!(updated.api_rate_limit, 2000);
+
+        // Unique name validation
+        let dup_plan = ServicePlanActiveModel {
+            id: sea_orm::Set(Uuid::new_v4()),
+            name: sea_orm::Set("Pro".to_string()),
+            api_rate_limit: sea_orm::Set(500),
+            created_at: sea_orm::Set(Utc::now()),
+        };
+        let dup_result = ServicePlanEntity::insert(dup_plan).exec(&db).await;
+        assert!(dup_result.is_err(), "Duplicate name should fail");
+
+        // --- UserServicePlan assignment ---
+        // Assign
+        let user_id = Uuid::new_v4();
+        let assignment = UserServicePlanActiveModel {
+            id: sea_orm::Set(Uuid::new_v4()),
+            user_id: sea_orm::Set(user_id),
+            service_plan_id: sea_orm::Set(plan_id),
+            assigned_at: sea_orm::Set(Utc::now()),
+        };
+        let assigned = UserServicePlanEntity::insert(assignment).exec(&db).await.expect("assign");
+        assert_eq!(assigned.last_insert_id, assigned.last_insert_id);
+
+        // Prevent deletion of ServicePlan in use
+        let del_result = ServicePlanEntity::delete_by_id(plan_id).exec(&db).await;
+        assert!(del_result.is_err(), "Should not delete plan in use");
+
+        // Unassign
+        let assignment_id = assigned.last_insert_id;
+        let _ = UserServicePlanEntity::delete_by_id(assignment_id).exec(&db).await.expect("unassign");
+
+        // Now deletion should succeed
+        let del_result2 = ServicePlanEntity::delete_by_id(plan_id).exec(&db).await;
+        assert!(del_result2.rows_affected == 1, "Plan should be deleted after unassignment");
     }
-    // TODO: Refactor other e2e tests similarly, using the modern async testcontainers API
 } 
