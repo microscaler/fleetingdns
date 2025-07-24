@@ -1363,6 +1363,7 @@ dependencies = [
  "bb8-redis 0.24.0",
  "common",
  "crc16",
+ "dashmap",
  "governor",
  "hex",
  "hickory-proto",
