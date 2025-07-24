@@ -98,6 +98,15 @@ pub async fn create_tunnel(
         )));
     }
 
+    // Check quota for tunnel creation
+    let user_id = user.id.to_string();
+    let can_create = state.quota_enforcer.can_create_tunnel(&user_id).await?;
+    if !can_create {
+        return Err(ApiError::BadRequest(
+            "Tunnel creation quota exceeded. Please upgrade your ServicePlan or wait until next billing period.".to_string()
+        ));
+    }
+
     // Generate subdomain
     let subdomain = if let Some(custom) = &request.custom_subdomain {
         validate_subdomain(custom)?;
