@@ -47,6 +47,15 @@ pub enum ApiError {
 
     #[error("Internal server error: {0}")]
     InternalError(String),
+
+    #[error("Validation error: {0}")]
+    ValidationError(String),
+
+    #[error("Not found: {0}")]
+    NotFound(String),
+
+    #[error("Database error: {0}")]
+    DatabaseError(String),
 }
 
 /// API result type
@@ -116,6 +125,21 @@ impl IntoResponse for ApiError {
                 "internal_error",
                 self.to_string(),
             ),
+            ApiError::ValidationError(_) => (
+                StatusCode::BAD_REQUEST,
+                "validation_error",
+                self.to_string(),
+            ),
+            ApiError::NotFound(_) => (
+                StatusCode::NOT_FOUND,
+                "not_found",
+                self.to_string(),
+            ),
+            ApiError::DatabaseError(_) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "database_error",
+                self.to_string(),
+            ),
         };
 
         let error_response = ErrorResponse {
@@ -162,6 +186,12 @@ impl From<std::io::Error> for ApiError {
 impl From<anyhow::Error> for ApiError {
     fn from(err: anyhow::Error) -> Self {
         ApiError::InternalError(err.to_string())
+    }
+}
+
+impl From<sea_orm::DbErr> for ApiError {
+    fn from(err: sea_orm::DbErr) -> Self {
+        ApiError::DatabaseError(err.to_string())
     }
 }
 

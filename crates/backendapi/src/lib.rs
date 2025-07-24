@@ -1,11 +1,12 @@
 use axum::{
     Router,
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
 };
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::info;
+use sea_orm::DatabaseConnection;
 
 mod auth;
 mod config;
@@ -29,6 +30,7 @@ pub struct ApiState {
     pub storage: Arc<storage::TunnelStorage>,
     pub github_client: reqwest::Client,
     pub rate_limiter: Arc<RateLimitState>,
+    pub db: DatabaseConnection,
 }
 
 /// Run the API server
@@ -58,6 +60,9 @@ pub async fn run_with_config(config: ApiConfig) -> ApiResult<()> {
     let rate_limit_config = RateLimitConfig::default(); // TODO: Load from config
     let rate_limiter = Arc::new(RateLimitState::new(rate_limit_config));
 
+    // Initialize database connection
+    let db = sea_orm::Database::connect(&config.database_url).await?;
+
     // Create application state
     let state = ApiState {
         config: Arc::new(config.clone()),
@@ -65,6 +70,7 @@ pub async fn run_with_config(config: ApiConfig) -> ApiResult<()> {
         storage,
         github_client,
         rate_limiter,
+        db,
     };
 
     // Build the router
@@ -105,7 +111,14 @@ fn create_router(state: ApiState) -> Router {
         .route("/v1/stats", get(handlers::stats::get_stats))
         // Admin endpoints for rate limit policy management
         .route("/admin/rate-limit-policy", get(handlers::admin::get_rate_limit_policy))
-        .route("/admin/rate-limit-policy", axum::routing::put(handlers::admin::update_rate_limit_policy))
+        .route("/admin/rate-limit-policy", put(handlers::admin::update_rate_limit_policy))
+        // Admin endpoints for ServicePlan management
+        .route("/admin/service-plans", post(handlers::admin::create_service_plan))
+        .route("/admin/service-plans", get(handlers::admin::list_service_plans))
+        .route("/admin/service-plans/:id", get(handlers::admin::get_service_plan))
+        .route("/admin/service-plans/:id", put(handlers::admin::update_service_plan))
+        .route("/admin/service-plans/:id", delete(handlers::admin::delete_service_plan))
+        .route("/admin/users/:user_id/service-plan", post(handlers::admin::assign_service_plan_to_user))
         // Add middleware layers (order matters - rate limiting first)
         .layer(axum::middleware::from_fn_with_state(
             state.rate_limiter.clone(),
@@ -228,7 +241,8 @@ mod tests {
                 Arc<edf_ca::CertificateAuthority>,
                 Arc<storage::TunnelStorage>,
                 reqwest::Client,
-                Arc<RateLimitState>
+                Arc<RateLimitState>,
+                DatabaseConnection
             )>()
         );
     }
