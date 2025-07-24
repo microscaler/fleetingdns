@@ -12,6 +12,7 @@ mod auth;
 mod config;
 mod error;
 mod handlers;
+mod middleware;
 mod models;
 mod rate_limiting;
 mod storage;
@@ -24,6 +25,13 @@ pub use error::{ApiError, ApiResult};
 pub use models::*;
 // Do not re-export UserTier from rate_limiting
 pub use rate_limiting::{RateLimitConfig, RateLimitState};
+pub use middleware::{
+    error_handler_middleware,
+    error_recovery_middleware,
+    timeout_middleware,
+    request_size_middleware,
+    CircuitBreaker,
+};
 
 /// Main API server state
 #[derive(Clone)]
@@ -138,7 +146,11 @@ fn create_router(state: ApiState) -> Router {
         .route("/quota/check-operation", post(handlers::quota_management::check_operation_allowed))
         .route("/admin/quota/reset-usage", post(handlers::quota_management::reset_user_usage))
         .route("/admin/quota/all-users-status", get(handlers::quota_management::get_all_users_quota_status))
-        // Add middleware layers (order matters - rate limiting first)
+        // Add middleware layers (order matters - error handling first, then rate limiting)
+        .layer(axum::middleware::from_fn(error_handler_middleware))
+        .layer(axum::middleware::from_fn(error_recovery_middleware))
+        .layer(axum::middleware::from_fn(timeout_middleware))
+        .layer(axum::middleware::from_fn(request_size_middleware))
         .layer(axum::middleware::from_fn_with_state(
             state.rate_limiter.clone(),
             rate_limiting::rate_limit_middleware,
