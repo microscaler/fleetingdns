@@ -265,3 +265,241 @@ pub struct ServicePlanChangeResponse {
     pub status: String,
     pub estimated_processing_time: String,
 } 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_my_service_plan_response_creation() {
+        let now = chrono::Utc::now().naive_utc();
+        let response = MyServicePlanResponse {
+            service_plan_id: "test_plan".to_string(),
+            name: "Test Plan".to_string(),
+            description: "A test service plan".to_string(),
+            features: serde_json::json!({
+                "feature1": true,
+                "feature2": "value"
+            }),
+            quotas: serde_json::json!({
+                "api_rate_limit": 1000,
+                "tunnel_creation_limit": 100
+            }),
+            pricing: 29.99,
+            assignment_date: now,
+            end_date: Some(now + chrono::Duration::days(30)),
+            is_active: true,
+        };
+
+        assert_eq!(response.service_plan_id, "test_plan");
+        assert_eq!(response.name, "Test Plan");
+        assert_eq!(response.description, "A test service plan");
+        assert_eq!(response.pricing, 29.99);
+        assert!(response.is_active);
+    }
+
+    #[tokio::test]
+    async fn test_service_plan_usage_response_creation() {
+        let now = chrono::Utc::now();
+        let usage = ServicePlanUsage {
+            tunnels_created: 75,
+            tunnels_active: 5,
+            dns_queries: 1000,
+            data_transferred_mb: 500,
+            certificates_issued: 30,
+            quota_limits: serde_json::json!({
+                "api_rate_limit": 1000,
+                "tunnel_creation_limit": 100
+            }),
+        };
+
+        let response = ServicePlanUsageResponse {
+            service_plan_id: "test_plan".to_string(),
+            service_plan_name: "Test Plan".to_string(),
+            usage,
+            last_updated: now,
+        };
+
+        assert_eq!(response.service_plan_id, "test_plan");
+        assert_eq!(response.service_plan_name, "Test Plan");
+        assert_eq!(response.usage.tunnels_created, 75);
+        assert_eq!(response.usage.tunnels_active, 5);
+    }
+
+    #[tokio::test]
+    async fn test_available_service_plan_response_creation() {
+        let response = AvailableServicePlanResponse {
+            id: "test_plan".to_string(),
+            name: "Test Plan".to_string(),
+            description: "A test service plan".to_string(),
+            features: serde_json::json!({
+                "feature1": true,
+                "feature2": "value"
+            }),
+            quotas: serde_json::json!({
+                "api_rate_limit": 1000,
+                "tunnel_creation_limit": 100
+            }),
+            pricing: 29.99,
+            is_current_plan: false,
+            can_upgrade: true,
+            can_downgrade: false,
+        };
+
+        assert_eq!(response.id, "test_plan");
+        assert_eq!(response.name, "Test Plan");
+        assert_eq!(response.description, "A test service plan");
+        assert_eq!(response.pricing, 29.99);
+        assert!(!response.is_current_plan);
+        assert!(response.can_upgrade);
+        assert!(!response.can_downgrade);
+    }
+
+    #[tokio::test]
+    async fn test_service_plan_change_request_creation() {
+        let request = ServicePlanChangeRequest {
+            service_plan_id: "new_plan".to_string(),
+            reason: Some("Need more features".to_string()),
+        };
+
+        assert_eq!(request.service_plan_id, "new_plan");
+        assert_eq!(request.reason, Some("Need more features".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_service_plan_change_response_creation() {
+        let response = ServicePlanChangeResponse {
+            message: "ServicePlan change request received".to_string(),
+            request_id: Uuid::new_v4(),
+            status: "pending".to_string(),
+            estimated_processing_time: "24-48 hours".to_string(),
+        };
+
+        assert!(response.message.contains("ServicePlan change request received"));
+        assert_eq!(response.status, "pending");
+        assert_eq!(response.estimated_processing_time, "24-48 hours");
+    }
+
+    #[tokio::test]
+    async fn test_features_json_parsing() {
+        let valid_features = r#"{"feature1": true, "feature2": "value", "feature3": 123}"#;
+        let parsed: serde_json::Value = serde_json::from_str(valid_features).unwrap();
+        
+        assert!(parsed["feature1"].as_bool().unwrap());
+        assert_eq!(parsed["feature2"].as_str().unwrap(), "value");
+        assert_eq!(parsed["feature3"].as_i64().unwrap(), 123);
+    }
+
+    #[tokio::test]
+    async fn test_quotas_json_creation() {
+        let quotas = serde_json::json!({
+            "api_rate_limit": 1000,
+            "tunnel_creation_limit": 100,
+            "dns_provisioning_limit": 50,
+            "max_concurrent_tunnels": 10
+        });
+        
+        assert_eq!(quotas["api_rate_limit"].as_i64().unwrap(), 1000);
+        assert_eq!(quotas["tunnel_creation_limit"].as_i64().unwrap(), 100);
+        assert_eq!(quotas["dns_provisioning_limit"].as_i64().unwrap(), 50);
+        assert_eq!(quotas["max_concurrent_tunnels"].as_i64().unwrap(), 10);
+    }
+
+    #[tokio::test]
+    async fn test_usage_stats_json_creation() {
+        let usage_stats = serde_json::json!({
+            "tunnels_created": 75,
+            "tunnels_active": 5,
+            "dns_queries": 1000,
+            "data_transferred_mb": 500,
+            "certificates_issued": 30
+        });
+        
+        assert_eq!(usage_stats["tunnels_created"].as_i64().unwrap(), 75);
+        assert_eq!(usage_stats["tunnels_active"].as_i64().unwrap(), 5);
+        assert_eq!(usage_stats["dns_queries"].as_i64().unwrap(), 1000);
+        assert_eq!(usage_stats["data_transferred_mb"].as_i64().unwrap(), 500);
+        assert_eq!(usage_stats["certificates_issued"].as_i64().unwrap(), 30);
+    }
+
+    #[tokio::test]
+    async fn test_plan_comparison_logic() {
+        // Test current plan detection
+        let current_assignment = Some("plan_a".to_string());
+        
+        let plan_a = "plan_a";
+        let plan_b = "plan_b";
+        
+        let is_current_plan_a = current_assignment.as_ref().map(|assignment| assignment == plan_a).unwrap_or(false);
+        let is_current_plan_b = current_assignment.as_ref().map(|assignment| assignment == plan_b).unwrap_or(false);
+        
+        assert!(is_current_plan_a);
+        assert!(!is_current_plan_b);
+        
+        // Test upgrade/downgrade logic
+        let can_upgrade_a = !is_current_plan_a;
+        let can_downgrade_a = !is_current_plan_a;
+        let can_upgrade_b = !is_current_plan_b;
+        let can_downgrade_b = !is_current_plan_b;
+        
+        assert!(!can_upgrade_a);
+        assert!(!can_downgrade_a);
+        assert!(can_upgrade_b);
+        assert!(can_downgrade_b);
+    }
+
+    #[tokio::test]
+    async fn test_uuid_generation() {
+        let request_id = Uuid::new_v4();
+        
+        // Test that UUID is valid
+        assert!(!request_id.to_string().is_empty());
+        assert_eq!(request_id.to_string().len(), 36); // Standard UUID length
+    }
+
+    #[tokio::test]
+    async fn test_chrono_datetime_operations() {
+        let now = chrono::Utc::now();
+        let future = now + chrono::Duration::days(30);
+        
+        // Test that future date is after current date
+        assert!(future > now);
+        
+        // Test duration calculation
+        let duration = future - now;
+        assert!(duration.num_days() >= 29); // Allow for slight timing differences
+    }
+
+    #[tokio::test]
+    async fn test_optional_fields_handling() {
+        // Test with reason provided
+        let request_with_reason = ServicePlanChangeRequest {
+            service_plan_id: "new_plan".to_string(),
+            reason: Some("Need more features".to_string()),
+        };
+        
+        // Test without reason
+        let request_without_reason = ServicePlanChangeRequest {
+            service_plan_id: "new_plan".to_string(),
+            reason: None,
+        };
+        
+        assert_eq!(request_with_reason.reason, Some("Need more features".to_string()));
+        assert_eq!(request_without_reason.reason, None);
+    }
+
+    #[tokio::test]
+    async fn test_response_message_generation() {
+        let response = ServicePlanChangeResponse {
+            message: "ServicePlan change request received. An admin will review and process your request.".to_string(),
+            request_id: Uuid::new_v4(),
+            status: "pending".to_string(),
+            estimated_processing_time: "24-48 hours".to_string(),
+        };
+        
+        assert!(response.message.contains("ServicePlan change request received"));
+        assert!(response.message.contains("admin will review"));
+        assert_eq!(response.status, "pending");
+        assert_eq!(response.estimated_processing_time, "24-48 hours");
+    }
+} 

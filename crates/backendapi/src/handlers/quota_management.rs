@@ -137,3 +137,124 @@ pub struct UserQuotaStatus {
     pub quota_warnings: Vec<String>,
     pub last_activity: chrono::DateTime<chrono::Utc>,
 } 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_operation_check_response_creation() {
+        let response = OperationCheckResponse {
+            allowed: true,
+            operation_type: "api_call".to_string(),
+            message: "Operation is allowed".to_string(),
+        };
+
+        assert!(response.allowed);
+        assert_eq!(response.operation_type, "api_call");
+        assert_eq!(response.message, "Operation is allowed");
+    }
+
+    #[tokio::test]
+    async fn test_reset_usage_response_creation() {
+        let response = ResetUsageResponse {
+            message: "Usage reset successfully".to_string(),
+            reset_timestamp: chrono::Utc::now(),
+        };
+
+        assert_eq!(response.message, "Usage reset successfully");
+        assert!(response.reset_timestamp > chrono::Utc::now() - chrono::Duration::seconds(1));
+    }
+
+    #[tokio::test]
+    async fn test_quota_info_response_creation() {
+        let now = chrono::Utc::now();
+        let usage = crate::quota_enforcement::UserUsage {
+            user_id: "test_user".to_string(),
+            service_plan_id: "test_plan".to_string(),
+            api_calls_count: 10,
+            tunnels_created_count: 5,
+            dns_operations_count: 3,
+            active_tunnels_count: 2,
+            data_transferred_mb: 100,
+            certificates_issued_count: 8,
+            last_updated: now,
+            period_start: now,
+        };
+
+        let limits = crate::quota_enforcement::QuotaLimits {
+            api_rate_limit: 1000,
+            tunnel_creation_limit: 100,
+            dns_provisioning_limit: 50,
+            max_concurrent_tunnels: 10,
+            data_transfer_limit_mb: Some(1024),
+            certificate_issuance_limit: Some(100),
+        };
+
+        let response = QuotaInfoResponse {
+            usage: usage.clone(),
+            limits: limits.clone(),
+            warnings: vec!["API calls near limit".to_string()],
+            period_start: now,
+            period_end: now + chrono::Duration::days(30),
+        };
+
+        assert_eq!(response.usage.user_id, "test_user");
+        assert_eq!(response.limits.api_rate_limit, 1000);
+        assert_eq!(response.warnings.len(), 1);
+        assert_eq!(response.warnings[0], "API calls near limit");
+    }
+
+    #[tokio::test]
+    async fn test_user_quota_status_creation() {
+        let status = UserQuotaStatus {
+            user_id: "test_user".to_string(),
+            service_plan_id: "test_plan".to_string(),
+            usage_percentage: 75.5,
+            quota_warnings: vec!["API calls near limit".to_string()],
+            last_activity: chrono::Utc::now(),
+        };
+
+        assert_eq!(status.user_id, "test_user");
+        assert_eq!(status.service_plan_id, "test_plan");
+        assert_eq!(status.usage_percentage, 75.5);
+        assert_eq!(status.quota_warnings.len(), 1);
+        assert_eq!(status.quota_warnings[0], "API calls near limit");
+    }
+
+    #[tokio::test]
+    async fn test_operation_types_validation() {
+        let valid_operations = vec![
+            "api_call",
+            "tunnel_creation", 
+            "dns_operation",
+        ];
+
+        for operation in valid_operations {
+            let request = OperationCheckRequest {
+                operation_type: operation.to_string(),
+            };
+            
+            // Test that the request can be created
+            assert_eq!(request.operation_type, operation);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_response_message_generation() {
+        let allowed_response = OperationCheckResponse {
+            allowed: true,
+            operation_type: "api_call".to_string(),
+            message: "Operation is allowed".to_string(),
+        };
+
+        let denied_response = OperationCheckResponse {
+            allowed: false,
+            operation_type: "tunnel_creation".to_string(),
+            message: "Operation is not allowed due to quota limits".to_string(),
+        };
+
+        assert!(allowed_response.message.contains("allowed"));
+        assert!(denied_response.message.contains("not allowed"));
+    }
+} 
