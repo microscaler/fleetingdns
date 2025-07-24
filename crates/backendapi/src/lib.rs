@@ -119,6 +119,11 @@ fn create_router(state: ApiState) -> Router {
         .route("/admin/service-plans/:id", put(handlers::admin::update_service_plan))
         .route("/admin/service-plans/:id", delete(handlers::admin::delete_service_plan))
         .route("/admin/users/:user_id/service-plan", post(handlers::admin::assign_service_plan_to_user))
+        // User-facing ServicePlan endpoints
+        .route("/my/service-plan", get(handlers::user_service_plan::get_my_service_plan))
+        .route("/my/service-plan/usage", get(handlers::user_service_plan::get_my_service_plan_usage))
+        .route("/service-plans/available", get(handlers::user_service_plan::get_available_service_plans))
+        .route("/service-plans/change-request", post(handlers::user_service_plan::request_service_plan_change))
         // Add middleware layers (order matters - rate limiting first)
         .layer(axum::middleware::from_fn_with_state(
             state.rate_limiter.clone(),

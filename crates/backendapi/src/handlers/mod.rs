@@ -3,6 +3,7 @@ pub mod certificates;
 pub mod stats;
 pub mod tunnels;
 pub mod admin;
+pub mod user_service_plan;
 mod service_plan_entity;
 mod user_service_plan_entity;
 mod user_entity;
