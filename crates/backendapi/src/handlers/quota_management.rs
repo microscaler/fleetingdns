@@ -1,6 +1,7 @@
 use crate::{ApiResult, ApiState, auth::{extract_bearer_token, validate_jwt_token}};
 use axum::{Json, extract::State, http::HeaderMap};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 /// Get detailed quota information for the current user
 pub async fn get_quota_info(
@@ -141,120 +142,156 @@ pub struct UserQuotaStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::postgres_test_container::PostgresTestContainer;
+    use sea_orm::{Database, ActiveModelTrait, EntityTrait};
+    use uuid::Uuid;
+    use chrono::{Utc, NaiveDateTime};
+    use crate::handlers::service_plan_entity;
+    use crate::handlers::user_service_plan_entity;
+    use crate::handlers::user_entity;
 
     #[tokio::test]
-    async fn test_operation_check_response_creation() {
-        let response = OperationCheckResponse {
-            allowed: true,
-            operation_type: "api_call".to_string(),
-            message: "Operation is allowed".to_string(),
+    async fn test_quota_info_with_real_database() {
+        let container = PostgresTestContainer::new().await;
+        let db = container.database().clone();
+        
+        // Create a test user
+        let user_id = Uuid::new_v4().to_string();
+        let now = Utc::now().naive_utc();
+        let user = user_entity::ActiveModel {
+            id: sea_orm::Set(user_id.clone()),
+            github_id: sea_orm::Set("test_github_id".to_string()),
+            username: sea_orm::Set("test_user".to_string()),
+            email: sea_orm::Set("test@example.com".to_string()),
+            avatar_url: sea_orm::Set("https://example.com/avatar.png".to_string()),
+            created_at: sea_orm::Set(now),
         };
+        let _ = user_entity::Entity::insert(user).exec(&db).await.expect("create user");
 
-        assert!(response.allowed);
-        assert_eq!(response.operation_type, "api_call");
-        assert_eq!(response.message, "Operation is allowed");
+        // Create a test service plan
+        let plan_id = Uuid::new_v4().to_string();
+        let plan = service_plan_entity::ActiveModel {
+            id: sea_orm::Set(plan_id.clone()),
+            name: sea_orm::Set("Pro".to_string()),
+            api_rate_limit: sea_orm::Set(1000),
+            tunnel_creation_limit: sea_orm::Set(10),
+            dns_provisioning_limit: sea_orm::Set(5),
+            max_concurrent_tunnels: sea_orm::Set(3),
+            features_json: sea_orm::Set("{}".to_string()),
+            created_at: sea_orm::Set(now),
+        };
+        let _ = service_plan_entity::Entity::insert(plan).exec(&db).await.expect("create service plan");
+
+        // Assign service plan to user
+        let assignment = user_service_plan_entity::ActiveModel {
+            id: sea_orm::Set(Uuid::new_v4().to_string()),
+            user_id: sea_orm::Set(user_id.clone()),
+            service_plan_id: sea_orm::Set(plan_id.clone()),
+            start_date: sea_orm::Set(now),
+            end_date: sea_orm::Set(now + chrono::Duration::days(30)),
+            is_active: sea_orm::Set(true),
+        };
+        let _ = user_service_plan_entity::Entity::insert(assignment).exec(&db).await.expect("assign service plan");
+
+        // Test quota info retrieval
+        let usage_tracker = Arc::new(crate::quota_enforcement::UsageTracker::new(db.clone()));
+        let rate_limiter = crate::quota_enforcement::ServicePlanRateLimiter::new(usage_tracker);
+        
+        let quota_info = rate_limiter.get_quota_info(&user_id).await;
+        assert!(quota_info.is_ok());
     }
 
     #[tokio::test]
-    async fn test_reset_usage_response_creation() {
-        let response = ResetUsageResponse {
-            message: "Usage reset successfully".to_string(),
-            reset_timestamp: chrono::Utc::now(),
+    async fn test_operation_allowed_with_real_database() {
+        let container = PostgresTestContainer::new().await;
+        let db = container.database().clone();
+        
+        // Create a test user
+        let user_id = Uuid::new_v4().to_string();
+        let now = Utc::now().naive_utc();
+        let user = user_entity::ActiveModel {
+            id: sea_orm::Set(user_id.clone()),
+            github_id: sea_orm::Set("test_github_id".to_string()),
+            username: sea_orm::Set("test_user".to_string()),
+            email: sea_orm::Set("test@example.com".to_string()),
+            avatar_url: sea_orm::Set("https://example.com/avatar.png".to_string()),
+            created_at: sea_orm::Set(now),
         };
+        let _ = user_entity::Entity::insert(user).exec(&db).await.expect("create user");
 
-        assert_eq!(response.message, "Usage reset successfully");
-        assert!(response.reset_timestamp > chrono::Utc::now() - chrono::Duration::seconds(1));
+        // Test operation allowed check
+        let usage_tracker = Arc::new(crate::quota_enforcement::UsageTracker::new(db.clone()));
+        let rate_limiter = crate::quota_enforcement::ServicePlanRateLimiter::new(usage_tracker);
+        
+        let can_call = rate_limiter.can_make_api_call(&user_id).await;
+        assert!(can_call.is_ok());
+        assert!(can_call.unwrap());
     }
 
     #[tokio::test]
-    async fn test_quota_info_response_creation() {
-        let now = chrono::Utc::now();
-        let usage = crate::quota_enforcement::UserUsage {
-            user_id: "test_user".to_string(),
-            service_plan_id: "test_plan".to_string(),
-            api_calls_count: 10,
-            tunnels_created_count: 5,
-            dns_operations_count: 3,
-            active_tunnels_count: 2,
-            data_transferred_mb: 100,
-            certificates_issued_count: 8,
-            last_updated: now,
-            period_start: now,
+    async fn test_usage_reset_with_real_database() {
+        let container = PostgresTestContainer::new().await;
+        let db = container.database().clone();
+        
+        // Create a test user
+        let user_id = Uuid::new_v4().to_string();
+        let now = Utc::now().naive_utc();
+        let user = user_entity::ActiveModel {
+            id: sea_orm::Set(user_id.clone()),
+            github_id: sea_orm::Set("test_github_id".to_string()),
+            username: sea_orm::Set("test_user".to_string()),
+            email: sea_orm::Set("test@example.com".to_string()),
+            avatar_url: sea_orm::Set("https://example.com/avatar.png".to_string()),
+            created_at: sea_orm::Set(now),
         };
+        let _ = user_entity::Entity::insert(user).exec(&db).await.expect("create user");
 
-        let limits = crate::quota_enforcement::QuotaLimits {
-            api_rate_limit: 1000,
-            tunnel_creation_limit: 100,
-            dns_provisioning_limit: 50,
-            max_concurrent_tunnels: 10,
-            data_transfer_limit_mb: Some(1024),
-            certificate_issuance_limit: Some(100),
-        };
-
-        let response = QuotaInfoResponse {
-            usage: usage.clone(),
-            limits: limits.clone(),
-            warnings: vec!["API calls near limit".to_string()],
-            period_start: now,
-            period_end: now + chrono::Duration::days(30),
-        };
-
-        assert_eq!(response.usage.user_id, "test_user");
-        assert_eq!(response.limits.api_rate_limit, 1000);
-        assert_eq!(response.warnings.len(), 1);
-        assert_eq!(response.warnings[0], "API calls near limit");
+        // Test usage reset
+        let usage_tracker = Arc::new(crate::quota_enforcement::UsageTracker::new(db.clone()));
+        
+        let reset_result = usage_tracker.reset_usage(&user_id).await;
+        assert!(reset_result.is_ok());
     }
 
     #[tokio::test]
-    async fn test_user_quota_status_creation() {
-        let status = UserQuotaStatus {
-            user_id: "test_user".to_string(),
-            service_plan_id: "test_plan".to_string(),
-            usage_percentage: 75.5,
-            quota_warnings: vec!["API calls near limit".to_string()],
-            last_activity: chrono::Utc::now(),
+    async fn test_all_users_quota_status_with_real_database() {
+        let container = PostgresTestContainer::new().await;
+        let db = container.database().clone();
+        
+        // Create multiple test users
+        let user1_id = Uuid::new_v4().to_string();
+        let user2_id = Uuid::new_v4().to_string();
+        let now = Utc::now().naive_utc();
+        
+        let user1 = user_entity::ActiveModel {
+            id: sea_orm::Set(user1_id.clone()),
+            github_id: sea_orm::Set("test_github_id_1".to_string()),
+            username: sea_orm::Set("test_user_1".to_string()),
+            email: sea_orm::Set("test1@example.com".to_string()),
+            avatar_url: sea_orm::Set("https://example.com/avatar1.png".to_string()),
+            created_at: sea_orm::Set(now),
         };
+        let _ = user_entity::Entity::insert(user1).exec(&db).await.expect("create user 1");
 
-        assert_eq!(status.user_id, "test_user");
-        assert_eq!(status.service_plan_id, "test_plan");
-        assert_eq!(status.usage_percentage, 75.5);
-        assert_eq!(status.quota_warnings.len(), 1);
-        assert_eq!(status.quota_warnings[0], "API calls near limit");
-    }
-
-    #[tokio::test]
-    async fn test_operation_types_validation() {
-        let valid_operations = vec![
-            "api_call",
-            "tunnel_creation", 
-            "dns_operation",
-        ];
-
-        for operation in valid_operations {
-            let request = OperationCheckRequest {
-                operation_type: operation.to_string(),
-            };
-            
-            // Test that the request can be created
-            assert_eq!(request.operation_type, operation);
-        }
-    }
-
-    #[tokio::test]
-    async fn test_response_message_generation() {
-        let allowed_response = OperationCheckResponse {
-            allowed: true,
-            operation_type: "api_call".to_string(),
-            message: "Operation is allowed".to_string(),
+        let user2 = user_entity::ActiveModel {
+            id: sea_orm::Set(user2_id.clone()),
+            github_id: sea_orm::Set("test_github_id_2".to_string()),
+            username: sea_orm::Set("test_user_2".to_string()),
+            email: sea_orm::Set("test2@example.com".to_string()),
+            avatar_url: sea_orm::Set("https://example.com/avatar2.png".to_string()),
+            created_at: sea_orm::Set(now),
         };
+        let _ = user_entity::Entity::insert(user2).exec(&db).await.expect("create user 2");
 
-        let denied_response = OperationCheckResponse {
-            allowed: false,
-            operation_type: "tunnel_creation".to_string(),
-            message: "Operation is not allowed due to quota limits".to_string(),
-        };
-
-        assert!(allowed_response.message.contains("allowed"));
-        assert!(denied_response.message.contains("not allowed"));
+        // Test getting all users quota status
+        let usage_tracker = Arc::new(crate::quota_enforcement::UsageTracker::new(db.clone()));
+        
+        // This would typically query all users and their quota status
+        // For now, just test that the tracker can be created and used
+        let user1_usage = usage_tracker.get_user_usage(&user1_id).await;
+        assert!(user1_usage.is_ok());
+        
+        let user2_usage = usage_tracker.get_user_usage(&user2_id).await;
+        assert!(user2_usage.is_ok());
     }
 } 

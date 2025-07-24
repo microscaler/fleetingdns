@@ -16,6 +16,8 @@ mod models;
 mod rate_limiting;
 mod storage;
 mod quota_enforcement;
+#[cfg(test)]
+mod test_utils;
 
 pub use config::ApiConfig;
 pub use error::{ApiError, ApiResult};

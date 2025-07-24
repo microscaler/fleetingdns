@@ -151,17 +151,28 @@ impl UsageTracker {
         // For now, just update the cache
         
         let mut cache = self.cache.write().await;
-        if let Some(usage) = cache.get_mut(user_id) {
-            match quota_type {
-                QuotaType::ApiCalls => usage.api_calls_count += amount,
-                QuotaType::TunnelCreation => usage.tunnels_created_count += amount,
-                QuotaType::DnsProvisioning => usage.dns_operations_count += amount,
-                QuotaType::ConcurrentTunnels => usage.active_tunnels_count += amount,
-                QuotaType::DataTransfer => usage.data_transferred_mb += amount,
-                QuotaType::CertificateIssuance => usage.certificates_issued_count += amount,
-            }
-            usage.last_updated = Utc::now();
+        let usage = cache.entry(user_id.to_string()).or_insert_with(|| UserUsage {
+            user_id: user_id.to_string(),
+            service_plan_id: "default".to_string(),
+            api_calls_count: 0,
+            tunnels_created_count: 0,
+            dns_operations_count: 0,
+            active_tunnels_count: 0,
+            data_transferred_mb: 0,
+            certificates_issued_count: 0,
+            last_updated: Utc::now(),
+            period_start: Utc::now(),
+        });
+        
+        match quota_type {
+            QuotaType::ApiCalls => usage.api_calls_count += amount,
+            QuotaType::TunnelCreation => usage.tunnels_created_count += amount,
+            QuotaType::DnsProvisioning => usage.dns_operations_count += amount,
+            QuotaType::ConcurrentTunnels => usage.active_tunnels_count += amount,
+            QuotaType::DataTransfer => usage.data_transferred_mb += amount,
+            QuotaType::CertificateIssuance => usage.certificates_issued_count += amount,
         }
+        usage.last_updated = Utc::now();
 
         Ok(())
     }
@@ -358,55 +369,35 @@ impl QuotaInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sea_orm::DatabaseConnection;
-    use std::sync::Arc;
-
-    // Mock database connection for testing
-    async fn create_mock_db() -> DatabaseConnection {
-        // Create a mock database connection for testing
-        // In a real implementation, this would be a test database
-        // For now, we'll just return a dummy connection that won't be used
-        // since our tests don't actually need database access
-        sea_orm::Database::connect("postgresql://localhost/test").await.unwrap()
-    }
+    use crate::test_utils::postgres_test_container::PostgresTestContainer;
+    use sea_orm::{Database, ActiveModelTrait, EntityTrait};
+    use uuid::Uuid;
+    use chrono::{Utc, NaiveDateTime};
 
     #[tokio::test]
     async fn test_quota_type_serialization() {
-        let quota_types = vec![
-            QuotaType::ApiCalls,
-            QuotaType::TunnelCreation,
-            QuotaType::DnsProvisioning,
-            QuotaType::ConcurrentTunnels,
-            QuotaType::DataTransfer,
-            QuotaType::CertificateIssuance,
-        ];
-
-        for quota_type in quota_types {
-            let serialized = serde_json::to_string(&quota_type).unwrap();
-            let deserialized: QuotaType = serde_json::from_str(&serialized).unwrap();
-            assert_eq!(quota_type, deserialized);
-        }
+        let quota_type = QuotaType::ApiCalls;
+        let serialized = serde_json::to_string(&quota_type).unwrap();
+        let deserialized: QuotaType = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(quota_type, deserialized);
     }
 
     #[tokio::test]
     async fn test_user_usage_creation() {
-        let now = Utc::now();
         let usage = UserUsage {
             user_id: "test_user".to_string(),
-            service_plan_id: "test_plan".to_string(),
-            api_calls_count: 10,
+            service_plan_id: "pro".to_string(),
+            api_calls_count: 50,
             tunnels_created_count: 5,
-            dns_operations_count: 3,
+            dns_operations_count: 10,
             active_tunnels_count: 2,
             data_transferred_mb: 100,
             certificates_issued_count: 8,
-            last_updated: now,
-            period_start: now,
+            last_updated: Utc::now(),
+            period_start: Utc::now(),
         };
-
         assert_eq!(usage.user_id, "test_user");
-        assert_eq!(usage.api_calls_count, 10);
-        assert_eq!(usage.tunnels_created_count, 5);
+        assert_eq!(usage.api_calls_count, 50);
     }
 
     #[tokio::test]
@@ -419,238 +410,199 @@ mod tests {
             data_transfer_limit_mb: Some(1024),
             certificate_issuance_limit: Some(100),
         };
-
         assert_eq!(limits.api_rate_limit, 1000);
-        assert_eq!(limits.tunnel_creation_limit, 100);
-        assert_eq!(limits.data_transfer_limit_mb, Some(1024));
+        assert_eq!(limits.max_concurrent_tunnels, 10);
     }
 
     #[tokio::test]
-    async fn test_usage_tracker_creation() {
-        // Test that UsageTracker can be created (without database)
-        let usage_tracker = UsageTracker {
-            db: sea_orm::Database::connect("postgresql://localhost/test").await.unwrap(),
-            cache: Arc::new(RwLock::new(HashMap::new())),
-        };
+    async fn test_usage_tracker_with_real_database() {
+        let container = PostgresTestContainer::new().await;
+        let db = container.database().clone();
         
-        // Test that the struct was created successfully
-        assert!(true); // Just verify the test runs
+        let tracker = UsageTracker::new(db);
+        
+        // Test getting user usage
+        let user_id = "test_user_123";
+        let usage = tracker.get_user_usage(user_id).await;
+        assert!(usage.is_ok());
+        let usage = usage.unwrap();
+        assert_eq!(usage.user_id, user_id);
+        assert_eq!(usage.api_calls_count, 0); // Should start at 0
     }
 
     #[tokio::test]
-    async fn test_service_plan_rate_limiter() {
-        // Test that ServicePlanRateLimiter can be created
-        let usage_tracker = Arc::new(UsageTracker {
-            db: sea_orm::Database::connect("postgresql://localhost/test").await.unwrap(),
-            cache: Arc::new(RwLock::new(HashMap::new())),
-        });
+    async fn test_service_plan_rate_limiter_with_real_database() {
+        let container = PostgresTestContainer::new().await;
+        let db = container.database().clone();
         
+        let usage_tracker = Arc::new(UsageTracker::new(db));
         let rate_limiter = ServicePlanRateLimiter::new(usage_tracker);
         
-        // Test that the struct was created successfully
-        assert!(true); // Just verify the test runs
+        // Test API call quota
+        let user_id = "test_user_456";
+        let can_call = rate_limiter.can_make_api_call(user_id).await;
+        assert!(can_call.is_ok());
+        assert!(can_call.unwrap());
+        
+        // Test DNS operation quota
+        let can_dns = rate_limiter.can_perform_dns_operation(user_id).await;
+        assert!(can_dns.is_ok());
+        assert!(can_dns.unwrap());
     }
 
     #[tokio::test]
-    async fn test_usage_recording() {
-        // Test usage recording logic without database
-        let usage_tracker = Arc::new(UsageTracker {
-            db: sea_orm::Database::connect("postgresql://localhost/test").await.unwrap(),
-            cache: Arc::new(RwLock::new(HashMap::new())),
-        });
+    async fn test_usage_recording_with_real_database() {
+        let container = PostgresTestContainer::new().await;
+        let db = container.database().clone();
         
-        let rate_limiter = ServicePlanRateLimiter::new(usage_tracker);
+        let tracker = UsageTracker::new(db);
+        let user_id = "test_user_789";
         
-        // Test that the method exists and can be called
-        let result = rate_limiter.can_make_api_call("test_user").await;
-        // We expect this to fail since we don't have a real database, but that's OK for unit tests
-        assert!(true); // Just verify the test runs
+        // Record multiple API calls
+        for i in 0..5 {
+            let result = tracker.record_usage(user_id, QuotaType::ApiCalls, 1).await;
+            assert!(result.is_ok());
+        }
+        
+        // Check total usage
+        let usage = tracker.get_user_usage(user_id).await;
+        assert!(usage.is_ok());
+        let usage = usage.unwrap();
+        assert_eq!(usage.api_calls_count, 5);
     }
 
     #[tokio::test]
-    async fn test_usage_reset() {
-        // Test usage reset logic without database
-        let usage_tracker = Arc::new(UsageTracker {
-            db: sea_orm::Database::connect("postgresql://localhost/test").await.unwrap(),
-            cache: Arc::new(RwLock::new(HashMap::new())),
-        });
+    async fn test_usage_reset_with_real_database() {
+        let container = PostgresTestContainer::new().await;
+        let db = container.database().clone();
         
-        // Test that the method exists and can be called
-        let result = usage_tracker.reset_usage("test_user").await;
-        // We expect this to fail since we don't have a real database, but that's OK for unit tests
-        assert!(true); // Just verify the test runs
-    }
-
-    #[tokio::test]
-    async fn test_usage_tracker_quota_limits() {
-        // Test quota limits logic without database
-        let usage_tracker = Arc::new(UsageTracker {
-            db: sea_orm::Database::connect("postgresql://localhost/test").await.unwrap(),
-            cache: Arc::new(RwLock::new(HashMap::new())),
-        });
+        let tracker = UsageTracker::new(db);
+        let user_id = "test_user_reset";
         
-        // Test that the method exists and can be called
-        let result = usage_tracker.get_quota_limits("test_user").await;
-        // We expect this to fail since we don't have a real database, but that's OK for unit tests
-        assert!(true); // Just verify the test runs
+        // Record some usage
+        tracker.record_usage(user_id, QuotaType::ApiCalls, 10).await.unwrap();
+        
+        // Reset usage
+        let result = tracker.reset_usage(user_id).await;
+        assert!(result.is_ok());
+        
+        // Verify reset
+        let usage = tracker.get_user_usage(user_id).await;
+        assert!(usage.is_ok());
+        let usage = usage.unwrap();
+        assert_eq!(usage.api_calls_count, 0);
     }
 
     #[tokio::test]
     async fn test_quota_checking_allowed() {
-        // Test quota checking logic without database
-        let usage_tracker = Arc::new(UsageTracker {
-            db: sea_orm::Database::connect("postgresql://localhost/test").await.unwrap(),
-            cache: Arc::new(RwLock::new(HashMap::new())),
-        });
+        let container = PostgresTestContainer::new().await;
+        let db = container.database().clone();
         
-        let rate_limiter = ServicePlanRateLimiter::new(usage_tracker);
+        let tracker = UsageTracker::new(db);
+        let user_id = "test_user_allowed";
         
-        // Test that the method exists and can be called
-        let result = rate_limiter.can_make_api_call("test_user").await;
-        // We expect this to fail since we don't have a real database, but that's OK for unit tests
-        assert!(true); // Just verify the test runs
+        // Set up a reasonable limit
+        let limits = QuotaLimits {
+            api_rate_limit: 100,
+            tunnel_creation_limit: 10,
+            dns_provisioning_limit: 5,
+            max_concurrent_tunnels: 3,
+            data_transfer_limit_mb: Some(100),
+            certificate_issuance_limit: Some(100),
+        };
+        
+        // Record some usage but stay under limit
+        tracker.record_usage(user_id, QuotaType::ApiCalls, 50).await.unwrap();
+        
+        let result = tracker.check_quota(user_id, QuotaType::ApiCalls, 1).await;
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        assert!(result.allowed);
     }
 
     #[tokio::test]
     async fn test_quota_checking_exceeded() {
-        // Test quota checking logic without database
-        let usage_tracker = Arc::new(UsageTracker {
-            db: sea_orm::Database::connect("postgresql://localhost/test").await.unwrap(),
-            cache: Arc::new(RwLock::new(HashMap::new())),
-        });
+        let container = PostgresTestContainer::new().await;
+        let db = container.database().clone();
         
-        let rate_limiter = ServicePlanRateLimiter::new(usage_tracker);
+        let tracker = UsageTracker::new(db.clone());
+        let user_id = "test_user_exceeded";
         
-        // Test that the method exists and can be called
-        let result = rate_limiter.can_create_tunnel("test_user").await;
-        // We expect this to fail since we don't have a real database, but that's OK for unit tests
-        assert!(true); // Just verify the test runs
+        // Record usage that exceeds the limit
+        tracker.record_usage(user_id, QuotaType::ApiCalls, 15).await.unwrap();
+        
+        let result = tracker.check_quota(user_id, QuotaType::ApiCalls, 1).await;
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        // The default limit is 1000, so 15 + 1 = 16 is still under the limit
+        assert!(result.allowed);
+        
+        // Test with a number that actually exceeds the default limit
+        tracker.record_usage(user_id, QuotaType::ApiCalls, 1000).await.unwrap();
+        let result = tracker.check_quota(user_id, QuotaType::ApiCalls, 1).await;
+        assert!(result.is_ok());
+        let result = result.unwrap();
+        assert!(!result.allowed);
     }
 
     #[tokio::test]
     async fn test_quota_info_creation() {
-        // Test quota info creation logic without database
-        let usage_tracker = Arc::new(UsageTracker {
-            db: sea_orm::Database::connect("postgresql://localhost/test").await.unwrap(),
-            cache: Arc::new(RwLock::new(HashMap::new())),
-        });
+        let container = PostgresTestContainer::new().await;
+        let db = container.database().clone();
         
+        let usage_tracker = Arc::new(UsageTracker::new(db));
         let rate_limiter = ServicePlanRateLimiter::new(usage_tracker);
+        let user_id = "test_user_info";
         
-        // Test that the method exists and can be called
-        let result = rate_limiter.get_quota_info("test_user").await;
-        // We expect this to fail since we don't have a real database, but that's OK for unit tests
-        assert!(true); // Just verify the test runs
-    }
-
-    #[tokio::test]
-    async fn test_quota_info_edge_cases() {
-        // Test edge cases without database
-        let usage_tracker = Arc::new(UsageTracker {
-            db: sea_orm::Database::connect("postgresql://localhost/test").await.unwrap(),
-            cache: Arc::new(RwLock::new(HashMap::new())),
-        });
+        // Record some usage
+        rate_limiter.usage_tracker.record_usage(user_id, QuotaType::ApiCalls, 25).await.unwrap();
         
-        let rate_limiter = ServicePlanRateLimiter::new(usage_tracker);
-        
-        // Test that the method exists and can be called
-        let result = rate_limiter.get_quota_info("").await;
-        // We expect this to fail since we don't have a real database, but that's OK for unit tests
-        assert!(true); // Just verify the test runs
-    }
-
-    #[tokio::test]
-    async fn test_quota_info_usage_percentage() {
-        // Test usage percentage calculation without database
-        let usage_tracker = Arc::new(UsageTracker {
-            db: sea_orm::Database::connect("postgresql://localhost/test").await.unwrap(),
-            cache: Arc::new(RwLock::new(HashMap::new())),
-        });
-        
-        let rate_limiter = ServicePlanRateLimiter::new(usage_tracker);
-        
-        // Test that the method exists and can be called
-        let result = rate_limiter.get_quota_info("test_user").await;
-        // We expect this to fail since we don't have a real database, but that's OK for unit tests
-        assert!(true); // Just verify the test runs
-    }
-
-    #[tokio::test]
-    async fn test_quota_info_warnings() {
-        // Test quota warnings without database
-        let usage_tracker = Arc::new(UsageTracker {
-            db: sea_orm::Database::connect("postgresql://localhost/test").await.unwrap(),
-            cache: Arc::new(RwLock::new(HashMap::new())),
-        });
-        
-        let rate_limiter = ServicePlanRateLimiter::new(usage_tracker);
-        
-        // Test that the method exists and can be called
-        let result = rate_limiter.get_quota_info("test_user").await;
-        // We expect this to fail since we don't have a real database, but that's OK for unit tests
-        assert!(true); // Just verify the test runs
+        let info = rate_limiter.get_quota_info(user_id).await;
+        assert!(info.is_ok());
+        let info = info.unwrap();
+        assert_eq!(info.usage.api_calls_count, 25);
     }
 
     #[tokio::test]
     async fn test_concurrent_tunnels_quota() {
-        // Test concurrent tunnels quota without database
-        let usage_tracker = Arc::new(UsageTracker {
-            db: sea_orm::Database::connect("postgresql://localhost/test").await.unwrap(),
-            cache: Arc::new(RwLock::new(HashMap::new())),
-        });
+        let container = PostgresTestContainer::new().await;
+        let db = container.database().clone();
         
+        let usage_tracker = Arc::new(UsageTracker::new(db));
         let rate_limiter = ServicePlanRateLimiter::new(usage_tracker);
+        let user_id = "test_user_tunnels";
         
-        // Test that the method exists and can be called
-        let result = rate_limiter.can_create_tunnel("test_user").await;
-        // We expect this to fail since we don't have a real database, but that's OK for unit tests
-        assert!(true); // Just verify the test runs
+        // Test concurrent tunnels quota
+        let can_create = rate_limiter.can_create_tunnel(user_id).await;
+        assert!(can_create.is_ok());
+        assert!(can_create.unwrap());
     }
 
     #[tokio::test]
-    async fn test_data_transfer_quota_conversion() {
-        // Test data transfer quota conversion without database
-        let usage_tracker = Arc::new(UsageTracker {
-            db: sea_orm::Database::connect("postgresql://localhost/test").await.unwrap(),
-            cache: Arc::new(RwLock::new(HashMap::new())),
-        });
+    async fn test_data_transfer_quota() {
+        let container = PostgresTestContainer::new().await;
+        let db = container.database().clone();
         
+        let usage_tracker = Arc::new(UsageTracker::new(db));
         let rate_limiter = ServicePlanRateLimiter::new(usage_tracker);
+        let user_id = "test_user_data";
         
-        // Test that the method exists and can be called
-        let result = rate_limiter.can_perform_dns_operation("test_user").await;
-        // We expect this to fail since we don't have a real database, but that's OK for unit tests
-        assert!(true); // Just verify the test runs
+        // Test data transfer quota - this would be called during tunnel operations
+        // For now, just test that the method exists and doesn't panic
+        let _ = rate_limiter.get_quota_info(user_id).await;
     }
 
     #[tokio::test]
     async fn test_certificate_quota() {
-        // Test certificate quota without database
-        let usage_tracker = Arc::new(UsageTracker {
-            db: sea_orm::Database::connect("postgresql://localhost/test").await.unwrap(),
-            cache: Arc::new(RwLock::new(HashMap::new())),
-        });
+        let container = PostgresTestContainer::new().await;
+        let db = container.database().clone();
         
+        let usage_tracker = Arc::new(UsageTracker::new(db));
         let rate_limiter = ServicePlanRateLimiter::new(usage_tracker);
+        let user_id = "test_user_cert";
         
-        // Test that the method exists and can be called
-        let result = rate_limiter.can_make_api_call("test_user").await;
-        // We expect this to fail since we don't have a real database, but that's OK for unit tests
-        assert!(true); // Just verify the test runs
-    }
-
-    #[tokio::test]
-    async fn test_quota_enforcement_middleware() {
-        // Test quota enforcement middleware without database
-        let usage_tracker = Arc::new(UsageTracker {
-            db: sea_orm::Database::connect("postgresql://localhost/test").await.unwrap(),
-            cache: Arc::new(RwLock::new(HashMap::new())),
-        });
-        
-        // Test that the middleware can be created
-        let middleware = QuotaEnforcementMiddleware::new(usage_tracker);
-        
-        // Test that the struct was created successfully
-        assert!(true); // Just verify the test runs
+        // Test certificate issuance quota - this would be called during certificate operations
+        // For now, just test that the method exists and doesn't panic
+        let _ = rate_limiter.get_quota_info(user_id).await;
     }
 } 

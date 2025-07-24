@@ -269,237 +269,176 @@ pub struct ServicePlanChangeResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::postgres_test_container::PostgresTestContainer;
+    use sea_orm::{Database, ActiveModelTrait};
+    use uuid::Uuid;
+    use chrono::{Utc, NaiveDateTime};
+    use crate::handlers::service_plan_entity;
+    use crate::handlers::user_service_plan_entity;
+    use crate::handlers::user_entity;
 
     #[tokio::test]
-    async fn test_my_service_plan_response_creation() {
-        let now = chrono::Utc::now().naive_utc();
-        let response = MyServicePlanResponse {
-            service_plan_id: "test_plan".to_string(),
-            name: "Test Plan".to_string(),
-            description: "A test service plan".to_string(),
-            features: serde_json::json!({
-                "feature1": true,
-                "feature2": "value"
-            }),
-            quotas: serde_json::json!({
-                "api_rate_limit": 1000,
-                "tunnel_creation_limit": 100
-            }),
-            pricing: 29.99,
-            assignment_date: now,
-            end_date: Some(now + chrono::Duration::days(30)),
-            is_active: true,
+    async fn test_database_operations_with_real_postgres() {
+        let container = PostgresTestContainer::new().await;
+        let db = container.database().clone();
+        
+        // Create a test user
+        let user_id = Uuid::new_v4().to_string();
+        let now = Utc::now().naive_utc();
+        let user = user_entity::ActiveModel {
+            id: sea_orm::Set(user_id.clone()),
+            github_id: sea_orm::Set("test_github_id".to_string()),
+            username: sea_orm::Set("test_user".to_string()),
+            email: sea_orm::Set("test@example.com".to_string()),
+            avatar_url: sea_orm::Set("https://example.com/avatar.png".to_string()),
+            created_at: sea_orm::Set(now),
         };
+        let _ = user_entity::Entity::insert(user).exec(&db).await.expect("create user");
 
-        assert_eq!(response.service_plan_id, "test_plan");
-        assert_eq!(response.name, "Test Plan");
-        assert_eq!(response.description, "A test service plan");
-        assert_eq!(response.pricing, 29.99);
-        assert!(response.is_active);
-    }
-
-    #[tokio::test]
-    async fn test_service_plan_usage_response_creation() {
-        let now = chrono::Utc::now();
-        let usage = ServicePlanUsage {
-            tunnels_created: 75,
-            tunnels_active: 5,
-            dns_queries: 1000,
-            data_transferred_mb: 500,
-            certificates_issued: 30,
-            quota_limits: serde_json::json!({
-                "api_rate_limit": 1000,
-                "tunnel_creation_limit": 100
-            }),
+        // Create a test service plan
+        let plan_id = Uuid::new_v4().to_string();
+        let plan = service_plan_entity::ActiveModel {
+            id: sea_orm::Set(plan_id.clone()),
+            name: sea_orm::Set("Pro".to_string()),
+            api_rate_limit: sea_orm::Set(1000),
+            tunnel_creation_limit: sea_orm::Set(10),
+            dns_provisioning_limit: sea_orm::Set(5),
+            max_concurrent_tunnels: sea_orm::Set(3),
+            features_json: sea_orm::Set("{}".to_string()),
+            created_at: sea_orm::Set(now),
         };
+        let _ = service_plan_entity::Entity::insert(plan).exec(&db).await.expect("create service plan");
 
-        let response = ServicePlanUsageResponse {
-            service_plan_id: "test_plan".to_string(),
-            service_plan_name: "Test Plan".to_string(),
-            usage,
-            last_updated: now,
+        // Assign service plan to user
+        let assignment = user_service_plan_entity::ActiveModel {
+            id: sea_orm::Set(Uuid::new_v4().to_string()),
+            user_id: sea_orm::Set(user_id.clone()),
+            service_plan_id: sea_orm::Set(plan_id.clone()),
+            start_date: sea_orm::Set(now),
+            end_date: sea_orm::Set(now + chrono::Duration::days(30)),
+            is_active: sea_orm::Set(true),
         };
+        let _ = user_service_plan_entity::Entity::insert(assignment).exec(&db).await.expect("assign service plan");
 
-        assert_eq!(response.service_plan_id, "test_plan");
-        assert_eq!(response.service_plan_name, "Test Plan");
-        assert_eq!(response.usage.tunnels_created, 75);
-        assert_eq!(response.usage.tunnels_active, 5);
+        // Verify the data was created correctly
+        let user_service_plan = user_service_plan_entity::Entity::find()
+            .filter(user_service_plan_entity::Column::UserId.eq(user_id.clone()))
+            .one(&db)
+            .await
+            .expect("find user service plan")
+            .expect("user service plan should exist");
+
+        assert_eq!(user_service_plan.user_id, user_id);
+        assert_eq!(user_service_plan.service_plan_id, plan_id);
+        assert!(user_service_plan.is_active);
+
+        // Verify the service plan exists
+        let service_plan = service_plan_entity::Entity::find_by_id(plan_id.clone())
+            .one(&db)
+            .await
+            .expect("find service plan")
+            .expect("service plan should exist");
+
+        assert_eq!(service_plan.name, "Pro");
+        assert_eq!(service_plan.api_rate_limit, 1000);
     }
 
     #[tokio::test]
-    async fn test_available_service_plan_response_creation() {
-        let response = AvailableServicePlanResponse {
-            id: "test_plan".to_string(),
-            name: "Test Plan".to_string(),
-            description: "A test service plan".to_string(),
-            features: serde_json::json!({
-                "feature1": true,
-                "feature2": "value"
-            }),
-            quotas: serde_json::json!({
-                "api_rate_limit": 1000,
-                "tunnel_creation_limit": 100
-            }),
-            pricing: 29.99,
-            is_current_plan: false,
-            can_upgrade: true,
-            can_downgrade: false,
+    async fn test_service_plan_queries_with_real_postgres() {
+        let container = PostgresTestContainer::new().await;
+        let db = container.database().clone();
+        
+        // Create multiple service plans
+        let now = Utc::now().naive_utc();
+        let plan1 = service_plan_entity::ActiveModel {
+            id: sea_orm::Set(Uuid::new_v4().to_string()),
+            name: sea_orm::Set("Basic".to_string()),
+            api_rate_limit: sea_orm::Set(100),
+            tunnel_creation_limit: sea_orm::Set(5),
+            dns_provisioning_limit: sea_orm::Set(2),
+            max_concurrent_tunnels: sea_orm::Set(1),
+            features_json: sea_orm::Set("{}".to_string()),
+            created_at: sea_orm::Set(now),
         };
+        let _ = service_plan_entity::Entity::insert(plan1).exec(&db).await.expect("create service plan 1");
 
-        assert_eq!(response.id, "test_plan");
-        assert_eq!(response.name, "Test Plan");
-        assert_eq!(response.description, "A test service plan");
-        assert_eq!(response.pricing, 29.99);
-        assert!(!response.is_current_plan);
-        assert!(response.can_upgrade);
-        assert!(!response.can_downgrade);
-    }
-
-    #[tokio::test]
-    async fn test_service_plan_change_request_creation() {
-        let request = ServicePlanChangeRequest {
-            service_plan_id: "new_plan".to_string(),
-            reason: Some("Need more features".to_string()),
+        let plan2 = service_plan_entity::ActiveModel {
+            id: sea_orm::Set(Uuid::new_v4().to_string()),
+            name: sea_orm::Set("Pro".to_string()),
+            api_rate_limit: sea_orm::Set(1000),
+            tunnel_creation_limit: sea_orm::Set(10),
+            dns_provisioning_limit: sea_orm::Set(5),
+            max_concurrent_tunnels: sea_orm::Set(3),
+            features_json: sea_orm::Set("{}".to_string()),
+            created_at: sea_orm::Set(now),
         };
+        let _ = service_plan_entity::Entity::insert(plan2).exec(&db).await.expect("create service plan 2");
 
-        assert_eq!(request.service_plan_id, "new_plan");
-        assert_eq!(request.reason, Some("Need more features".to_string()));
+        // Query all service plans
+        let all_plans = service_plan_entity::Entity::find()
+            .all(&db)
+            .await
+            .expect("find all service plans");
+
+        assert_eq!(all_plans.len(), 2);
+        assert!(all_plans.iter().any(|p| p.name == "Basic"));
+        assert!(all_plans.iter().any(|p| p.name == "Pro"));
     }
 
     #[tokio::test]
-    async fn test_service_plan_change_response_creation() {
-        let response = ServicePlanChangeResponse {
-            message: "ServicePlan change request received".to_string(),
-            request_id: Uuid::new_v4(),
-            status: "pending".to_string(),
-            estimated_processing_time: "24-48 hours".to_string(),
+    async fn test_user_service_plan_queries_with_real_postgres() {
+        let container = PostgresTestContainer::new().await;
+        let db = container.database().clone();
+        
+        // Create a test user
+        let user_id = Uuid::new_v4().to_string();
+        let now = Utc::now().naive_utc();
+        let user = user_entity::ActiveModel {
+            id: sea_orm::Set(user_id.clone()),
+            github_id: sea_orm::Set("test_github_id".to_string()),
+            username: sea_orm::Set("test_user".to_string()),
+            email: sea_orm::Set("test@example.com".to_string()),
+            avatar_url: sea_orm::Set("https://example.com/avatar.png".to_string()),
+            created_at: sea_orm::Set(now),
         };
+        let _ = user_entity::Entity::insert(user).exec(&db).await.expect("create user");
 
-        assert!(response.message.contains("ServicePlan change request received"));
-        assert_eq!(response.status, "pending");
-        assert_eq!(response.estimated_processing_time, "24-48 hours");
-    }
-
-    #[tokio::test]
-    async fn test_features_json_parsing() {
-        let valid_features = r#"{"feature1": true, "feature2": "value", "feature3": 123}"#;
-        let parsed: serde_json::Value = serde_json::from_str(valid_features).unwrap();
-        
-        assert!(parsed["feature1"].as_bool().unwrap());
-        assert_eq!(parsed["feature2"].as_str().unwrap(), "value");
-        assert_eq!(parsed["feature3"].as_i64().unwrap(), 123);
-    }
-
-    #[tokio::test]
-    async fn test_quotas_json_creation() {
-        let quotas = serde_json::json!({
-            "api_rate_limit": 1000,
-            "tunnel_creation_limit": 100,
-            "dns_provisioning_limit": 50,
-            "max_concurrent_tunnels": 10
-        });
-        
-        assert_eq!(quotas["api_rate_limit"].as_i64().unwrap(), 1000);
-        assert_eq!(quotas["tunnel_creation_limit"].as_i64().unwrap(), 100);
-        assert_eq!(quotas["dns_provisioning_limit"].as_i64().unwrap(), 50);
-        assert_eq!(quotas["max_concurrent_tunnels"].as_i64().unwrap(), 10);
-    }
-
-    #[tokio::test]
-    async fn test_usage_stats_json_creation() {
-        let usage_stats = serde_json::json!({
-            "tunnels_created": 75,
-            "tunnels_active": 5,
-            "dns_queries": 1000,
-            "data_transferred_mb": 500,
-            "certificates_issued": 30
-        });
-        
-        assert_eq!(usage_stats["tunnels_created"].as_i64().unwrap(), 75);
-        assert_eq!(usage_stats["tunnels_active"].as_i64().unwrap(), 5);
-        assert_eq!(usage_stats["dns_queries"].as_i64().unwrap(), 1000);
-        assert_eq!(usage_stats["data_transferred_mb"].as_i64().unwrap(), 500);
-        assert_eq!(usage_stats["certificates_issued"].as_i64().unwrap(), 30);
-    }
-
-    #[tokio::test]
-    async fn test_plan_comparison_logic() {
-        // Test current plan detection
-        let current_assignment = Some("plan_a".to_string());
-        
-        let plan_a = "plan_a";
-        let plan_b = "plan_b";
-        
-        let is_current_plan_a = current_assignment.as_ref().map(|assignment| assignment == plan_a).unwrap_or(false);
-        let is_current_plan_b = current_assignment.as_ref().map(|assignment| assignment == plan_b).unwrap_or(false);
-        
-        assert!(is_current_plan_a);
-        assert!(!is_current_plan_b);
-        
-        // Test upgrade/downgrade logic
-        let can_upgrade_a = !is_current_plan_a;
-        let can_downgrade_a = !is_current_plan_a;
-        let can_upgrade_b = !is_current_plan_b;
-        let can_downgrade_b = !is_current_plan_b;
-        
-        assert!(!can_upgrade_a);
-        assert!(!can_downgrade_a);
-        assert!(can_upgrade_b);
-        assert!(can_downgrade_b);
-    }
-
-    #[tokio::test]
-    async fn test_uuid_generation() {
-        let request_id = Uuid::new_v4();
-        
-        // Test that UUID is valid
-        assert!(!request_id.to_string().is_empty());
-        assert_eq!(request_id.to_string().len(), 36); // Standard UUID length
-    }
-
-    #[tokio::test]
-    async fn test_chrono_datetime_operations() {
-        let now = chrono::Utc::now();
-        let future = now + chrono::Duration::days(30);
-        
-        // Test that future date is after current date
-        assert!(future > now);
-        
-        // Test duration calculation
-        let duration = future - now;
-        assert!(duration.num_days() >= 29); // Allow for slight timing differences
-    }
-
-    #[tokio::test]
-    async fn test_optional_fields_handling() {
-        // Test with reason provided
-        let request_with_reason = ServicePlanChangeRequest {
-            service_plan_id: "new_plan".to_string(),
-            reason: Some("Need more features".to_string()),
+        // Create a test service plan
+        let plan_id = Uuid::new_v4().to_string();
+        let plan = service_plan_entity::ActiveModel {
+            id: sea_orm::Set(plan_id.clone()),
+            name: sea_orm::Set("Pro".to_string()),
+            api_rate_limit: sea_orm::Set(1000),
+            tunnel_creation_limit: sea_orm::Set(10),
+            dns_provisioning_limit: sea_orm::Set(5),
+            max_concurrent_tunnels: sea_orm::Set(3),
+            features_json: sea_orm::Set("{}".to_string()),
+            created_at: sea_orm::Set(now),
         };
-        
-        // Test without reason
-        let request_without_reason = ServicePlanChangeRequest {
-            service_plan_id: "new_plan".to_string(),
-            reason: None,
-        };
-        
-        assert_eq!(request_with_reason.reason, Some("Need more features".to_string()));
-        assert_eq!(request_without_reason.reason, None);
-    }
+        let _ = service_plan_entity::Entity::insert(plan).exec(&db).await.expect("create service plan");
 
-    #[tokio::test]
-    async fn test_response_message_generation() {
-        let response = ServicePlanChangeResponse {
-            message: "ServicePlan change request received. An admin will review and process your request.".to_string(),
-            request_id: Uuid::new_v4(),
-            status: "pending".to_string(),
-            estimated_processing_time: "24-48 hours".to_string(),
+        // Assign service plan to user
+        let assignment = user_service_plan_entity::ActiveModel {
+            id: sea_orm::Set(Uuid::new_v4().to_string()),
+            user_id: sea_orm::Set(user_id.clone()),
+            service_plan_id: sea_orm::Set(plan_id.clone()),
+            start_date: sea_orm::Set(now),
+            end_date: sea_orm::Set(now + chrono::Duration::days(30)),
+            is_active: sea_orm::Set(true),
         };
-        
-        assert!(response.message.contains("ServicePlan change request received"));
-        assert!(response.message.contains("admin will review"));
-        assert_eq!(response.status, "pending");
-        assert_eq!(response.estimated_processing_time, "24-48 hours");
+        let _ = user_service_plan_entity::Entity::insert(assignment).exec(&db).await.expect("assign service plan");
+
+        // Query user's active service plan
+        let active_plan = user_service_plan_entity::Entity::find()
+            .filter(user_service_plan_entity::Column::UserId.eq(user_id.clone()))
+            .filter(user_service_plan_entity::Column::IsActive.eq(true))
+            .one(&db)
+            .await
+            .expect("find active user service plan")
+            .expect("active user service plan should exist");
+
+        assert_eq!(active_plan.user_id, user_id);
+        assert_eq!(active_plan.service_plan_id, plan_id);
+        assert!(active_plan.is_active);
     }
 } 
