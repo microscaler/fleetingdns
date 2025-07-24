@@ -61,6 +61,10 @@ services:
       dockerfile: docker/Dockerfile.api
     image: fleetingdns/api:dev
     command: ["/app/api-bin"]
+    environment:
+      - DATABASE_URL=postgresql://fdns:fdns@postgres:5432/fdns
+      - REDIS_URL=redis://redis:6379
+      - RUST_LOG=info
     depends_on: [postgres, redis, otel-collector]
 
   redis:
