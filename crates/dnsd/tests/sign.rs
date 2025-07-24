@@ -1,4 +1,4 @@
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::Ipv4Addr;
 use std::process::Stdio;
 use std::time::Duration;
 
@@ -11,7 +11,7 @@ use tokio::time::sleep;
 use dnsd::{serve, Config};
 use dnsd::redis_cache;
 use dnsd::sign;
-use dnsd::performance;
+use dnsd::dns_handler;
 
 #[cfg(feature = "dot")]
 use common::tls;
@@ -70,7 +70,7 @@ async fn rrsig_validates() {
         dnssec_config: sign::DnssecConfig::default(),
         ddos_config: common::ddos_protection::DdosConfig::default(),
         enable_ddos_protection: false,
-        performance_config: performance::PerformanceConfig::default(),
+        performance_config: dns_handler::PerformanceConfig::default(),
     };
     let handle = tokio::spawn(async move { serve(cfg).await.unwrap() });
     sleep(Duration::from_millis(50)).await;
@@ -145,7 +145,7 @@ async fn dig_returns_signed_response() {
         dnssec_config: sign::DnssecConfig::default(),
         ddos_config: common::ddos_protection::DdosConfig::default(),
         enable_ddos_protection: false,
-        performance_config: performance::PerformanceConfig::default(),
+        performance_config: dns_handler::PerformanceConfig::default(),
     };
     let handle = tokio::spawn(async move { serve(cfg).await.unwrap() });
     sleep(Duration::from_millis(50)).await;

@@ -4,16 +4,14 @@ use tracing::{info, instrument, error};
 use common::{AppResult, shutdown::GracefulShutdown};
 use tokio::sync::broadcast;
 
-use crate::performance::{PerformanceOptimizedDns, PerformanceConfig};
+use crate::dns_handler::{DnsHandler, PerformanceConfig};
 
 pub mod redis_cache;
 pub mod sign;
-mod udp;
-// pub mod dot_enhanced; // Temporarily disabled for performance optimization
 pub mod redis_performance;
 pub mod redis_sentinel;
 pub mod redis_cluster;
-pub mod performance;
+pub mod dns_handler;
 
 /// Configuration for the DNS server.
 pub struct Config {
@@ -59,15 +57,15 @@ pub async fn serve(cfg: Config) -> AppResult<()> {
         }
     }
 
-    // Create performance-optimized DNS processor
-    let performance_dns = PerformanceOptimizedDns::new(cfg.performance_config.clone());
+    // Create unified DNS handler with performance optimizations
+    let dns_handler = DnsHandler::new(cfg.performance_config.clone());
 
     // Create UDP socket
     let socket = UdpSocket::bind(cfg.addr).await?;
     info!("DNS server listening on {}", cfg.addr);
 
     // Create shutdown signal
-    let (shutdown_tx, mut shutdown_rx) = broadcast::channel::<()>(1);
+    let (_shutdown_tx, mut shutdown_rx) = broadcast::channel::<()>(1);
 
     // Main server loop
     let mut buf = [0; 512];
@@ -76,8 +74,8 @@ pub async fn serve(cfg: Config) -> AppResult<()> {
             result = socket.recv_from(&mut buf) => {
                 match result {
                     Ok((len, peer)) => {
-                        // Use performance-optimized handler
-                        if let Ok(resp) = performance_dns.handle_packet_optimized(&buf[..len], &cfg.redis_pool).await {
+                        // Use unified DNS handler
+                        if let Ok(resp) = dns_handler.handle_packet(&buf[..len], &cfg.redis_pool).await {
                             if let Err(e) = socket.send_to(&resp, peer).await {
                                 error!("Failed to send response to {}: {}", peer, e);
                             }
@@ -112,8 +110,8 @@ pub async fn serve_with_shutdown(
         }
     }
 
-    // Create performance-optimized DNS processor
-    let performance_dns = PerformanceOptimizedDns::new(cfg.performance_config.clone());
+    // Create unified DNS handler with performance optimizations
+    let dns_handler = DnsHandler::new(cfg.performance_config.clone());
 
     // Create UDP socket
     let socket = UdpSocket::bind(cfg.addr).await?;
@@ -127,8 +125,8 @@ pub async fn serve_with_shutdown(
             result = socket.recv_from(&mut buf) => {
                 match result {
                     Ok((len, peer)) => {
-                        // Use performance-optimized handler
-                        if let Ok(resp) = performance_dns.handle_packet_optimized(&buf[..len], &cfg.redis_pool).await {
+                        // Use unified DNS handler
+                        if let Ok(resp) = dns_handler.handle_packet(&buf[..len], &cfg.redis_pool).await {
                             if let Err(e) = socket.send_to(&resp, peer).await {
                                 error!("Failed to send response to {}: {}", peer, e);
                             }
@@ -152,11 +150,6 @@ pub async fn serve_with_shutdown(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use std::net::Ipv4Addr;
-    use tokio::time::sleep;
-    use std::time::Duration;
-
     // Note: Configuration tests that require Redis pool creation have been removed
     // as they require a Tokio runtime and are not essential for functionality testing.
     // The actual functionality is tested in the other test modules.
@@ -165,7 +158,7 @@ mod tests {
 #[cfg(feature = "dot")]
 mod dot {
     use super::redis_cache;
-    use super::udp;
+    use super::dns_handler::DnsHandler;
     use common::AppResult;
     use rustls::ServerConfig;
     use std::sync::Arc;
@@ -178,7 +171,7 @@ mod dot {
     ///
     /// Binds a TLS listener on the provided address and accepts connections
     /// using the given [`ServerConfig`]. Each connection expects a 16-bit
-    /// length-prefixed DNS message. Queries are processed by [`udp::handle_packet`] and
+    /// length-prefixed DNS message. Queries are processed by the unified DNS handler and
     /// the encoded response is written back to the client.
     ///
     /// The server runs indefinitely until the task is cancelled. Errors are
@@ -196,10 +189,15 @@ mod dot {
         let listener = TcpListener::bind(addr).await?;
         info!(addr=%listener.local_addr()?, "dot listening");
         let acceptor = TlsAcceptor::from(Arc::new(cfg));
+        
+        // Create unified DNS handler
+        let dns_handler = DnsHandler::new(super::dns_handler::PerformanceConfig::default());
+        
         loop {
             let (stream, peer) = listener.accept().await?;
             let acceptor = acceptor.clone();
             let pool = pool.clone();
+            let dns_handler = dns_handler.clone();
             tokio::spawn(async move {
                 if let Ok(mut tls) = acceptor.accept(stream).await {
                     let mut len_buf = [0u8; 2];
@@ -212,7 +210,7 @@ mod dot {
                         if tls.read_exact(&mut buf).await.is_err() {
                             break;
                         }
-                        if let Ok(resp) = udp::handle_packet(&buf, &pool).await {
+                        if let Ok(resp) = dns_handler.handle_packet(&buf, &pool).await {
                             let resp_len = (resp.len() as u16).to_be_bytes();
                             if tls.write_all(&resp_len).await.is_err() {
                                 break;
