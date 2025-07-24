@@ -5,8 +5,8 @@ edition = "2024"
 
 [dependencies]
 # Web framework
-axum = "0.7"
-tower = "0.4"
+axum = "0.8.4"
+tower = "0.5.2"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 
 # Async runtime
@@ -59,6 +59,13 @@ governor = "0.6"
 dashmap = "5.5"
 nonzero_ext = "0.3"
 
+sea-orm = { version = "1.1.13", features = ["sqlx-postgres", "runtime-tokio-native-tls"] }
+
 [dev-dependencies]
 tempfile = "3.0"
 tokio-test = "0.4"
+testcontainers = { workspace = true }
+testcontainers-modules = { workspace = true }
+sea-orm-migration = "1.1.13"
+migration = { path = "../migration" }
+jsonwebtoken = "9.2"

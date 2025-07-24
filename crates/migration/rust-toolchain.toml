@@ -1,0 +1,7 @@
+[toolchain]
+channel = "nightly-2024-01-01"
+components = ["rustfmt", "clippy"]
+profile = "minimal"
+
+[toolchain.dependencies]
+rust = ">=1.88.0" 

@@ -7,28 +7,23 @@
 #![cfg(feature = "redis-cluster-integration")]
 
 use std::time::Duration;
-use testcontainers::{runners::AsyncRunner, ContainerAsync, GenericImage};
+use testcontainers::{runners::AsyncRunner, GenericImage, ImageExt};
 
 use dnsd::redis_cluster::{ClusterConfig, RedisClusterClient};
 
 #[tokio::test]
 async fn test_cluster_client_creation_with_redis() {
     // Start Redis container
-    let redis_container = GenericImage::new("redis", "7-alpine")
-        .with_exposed_port(6379)
-        .start()
-        .await;
-
-    // Get the mapped port
-    let redis_port = redis_container.get_host_port_ipv4(6379).await;
-    let redis_url = format!("redis://127.0.0.1:{redis_port}");
+    let container = GenericImage::new("redis", "7.2.4").with_exposed_port(6379).start().await.expect("Failed to start Redis");
+    let port = container.get_host_port_ipv4(6379).await.unwrap();
+    let url = format!("redis://127.0.0.1:{port}");
 
     // Wait for Redis to be ready
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     // Create cluster config with single node
     let config = ClusterConfig {
-        nodes: vec![redis_url],
+        nodes: vec![url],
         pool_config: dnsd::redis_cluster::PoolConfig {
             max_size: 5, // Smaller for testing
             ..Default::default()
@@ -69,21 +64,16 @@ async fn test_cluster_client_creation_with_redis() {
 #[tokio::test]
 async fn test_cluster_bulk_operations_with_redis() {
     // Start Redis container
-    let redis_container = GenericImage::new("redis", "7-alpine")
-        .with_exposed_port(6379)
-        .start()
-        .await;
-
-    // Get the mapped port
-    let redis_port = redis_container.get_host_port_ipv4(6379).await;
-    let redis_url = format!("redis://127.0.0.1:{redis_port}");
+    let container = GenericImage::new("redis", "7.2.4").with_exposed_port(6379).start().await.expect("Failed to start Redis");
+    let port = container.get_host_port_ipv4(6379).await.unwrap();
+    let url = format!("redis://127.0.0.1:{port}");
 
     // Wait for Redis to be ready
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     // Create cluster config
     let config = ClusterConfig {
-        nodes: vec![redis_url],
+        nodes: vec![url],
         ..Default::default()
     };
 
@@ -122,21 +112,16 @@ async fn test_cluster_config_custom() {
 #[tokio::test]
 async fn test_cluster_performance_with_redis() {
     // Start Redis container
-    let redis_container = GenericImage::new("redis", "7-alpine")
-        .with_exposed_port(6379)
-        .start()
-        .await;
-
-    // Get the mapped port
-    let redis_port = redis_container.get_host_port_ipv4(6379).await;
-    let redis_url = format!("redis://127.0.0.1:{redis_port}");
+    let container = GenericImage::new("redis", "7.2.4").with_exposed_port(6379).start().await.expect("Failed to start Redis");
+    let port = container.get_host_port_ipv4(6379).await.unwrap();
+    let url = format!("redis://127.0.0.1:{port}");
 
     // Wait for Redis to be ready
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     // Create cluster config
     let config = ClusterConfig {
-        nodes: vec![redis_url],
+        nodes: vec![url],
         ..Default::default()
     };
 
@@ -186,8 +171,8 @@ async fn test_cluster_error_handling() {
 }
 
 // Helper function to start Redis container for testing
-async fn start_redis_container() -> ContainerAsync<GenericImage> {
-    GenericImage::new("redis", "7-alpine")
+async fn start_redis_container() -> testcontainers::ContainerAsync<testcontainers::GenericImage> {
+    GenericImage::new("redis", "7.2.4")
         .with_exposed_port(6379)
         .start()
         .await
@@ -196,14 +181,9 @@ async fn start_redis_container() -> ContainerAsync<GenericImage> {
 #[tokio::test]
 async fn test_cluster_client_creation_without_redis() {
     // Start Redis container
-    let redis_container = start_redis_container().await;
-
-    // Get the mapped port
-    let redis_port = redis_container.get_host_port_ipv4(6379).await;
-    println!("✅ Redis container started on port {redis_port}");
-
-    // Create Redis URL
-    let redis_url = format!("redis://127.0.0.1:{redis_port}");
+    let container = start_redis_container().await;
+    let port = container.get_host_port_ipv4(6379).await.unwrap();
+    let url = format!("redis://127.0.0.1:{port}");
 
     // Wait for Redis to be ready
     tokio::time::sleep(Duration::from_millis(1000)).await;
@@ -211,7 +191,7 @@ async fn test_cluster_client_creation_without_redis() {
     // Test cluster client creation - this should work with a single Redis instance
     // but cluster operations might fail
     let config = ClusterConfig {
-        nodes: vec![redis_url],
+        nodes: vec![url],
         ..Default::default()
     };
 

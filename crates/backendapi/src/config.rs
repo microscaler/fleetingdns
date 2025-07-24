@@ -30,6 +30,9 @@ pub struct ApiConfig {
 
     /// JWT secret for token signing
     pub jwt_secret: String,
+
+    /// Database URL for PostgreSQL
+    pub database_url: String,
 }
 
 impl Default for ApiConfig {
@@ -44,6 +47,7 @@ impl Default for ApiConfig {
             max_tunnel_ttl: 7200,     // 2 hours
             edgehub_address: "edgehub.fleetingdns.com:443".to_string(),
             jwt_secret: "your-jwt-secret-key".to_string(),
+            database_url: "postgres://postgres:postgres@localhost:5432/fleetingdns".to_string(),
         }
     }
 }
@@ -71,6 +75,8 @@ impl ApiConfig {
                 .unwrap_or_else(|_| "edgehub.fleetingdns.com:443".to_string()),
             jwt_secret: env::var("JWT_SECRET")
                 .unwrap_or_else(|_| "your-jwt-secret-key".to_string()),
+            database_url: env::var("DATABASE_URL")
+                .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/fleetingdns".to_string()),
         })
     }
 

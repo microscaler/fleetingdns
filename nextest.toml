@@ -1,0 +1,7 @@
+[profile.default]
+# Default: run tests in parallel
+
+[[profile.default.overrides]]
+filter = 'test(backendapi::handlers::admin::e2e_serviceplan_tests::*)'
+threads-required = 1 
+partition = "serial"

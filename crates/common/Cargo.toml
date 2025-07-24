@@ -37,3 +37,4 @@ tonic = { version = "0.13", features = ["transport"] }
 tokio-stream = "0.1"
 opentelemetry-proto = { version = "0.30", features = ["gen-tonic", "metrics"] }
 tempfile = "3.0"
+ctor = "0.2"

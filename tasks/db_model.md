@@ -260,9 +260,10 @@ erDiagram
         datetime event_time
         string details_json
     }
+    API_STATS }|--|| CA_STATS : ca_stats
     USER ||--o{ USER_SERVICE_PLAN : has
-    SERVICE_PLAN ||--o{ USER_SERVICE_PLAN : assigned_to
     SERVICE_PLAN ||--o{ PRICING : has
+    SERVICE_PLAN ||--o{ USER_SERVICE_PLAN : assigned_to
     USER ||--o{ TUNNEL : owns
     TUNNEL ||--|| SSH_KEY_PAIR : uses
     USER ||--o{ AUTH_TOKEN : has
@@ -271,7 +272,6 @@ erDiagram
     USER ||--o{ AUDIT_LOG : audit
     USER ||--o{ BILLING_EVENT : billing
     TUNNEL ||--|| CERTIFICATE_INFO : cert
-    API_STATS }|--|| CA_STATS : ca_stats
 ```
 
 ---
