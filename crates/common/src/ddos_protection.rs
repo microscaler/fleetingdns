@@ -219,6 +219,25 @@ mod tests {
         assert_eq!(config.max_connections_per_ip, 10);
         assert_eq!(config.connection_rate_per_minute, 100);
         assert_eq!(config.max_request_size, 1024 * 1024);
+        assert_eq!(config.block_duration, Duration::from_secs(300));
+        assert_eq!(config.rate_window, Duration::from_secs(60));
+    }
+
+    #[test]
+    fn test_ddos_config_custom() {
+        let config = DdosConfig {
+            max_connections_per_ip: 5,
+            connection_rate_per_minute: 50,
+            max_request_size: 2048 * 1024,
+            block_duration: Duration::from_secs(600),
+            rate_window: Duration::from_secs(30),
+        };
+        
+        assert_eq!(config.max_connections_per_ip, 5);
+        assert_eq!(config.connection_rate_per_minute, 50);
+        assert_eq!(config.max_request_size, 2048 * 1024);
+        assert_eq!(config.block_duration, Duration::from_secs(600));
+        assert_eq!(config.rate_window, Duration::from_secs(30));
     }
 
     #[test]
@@ -246,14 +265,52 @@ mod tests {
     }
 
     #[test]
+    fn test_connection_limit_multiple_ips() {
+        let config = DdosConfig {
+            max_connections_per_ip: 1,
+            ..Default::default()
+        };
+        let ddos = DdosProtection::new(config);
+        let ip1: IpAddr = "192.168.1.1".parse().unwrap();
+        let ip2: IpAddr = "192.168.1.2".parse().unwrap();
+
+        // Each IP should have its own limit
+        assert!(ddos.check_connection_limit(ip1).is_ok());
+        assert!(ddos.check_connection_limit(ip2).is_ok());
+        
+        // Second connection from same IP should fail
+        assert!(ddos.check_connection_limit(ip1).is_err());
+        assert!(ddos.check_connection_limit(ip2).is_err());
+    }
+
+    #[test]
     fn test_request_size_limit() {
         let ddos = DdosProtection::new(DdosConfig::default());
 
         // Normal size should pass
         assert!(ddos.check_request_size(1000).is_ok());
+        assert!(ddos.check_request_size(1024 * 1024).is_ok()); // Exactly at limit
 
         // Oversized request should fail
         assert!(ddos.check_request_size(2 * 1024 * 1024).is_err());
+        assert!(ddos.check_request_size(1024 * 1024 + 1).is_err());
+    }
+
+    #[test]
+    fn test_request_size_limit_custom() {
+        let config = DdosConfig {
+            max_request_size: 1000,
+            ..Default::default()
+        };
+        let ddos = DdosProtection::new(config);
+
+        // Small requests should pass
+        assert!(ddos.check_request_size(500).is_ok());
+        assert!(ddos.check_request_size(1000).is_ok()); // Exactly at limit
+
+        // Large requests should fail
+        assert!(ddos.check_request_size(1001).is_err());
+        assert!(ddos.check_request_size(2000).is_err());
     }
 
     #[test]
@@ -265,6 +322,9 @@ mod tests {
         };
         let ddos = DdosProtection::new(config);
         let ip: IpAddr = "192.168.1.1".parse().unwrap();
+
+        // Initially not blocked
+        assert!(!ddos.is_blocked(ip));
 
         // Fill up the connection limit to trigger blocking
         assert!(ddos.check_connection_limit(ip).is_ok());
@@ -281,10 +341,41 @@ mod tests {
     }
 
     #[test]
+    fn test_ip_blocking_multiple_ips() {
+        let config = DdosConfig {
+            max_connections_per_ip: 1,
+            block_duration: Duration::from_millis(50),
+            ..Default::default()
+        };
+        let ddos = DdosProtection::new(config);
+        let ip1: IpAddr = "192.168.1.1".parse().unwrap();
+        let ip2: IpAddr = "192.168.1.2".parse().unwrap();
+
+        // Block IP1
+        assert!(ddos.check_connection_limit(ip1).is_ok());
+        assert!(ddos.check_connection_limit(ip1).is_err());
+        assert!(ddos.is_blocked(ip1));
+
+        // IP2 should not be blocked
+        assert!(!ddos.is_blocked(ip2));
+        assert!(ddos.check_connection_limit(ip2).is_ok());
+
+        // Wait for IP1 block to expire
+        std::thread::sleep(Duration::from_millis(60));
+        assert!(!ddos.is_blocked(ip1));
+    }
+
+    #[test]
     fn test_stats_collection() {
         let ddos = DdosProtection::new(DdosConfig::default());
         let ip1: IpAddr = "192.168.1.1".parse().unwrap();
         let ip2: IpAddr = "192.168.1.2".parse().unwrap();
+
+        // Initial stats
+        let stats = ddos.get_stats();
+        assert_eq!(stats.total_tracked_ips, 0);
+        assert_eq!(stats.blocked_ips, 0);
+        assert_eq!(stats.total_active_connections, 0);
 
         // Add some connections
         let _ = ddos.check_connection_limit(ip1);
@@ -293,5 +384,120 @@ mod tests {
         let stats = ddos.get_stats();
         assert_eq!(stats.total_tracked_ips, 2);
         assert_eq!(stats.total_active_connections, 2);
+        assert_eq!(stats.blocked_ips, 0);
+
+        // Close a connection
+        ddos.connection_closed(ip1);
+        let stats = ddos.get_stats();
+        assert_eq!(stats.total_active_connections, 1);
+    }
+
+    #[test]
+    fn test_stats_with_blocked_ips() {
+        let config = DdosConfig {
+            max_connections_per_ip: 1,
+            block_duration: Duration::from_millis(100),
+            ..Default::default()
+        };
+        let ddos = DdosProtection::new(config);
+        let ip: IpAddr = "192.168.1.1".parse().unwrap();
+
+        // Trigger blocking
+        assert!(ddos.check_connection_limit(ip).is_ok());
+        assert!(ddos.check_connection_limit(ip).is_err());
+
+        let stats = ddos.get_stats();
+        assert_eq!(stats.total_tracked_ips, 1);
+        assert_eq!(stats.blocked_ips, 1);
+        assert_eq!(stats.total_active_connections, 1);
+    }
+
+    #[test]
+    fn test_connection_closed() {
+        let ddos = DdosProtection::new(DdosConfig::default());
+        let ip: IpAddr = "192.168.1.1".parse().unwrap();
+
+        // Add a connection
+        assert!(ddos.check_connection_limit(ip).is_ok());
+        let stats = ddos.get_stats();
+        assert_eq!(stats.total_active_connections, 1);
+
+        // Close the connection
+        ddos.connection_closed(ip);
+        let stats = ddos.get_stats();
+        assert_eq!(stats.total_active_connections, 0);
+    }
+
+    #[test]
+    fn test_connection_closed_multiple_times() {
+        let ddos = DdosProtection::new(DdosConfig::default());
+        let ip: IpAddr = "192.168.1.1".parse().unwrap();
+
+        // Add a connection
+        assert!(ddos.check_connection_limit(ip).is_ok());
+        
+        // Close multiple times (should not go below 0)
+        ddos.connection_closed(ip);
+        ddos.connection_closed(ip);
+        ddos.connection_closed(ip);
+        
+        let stats = ddos.get_stats();
+        assert_eq!(stats.total_active_connections, 0);
+    }
+
+    #[test]
+    fn test_cleanup_old_entries() {
+        let config = DdosConfig {
+            rate_window: Duration::from_millis(50),
+            ..Default::default()
+        };
+        let ddos = DdosProtection::new(config);
+        let ip: IpAddr = "192.168.1.1".parse().unwrap();
+
+        // Add a connection
+        assert!(ddos.check_connection_limit(ip).is_ok());
+        let stats = ddos.get_stats();
+        assert_eq!(stats.total_tracked_ips, 1);
+
+        // Wait for rate window to expire and cleanup
+        std::thread::sleep(Duration::from_millis(60));
+        ddos.cleanup_old_entries();
+
+        // Should still have the IP tracked (due to active connections)
+        let stats = ddos.get_stats();
+        assert_eq!(stats.total_tracked_ips, 1);
+
+        // Close the connection and cleanup
+        ddos.connection_closed(ip);
+        ddos.cleanup_old_entries();
+        
+        // Should still have the IP tracked (cleanup doesn't remove immediately)
+        let stats = ddos.get_stats();
+        assert_eq!(stats.total_tracked_ips, 1);
+    }
+
+    #[test]
+    fn test_ddos_protection_creation() {
+        let config = DdosConfig::default();
+        let ddos = DdosProtection::new(config);
+        
+        // Should be created successfully
+        let stats = ddos.get_stats();
+        assert_eq!(stats.total_tracked_ips, 0);
+        assert_eq!(stats.blocked_ips, 0);
+        assert_eq!(stats.total_active_connections, 0);
+    }
+
+    #[test]
+    fn test_ipv6_addresses() {
+        let ddos = DdosProtection::new(DdosConfig::default());
+        let ip: IpAddr = "2001:db8::1".parse().unwrap();
+
+        // Should work with IPv6 addresses
+        assert!(ddos.check_connection_limit(ip).is_ok());
+        assert!(!ddos.is_blocked(ip));
+        
+        let stats = ddos.get_stats();
+        assert_eq!(stats.total_tracked_ips, 1);
     }
 } 
