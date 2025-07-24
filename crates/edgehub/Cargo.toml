@@ -38,3 +38,9 @@ testcontainers-modules = { workspace = true }
 hickory-resolver = "0.24"
 mini-redis = "0.4"
 tracing-subscriber = "0.3"
+sea-orm = { version = "1.1.13", features = ["sqlx-postgres", "runtime-tokio-native-tls"] }
+sea-orm-migration = "1.1.13"
+migration = { path = "../migration" }
+uuid = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }
+serde_json = "1.0"

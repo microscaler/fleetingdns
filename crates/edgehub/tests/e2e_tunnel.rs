@@ -5,98 +5,290 @@ use common::shutdown::GracefulShutdown;
 use dnsd::redis_cache;
 use edgehub::{Config, ssh_server::SshConfig, ssh_server::SshServer};
 use hickory_resolver::TokioAsyncResolver;
-use mini_redis::server;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
 use tracing::{debug, error, info, warn};
+use testcontainers::runners::AsyncRunner;
+use testcontainers_modules::redis::Redis;
+use testcontainers_modules::postgres::Postgres;
+use testcontainers::ImageExt;
+use sea_orm::{Database, DatabaseConnection, ConnectionTrait};
+use migration::Migrator;
+use sea_orm_migration::MigratorTrait;
 
-/// Integration test for complete E2E tunnel flow
+/// Test container configuration for E2E tests
+struct TestContainers {
+    redis_container: testcontainers::ContainerAsync<testcontainers_modules::redis::Redis>,
+    postgres_container: testcontainers::ContainerAsync<testcontainers_modules::postgres::Postgres>,
+    redis_url: String,
+    postgres_url: String,
+    postgres_db: DatabaseConnection,
+}
+
+impl TestContainers {
+    /// Start all required test containers
+    async fn new() -> Self {
+        // Start Redis container
+        let redis_container = Redis::default()
+            .with_tag("7.2-alpine")
+            .start()
+            .await
+            .expect("Failed to start Redis container");
+        
+        let redis_port = redis_container.get_host_port_ipv4(6379).await.expect("Failed to get Redis port");
+        let redis_url = format!("redis://localhost:{}", redis_port);
+
+        // Start PostgreSQL container
+        let postgres_container = Postgres::default()
+            .with_tag("17.5-alpine")
+            .with_env_var("POSTGRES_DB", "test")
+            .with_env_var("POSTGRES_USER", "test")
+            .with_env_var("POSTGRES_PASSWORD", "test")
+            .start()
+            .await
+            .expect("Failed to start Postgres container");
+
+        let postgres_port = postgres_container.get_host_port_ipv4(5432).await.expect("Failed to get Postgres port");
+        let postgres_url = format!("postgresql://test:test@localhost:{}", postgres_port);
+
+        // Connect to PostgreSQL with retry logic
+        let mut retries = 30;
+        let postgres_db = loop {
+            match Database::connect(&postgres_url).await {
+                Ok(db) => break db,
+                Err(_) if retries > 0 => {
+                    retries -= 1;
+                    tokio::time::sleep(Duration::from_millis(1000)).await;
+                }
+                Err(e) => panic!("Failed to connect to Postgres after retries: {e:?}"),
+            }
+        };
+
+        // Run migrations with retry logic
+        let mut migration_retries = 10;
+        loop {
+            match Migrator::up(&postgres_db, None).await {
+                Ok(_) => break,
+                Err(_) if migration_retries > 0 => {
+                    migration_retries -= 1;
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                }
+                Err(e) => panic!("Failed to run migrations after retries: {e:?}"),
+            }
+        }
+
+        Self {
+            redis_container,
+            postgres_container,
+            redis_url,
+            postgres_url,
+            postgres_db,
+        }
+    }
+
+    /// Get Redis URL for services
+    fn redis_url(&self) -> &str {
+        &self.redis_url
+    }
+
+    /// Get PostgreSQL database connection
+    fn postgres_db(&self) -> &DatabaseConnection {
+        &self.postgres_db
+    }
+}
+
+/// Integration test for complete E2E tunnel flow using testcontainers
 #[tokio::test]
-async fn test_e2e_tunnel_complete_flow() {
+async fn test_e2e_tunnel_complete_flow_with_containers() {
     // Initialize tracing for test output
     let _ = tracing_subscriber::fmt::try_init();
 
     // Wrap the entire test in a timeout to prevent hanging
-    let test_result = timeout(Duration::from_secs(30), async {
-        // Try to start Redis server with its own timeout
-        let redis_result = timeout(Duration::from_secs(10), start_test_redis()).await;
+    let test_result = timeout(Duration::from_secs(60), async {
+        info!("Starting E2E tunnel test with testcontainers");
 
-        let Some((redis_url, redis_handle)) = redis_result.unwrap_or_else(|_| {
-            eprintln!("Redis server startup timed out");
-            None
-        }) else {
-            eprintln!("skipping test: redis not available");
-            return;
-        };
+        // Start test containers
+        let containers = TestContainers::new().await;
+        info!("Test containers started successfully");
 
-        // Create Redis pool
+        // Create Redis pool using testcontainer
+        let redis_pool = redis_cache::new_pool(containers.redis_url())
+            .await
+            .expect("Failed to create Redis pool");
+
+        // Start a mock HTTP server that we'll tunnel to
+        let mock_server_addr = start_mock_http_server().await;
+        info!("Mock HTTP server started at {}", mock_server_addr);
+
+        // Start DNS server
+        let dns_server_addr = start_dns_server(redis_pool.clone()).await;
+        info!("DNS server started at {}", dns_server_addr);
+
+        // Start EdgeHub with SSH server
+        let edgehub_addr = start_edgehub_server(redis_pool.clone()).await;
+        info!("EdgeHub server started at {}", edgehub_addr);
+
+        // Test 1: DNS resolution should work for a slot
+        test_dns_resolution(&dns_server_addr, &redis_pool).await;
+        info!("DNS resolution test passed");
+
+        // Test 2: SSH tunnel establishment (simulated)
+        test_ssh_tunnel_establishment(&edgehub_addr).await;
+        info!("SSH tunnel establishment test passed");
+
+        // Test 3: HTTP request routing through tunnel (simulated)
+        test_http_request_routing(&mock_server_addr).await;
+        info!("HTTP request routing test passed");
+
+        // Test 4: Database operations with PostgreSQL
+        test_database_operations(containers.postgres_db()).await;
+        info!("Database operations test passed");
+
+        info!("E2E tunnel test completed successfully");
+    })
+    .await;
+
+    if test_result.is_err() {
+        panic!("Test timed out after 60 seconds");
+    }
+}
+
+/// Simplified E2E test focusing on core tunnel functionality
+#[tokio::test]
+async fn test_e2e_tunnel_core_functionality() {
+    // Initialize tracing for test output
+    let _ = tracing_subscriber::fmt::try_init();
+
+    // Wrap the entire test in a timeout to prevent hanging
+    let test_result = timeout(Duration::from_secs(45), async {
+        info!("Starting simplified E2E tunnel test");
+
+        // Start Redis container only
+        let redis_container = Redis::default()
+            .with_tag("7.2-alpine")
+            .start()
+            .await
+            .expect("Failed to start Redis container");
+        
+        let redis_port = redis_container.get_host_port_ipv4(6379).await.expect("Failed to get Redis port");
+        let redis_url = format!("redis://localhost:{}", redis_port);
+
+        // Create Redis pool using testcontainer
         let redis_pool = redis_cache::new_pool(&redis_url)
             .await
             .expect("Failed to create Redis pool");
 
         // Start a mock HTTP server that we'll tunnel to
         let mock_server_addr = start_mock_http_server().await;
+        info!("Mock HTTP server started at {}", mock_server_addr);
 
         // Start DNS server
         let dns_server_addr = start_dns_server(redis_pool.clone()).await;
+        info!("DNS server started at {}", dns_server_addr);
 
         // Start EdgeHub with SSH server
         let edgehub_addr = start_edgehub_server(redis_pool.clone()).await;
+        info!("EdgeHub server started at {}", edgehub_addr);
 
         // Test 1: DNS resolution should work for a slot
         test_dns_resolution(&dns_server_addr, &redis_pool).await;
+        info!("DNS resolution test passed");
 
         // Test 2: SSH tunnel establishment (simulated)
         test_ssh_tunnel_establishment(&edgehub_addr).await;
+        info!("SSH tunnel establishment test passed");
 
         // Test 3: HTTP request routing through tunnel (simulated)
         test_http_request_routing(&mock_server_addr).await;
+        info!("HTTP request routing test passed");
 
-        info!("E2E tunnel test completed successfully");
-
-        // Cleanup
-        redis_handle.abort();
+        info!("Simplified E2E tunnel test completed successfully");
     })
     .await;
 
     if test_result.is_err() {
-        panic!("Test timed out after 30 seconds");
+        panic!("Test timed out after 45 seconds");
     }
 }
 
-/// Start a test Redis server
-async fn start_test_redis() -> Option<(String, tokio::task::JoinHandle<mini_redis::Result<()>>)> {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.ok()?;
-    let addr = listener.local_addr().unwrap();
-    let handle = tokio::spawn(async move { server::run(listener, tokio::signal::ctrl_c()).await });
+/// Test database operations with PostgreSQL
+async fn test_database_operations(db: &DatabaseConnection) {
+    // Test that we can perform basic database operations
+    // This validates that our database connection works with real PostgreSQL
+    use sea_orm::{EntityTrait, ActiveModelTrait, QueryTrait, DatabaseConnection};
+    use uuid::Uuid;
+    use chrono::{Utc, NaiveDateTime};
 
-    // Wait for Redis to start
-    tokio::time::sleep(Duration::from_millis(200)).await;
-
-    let url = format!("redis://{addr}/");
-
-    // Try to connect to verify Redis is ready
-    for i in 0..20 {
-        if let Ok(pool) = redis_cache::new_pool(&url).await {
-            // Test that we can actually use the pool
-            if let Ok(mut conn) = pool.get().await {
-                use redis::AsyncCommands;
-                if let Ok(()) = conn.set::<&str, &str, ()>("test", "value").await {
-                    let _: Result<String, _> = conn.get("test").await;
-                    return Some((url, handle));
-                }
-            }
-        }
-        tokio::time::sleep(Duration::from_millis(100)).await;
-        if i > 10 {
-            eprintln!("Redis startup taking longer than expected, attempt {i}");
-        }
+    // Test basic database connectivity by running a simple query
+    let result = db.execute_unprepared("SELECT 1 as test").await;
+    match result {
+        Ok(_) => info!("Database connectivity test passed"),
+        Err(e) => panic!("Database connectivity test failed: {e:?}"),
     }
 
-    handle.abort();
+    // Test that we can create a simple table and insert data
+    // This validates the database schema and migrations work
+    let create_result = db.execute_unprepared(
+        "CREATE TABLE IF NOT EXISTS e2e_test_table (
+            id VARCHAR PRIMARY KEY,
+            name VARCHAR NOT NULL,
+            created_at TIMESTAMP NOT NULL
+        )"
+    ).await;
+
+    match create_result {
+        Ok(_) => info!("Test table creation passed"),
+        Err(e) => panic!("Test table creation failed: {e:?}"),
+    }
+
+    // Insert test data
+    let test_id = Uuid::new_v4().to_string();
+    let now = Utc::now().naive_utc();
+    
+    let insert_result = db.execute_unprepared(&format!(
+        "INSERT INTO e2e_test_table (id, name, created_at) VALUES ('{}', 'E2E Test', '{}')",
+        test_id, now
+    )).await;
+
+    match insert_result {
+        Ok(_) => info!("Test data insertion passed"),
+        Err(e) => panic!("Test data insertion failed: {e:?}"),
+    }
+
+    // Query test data
+    let query_result = db.execute_unprepared(&format!(
+        "SELECT id, name FROM e2e_test_table WHERE id = '{}'",
+        test_id
+    )).await;
+
+    match query_result {
+        Ok(result) => {
+            if result.rows_affected() > 0 {
+                info!("Test data query passed");
+            } else {
+                panic!("Test data query returned no rows");
+            }
+        }
+        Err(e) => panic!("Test data query failed: {e:?}"),
+    }
+
+    // Clean up test table
+    let cleanup_result = db.execute_unprepared("DROP TABLE IF EXISTS e2e_test_table").await;
+    match cleanup_result {
+        Ok(_) => info!("Test table cleanup passed"),
+        Err(e) => warn!("Test table cleanup failed: {e:?}"),
+    }
+
+    info!("Database operations test completed successfully");
+}
+
+/// Start a test Redis server using testcontainers
+async fn start_test_redis() -> Option<(String, tokio::task::JoinHandle<mini_redis::Result<()>>)> {
+    // This function is kept for backward compatibility but is no longer used
+    // The testcontainers approach is preferred
     None
 }
 
