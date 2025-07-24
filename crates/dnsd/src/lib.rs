@@ -12,6 +12,7 @@ pub mod redis_performance;
 pub mod redis_sentinel;
 pub mod redis_cluster;
 pub mod dns_handler;
+pub mod metrics_manager;
 
 /// Configuration for the DNS server.
 pub struct Config {

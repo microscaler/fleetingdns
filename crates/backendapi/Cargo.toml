@@ -41,8 +41,8 @@ common = { path = "../common" }
 
 # Redis for tunnel metadata storage - use compatible versions
 redis = { workspace = true }
-bb8 = "0.8"
-bb8-redis = "0.15"
+bb8 = { workspace = true }
+bb8-redis = { workspace = true }
 
 # Configuration
 config = "0.14"
