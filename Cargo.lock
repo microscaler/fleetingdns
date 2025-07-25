@@ -1340,7 +1340,6 @@ dependencies = [
  "bb8-redis",
  "common",
  "crc16",
- "dashmap",
  "governor",
  "hex",
  "hickory-proto",
@@ -1363,6 +1362,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "tracing-test",
+ "ttl_cache_with_purging",
 ]
 
 [[package]]
@@ -6025,6 +6025,15 @@ name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
+
+[[package]]
+name = "ttl_cache_with_purging"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18199336e6aa324b302595c1d822ef48c01a6d88769629d031b40796381a6cd9"
+dependencies = [
+ "tokio",
+]
 
 [[package]]
 name = "typenum"
