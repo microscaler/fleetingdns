@@ -132,6 +132,12 @@ pub async fn reset_metrics() {
     manager.reset();
 }
 
+/// Reset the global singleton to a fresh state (for testing)
+pub async fn reset_singleton() {
+    let mut manager = METRICS_MANAGER.write().await;
+    *manager = MetricsManager::new(50); // Reset to default state
+}
+
 /// Performance metrics structure
 #[derive(Debug, Clone)]
 pub struct PerformanceMetrics {
@@ -163,9 +169,10 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_metrics_manager_singleton() {
-        // Reset metrics before test
-        reset_metrics().await;
+        // Reset singleton before test
+        reset_singleton().await;
         
         // Test metrics update
         update_metrics(true, Duration::from_millis(50)).await;
@@ -179,7 +186,11 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_metrics_reset() {
+        // Reset singleton before test
+        reset_singleton().await;
+        
         // Add some metrics
         update_metrics(false, Duration::from_millis(100)).await;
         update_metrics(true, Duration::from_millis(50)).await;
@@ -194,10 +205,12 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_concurrent_metrics_updates() {
-        reset_metrics().await;
+        // Reset singleton before test
+        reset_singleton().await;
         
-        // Test concurrent updates
+        // Test concurrent updates with proper synchronization
         let mut handles = vec![];
         for i in 0..10 {
             let handle = tokio::spawn(async move {
@@ -206,9 +219,13 @@ mod tests {
             handles.push(handle);
         }
         
+        // Wait for all tasks to complete
         for handle in handles {
             handle.await.unwrap();
         }
+        
+        // Add small delay to ensure all updates are processed
+        tokio::time::sleep(Duration::from_millis(10)).await;
         
         let metrics = get_metrics().await;
         assert_eq!(metrics.total_queries, 10);

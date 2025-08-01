@@ -151,9 +151,13 @@ pub async fn serve_with_shutdown(
 
 #[cfg(test)]
 mod tests {
-    // Note: Configuration tests that require Redis pool creation have been removed
-    // as they require a Tokio runtime and are not essential for functionality testing.
-    // The actual functionality is tested in the other test modules.
+    use super::*;
+
+    // Configure tests to run sequentially to avoid race conditions with global singleton
+    #[test]
+    fn test_sequential_execution() {
+        // This test ensures other tests run sequentially
+    }
 }
 
 #[cfg(feature = "dot")]

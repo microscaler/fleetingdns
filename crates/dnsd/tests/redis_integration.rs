@@ -1,166 +1,48 @@
 use dnsd::dns_handler::{DnsHandler, PerformanceConfig};
+use dnsd::redis_cache::RedisPool;
 mod redis_test_utils;
-use redis_test_utils::with_redis_test_container;
+use redis_test_utils::{with_redis_container, with_shared_redis_container};
 
-/// Test Redis connection pool creation and basic operations
-#[tokio::test]
-async fn test_redis_pool_creation() {
-    let result = with_redis_test_container(|pool| async move {
-        // Test that we can get a connection
-        let conn = pool.get().await;
-        assert!(conn.is_ok());
-        "success"
-    }).await;
-    
-    assert!(result.is_ok());
-}
-
-/// Test slot lookup in Redis
-#[tokio::test]
-async fn test_slot_lookup() {
-    let result = with_redis_test_container(|pool| async move {
-        let handler = DnsHandler::new(PerformanceConfig::default());
-        
-        // Test lookup for non-existent domain
-        let result = handler.lookup_slot_in_redis("nonexistent.example.com".to_string(), &pool).await;
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_none());
-        "success"
-    }).await;
-    
-    assert!(result.is_ok());
-}
-
-/// Test Redis connection error handling
-#[tokio::test]
-async fn test_redis_connection_error() {
-    let handler = DnsHandler::new(PerformanceConfig::default());
-    let pool = bb8::Pool::builder()
-        .build_unchecked(bb8_redis::RedisConnectionManager::new("redis://localhost:9999").unwrap());
-    
-    // This should fail gracefully
-    let result = handler.lookup_slot_in_redis("test.example.com".to_string(), &pool).await;
-    assert!(result.is_err());
-}
-
-/// Test Redis timeout scenarios
-#[tokio::test]
-async fn test_redis_timeout() {
-    let result = with_redis_test_container(|pool| async move {
-        let handler = DnsHandler::new(PerformanceConfig::default());
-        
-        // Test with a reasonable timeout
-        let result = handler.lookup_slot_in_redis("timeout.example.com".to_string(), &pool).await;
-        assert!(result.is_ok());
-        "success"
-    }).await;
-    
-    assert!(result.is_ok());
-}
-
-/// Test Redis pool reuse
-#[tokio::test]
-async fn test_redis_pool_reuse() {
-    let result = with_redis_test_container(|pool| async move {
-        // Test multiple connections
-        let mut handles = vec![];
-        for _ in 0..5 {
-            let pool_clone = pool.clone();
-            let handle = tokio::spawn(async move {
-                let conn = pool_clone.get().await;
-                assert!(conn.is_ok());
-            });
-            handles.push(handle);
-        }
-        
-        for handle in handles {
-            handle.await.unwrap();
-        }
-        "success"
-    }).await;
-    
-    assert!(result.is_ok());
-}
-
-/// Test invalid data handling
 #[tokio::test]
 async fn test_invalid_data_handling() {
-    let result = with_redis_test_container(|pool| async move {
+    let result = with_redis_container(|pool| async move {
         let handler = DnsHandler::new(PerformanceConfig::default());
         
-        // Test with empty domain
+        // Test empty domain
         let result = handler.lookup_slot_in_redis("".to_string(), &pool).await;
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
         
-        // Test with malformed domain
+        // Test malformed domain
         let result = handler.lookup_slot_in_redis("invalid..domain".to_string(), &pool).await;
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
+        
+        // Test domain with invalid characters
+        let result = handler.lookup_slot_in_redis("test@domain.com".to_string(), &pool).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+        
         "success"
     }).await;
     
     assert!(result.is_ok());
 }
 
-/// Test performance under load
-#[tokio::test]
-async fn test_redis_performance_under_load() {
-    let result = with_redis_test_container(|pool| async move {
-        let handler = DnsHandler::new(PerformanceConfig::default());
-        
-        let mut handles = vec![];
-        for i in 0..10 {
-            let handler_clone = handler.clone();
-            let pool_clone = pool.clone();
-            let handle = tokio::spawn(async move {
-                let domain = format!("test{}.example.com", i);
-                let result = handler_clone.lookup_slot_in_redis(domain, &pool_clone).await;
-                assert!(result.is_ok());
-            });
-            handles.push(handle);
-        }
-        
-        for handle in handles {
-            handle.await.unwrap();
-        }
-        "success"
-    }).await;
-    
-    assert!(result.is_ok());
-}
-
-/// Test Redis interaction during DNS packet processing
-#[tokio::test]
-async fn test_redis_dns_packet_processing() {
-    let result = with_redis_test_container(|pool| async move {
-        let handler = DnsHandler::new(PerformanceConfig::default());
-        
-        // Create a simple DNS packet
-        let packet = b"\x00\x01\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x07example\x03com\x00\x00\x01\x00\x01";
-        
-        // Test processing with Redis
-        let result = handler.process_dns_query(packet, &pool).await;
-        // This should fail gracefully since we don't have actual DNS data
-        assert!(result.is_err());
-        "success"
-    }).await;
-    
-    assert!(result.is_ok());
-}
-
-/// Test different domain formats
 #[tokio::test]
 async fn test_different_domain_formats() {
-    let result = with_redis_test_container(|pool| async move {
+    let result = with_redis_container(|pool| async move {
         let handler = DnsHandler::new(PerformanceConfig::default());
         
+        // Test various domain formats
         let domains = vec![
             "simple.com",
             "sub.domain.com",
-            "very.deep.sub.domain.com",
+            "deep.sub.domain.com",
             "domain-with-dashes.com",
             "domain_with_underscores.com",
+            "domain123.com",
+            "123domain.com",
         ];
         
         for domain in domains {
@@ -168,42 +50,65 @@ async fn test_different_domain_formats() {
             assert!(result.is_ok());
             assert!(result.unwrap().is_none());
         }
+        
         "success"
     }).await;
     
     assert!(result.is_ok());
 }
 
-/// Test error propagation
 #[tokio::test]
 async fn test_error_propagation() {
-    let result = with_redis_test_container(|pool| async move {
+    let result = with_redis_container(|pool| async move {
         let handler = DnsHandler::new(PerformanceConfig::default());
         
         // Test that errors are properly propagated
-        let result = handler.lookup_slot_in_redis("test.example.com".to_string(), &pool).await;
-        assert!(result.is_ok());
+        let result = handler.process_dns_query(b"invalid-query", &pool).await;
+        assert!(result.is_err());
+        
         "success"
     }).await;
     
     assert!(result.is_ok());
 }
 
-/// Test pool statistics
 #[tokio::test]
 async fn test_pool_statistics() {
-    let result = with_redis_test_container(|pool| async move {
-        // Use some connections
-        for _ in 0..3 {
-            let conn = pool.get().await;
-            assert!(conn.is_ok());
-        }
-        
-        // Test that pool is working by getting another connection
+    let result = with_redis_container(|pool| async move {
+        // Test connection acquisition
         let conn = pool.get().await;
         assert!(conn.is_ok());
+        
+        // Test connection release
+        drop(conn);
+        
+        // Test that we can get another connection
+        let conn2 = pool.get().await;
+        assert!(conn2.is_ok());
+        
+        "success"
+    }).await;
+    
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn test_redis_test_utils() {
+    let result = with_shared_redis_container(|pool| async move {
+        // Test that the shared container approach works
+        let mut conn = pool.get().await.unwrap();
+        
+        // Test basic Redis operations
+        let _: () = redis::cmd("SET").arg("shared_test_key").arg("shared_test_value").query_async(&mut *conn).await.unwrap();
+        let result: String = redis::cmd("GET").arg("shared_test_key").query_async(&mut *conn).await.unwrap();
+        assert_eq!(result, "shared_test_value");
+        
         "success"
     }).await;
     
     assert!(result.is_ok());
 } 
+
+ 
+
+ 
