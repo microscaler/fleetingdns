@@ -4,24 +4,24 @@
 //! with per-token rate tracking using DashMap for efficient concurrent access.
 //! Enhanced with user-specific quotas, burst handling, and DDoS protection.
 
-use crate::{ApiError};
+use crate::ApiError;
 use axum::{
     extract::{Request, State},
-    http::{HeaderValue},
+    http::HeaderValue,
     middleware::Next,
     response::{IntoResponse, Response},
 };
 use dashmap::DashMap;
-use governor::{clock::DefaultClock, state::keyed::DashMapStateStore, Quota, RateLimiter};
+use governor::{Quota, RateLimiter, clock::DefaultClock, state::keyed::DashMapStateStore};
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashMap,
+    net::IpAddr,
     num::NonZeroU32,
     sync::Arc,
-    collections::HashMap,
     time::{Duration, Instant},
-    net::IpAddr,
 };
-use tracing::{debug, warn, error, info};
+use tracing::{debug, info, warn};
 
 /// Enhanced policy for rate limiting with burst handling and dynamic adjustment
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,43 +85,55 @@ pub struct RateLimitConfig {
 impl Default for RateLimitConfig {
     fn default() -> Self {
         let mut per_endpoint = HashMap::new();
-        per_endpoint.insert("/api/v1/tunnel".to_string(), RateLimitPolicy {
-            requests_per_minute: 60,
-            burst: Some(10),
-            window_seconds: Some(60),
-            max_request_size: Some(1024 * 1024), // 1MB
-            max_connections_per_ip: Some(10),
-            premium_multiplier: Some(2.0),
-        });
+        per_endpoint.insert(
+            "/api/v1/tunnel".to_string(),
+            RateLimitPolicy {
+                requests_per_minute: 60,
+                burst: Some(10),
+                window_seconds: Some(60),
+                max_request_size: Some(1024 * 1024), // 1MB
+                max_connections_per_ip: Some(10),
+                premium_multiplier: Some(2.0),
+            },
+        );
 
         let mut user_tiers = HashMap::new();
-        user_tiers.insert("Free".to_string(), UserTier {
-            name: "Free".to_string(),
-            api_requests_per_minute: 60,
-            tunnel_requests_per_minute: 10,
-            dns_requests_per_minute: 100,
-            burst_multiplier: 1.0,
-            max_concurrent_tunnels: 1,
-            bypass_rate_limits: false,
-        });
-        user_tiers.insert("Pro".to_string(), UserTier {
-            name: "Pro".to_string(),
-            api_requests_per_minute: 300,
-            tunnel_requests_per_minute: 50,
-            dns_requests_per_minute: 500,
-            burst_multiplier: 2.0,
-            max_concurrent_tunnels: 5,
-            bypass_rate_limits: false,
-        });
-        user_tiers.insert("Enterprise".to_string(), UserTier {
-            name: "Enterprise".to_string(),
-            api_requests_per_minute: 1000,
-            tunnel_requests_per_minute: 200,
-            dns_requests_per_minute: 2000,
-            burst_multiplier: 3.0,
-            max_concurrent_tunnels: 20,
-            bypass_rate_limits: true,
-        });
+        user_tiers.insert(
+            "Free".to_string(),
+            UserTier {
+                name: "Free".to_string(),
+                api_requests_per_minute: 60,
+                tunnel_requests_per_minute: 10,
+                dns_requests_per_minute: 100,
+                burst_multiplier: 1.0,
+                max_concurrent_tunnels: 1,
+                bypass_rate_limits: false,
+            },
+        );
+        user_tiers.insert(
+            "Pro".to_string(),
+            UserTier {
+                name: "Pro".to_string(),
+                api_requests_per_minute: 300,
+                tunnel_requests_per_minute: 50,
+                dns_requests_per_minute: 500,
+                burst_multiplier: 2.0,
+                max_concurrent_tunnels: 5,
+                bypass_rate_limits: false,
+            },
+        );
+        user_tiers.insert(
+            "Enterprise".to_string(),
+            UserTier {
+                name: "Enterprise".to_string(),
+                api_requests_per_minute: 1000,
+                tunnel_requests_per_minute: 200,
+                dns_requests_per_minute: 2000,
+                burst_multiplier: 3.0,
+                max_concurrent_tunnels: 20,
+                bypass_rate_limits: true,
+            },
+        );
 
         Self {
             default: RateLimitPolicy {
@@ -158,11 +170,14 @@ struct IpRateLimit {
 pub struct RateLimitState {
     config: RateLimitConfig,
     // Per-token API rate limiters
-    api_limiters: DashMap<String, Arc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>>>,
+    api_limiters:
+        DashMap<String, Arc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>>>,
     // Per-token tunnel creation limiters
-    tunnel_limiters: DashMap<String, Arc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>>>,
+    tunnel_limiters:
+        DashMap<String, Arc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>>>,
     // Per-token DNS operation limiters
-    dns_limiters: DashMap<String, Arc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>>>,
+    dns_limiters:
+        DashMap<String, Arc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>>>,
     // User tier cache
     user_tiers: DashMap<String, String>,
     // Bypass tokens for testing/admin
@@ -213,7 +228,10 @@ impl RateLimitState {
 
     /// Get user tier for token
     pub fn get_user_tier(&self, token: &str) -> String {
-        self.user_tiers.get(token).map(|t| t.clone()).unwrap_or_else(|| "Free".to_string())
+        self.user_tiers
+            .get(token)
+            .map(|t| t.clone())
+            .unwrap_or_else(|| "Free".to_string())
     }
 
     /// Update system load for dynamic rate limiting
@@ -254,7 +272,9 @@ impl RateLimitState {
         // Check rate limit
         if ip_limit.requests >= self.config.ddos_protection.max_requests_per_ip_per_minute {
             // Block IP for configured duration
-            ip_limit.blocked_until = Some(now + Duration::from_secs(self.config.ddos_protection.ip_block_duration_seconds));
+            ip_limit.blocked_until = Some(
+                now + Duration::from_secs(self.config.ddos_protection.ip_block_duration_seconds),
+            );
             return Err("IP rate limit exceeded".to_string());
         }
 
@@ -263,20 +283,28 @@ impl RateLimitState {
     }
 
     /// Create API rate limiter with dynamic adjustment
-    fn create_api_limiter(&self, tier: String) -> Arc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>> {
-        let tier_config = self.config.user_tiers.get(&tier).unwrap_or_else(|| {
-            self.config.user_tiers.get("Free").unwrap()
-        });
+    fn create_api_limiter(
+        &self,
+        tier: String,
+    ) -> Arc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>> {
+        let tier_config = self
+            .config
+            .user_tiers
+            .get(&tier)
+            .unwrap_or_else(|| self.config.user_tiers.get("Free").unwrap());
 
-        let mut requests_per_minute = tier_config.api_requests_per_minute as u32;
-        
+        let mut requests_per_minute = tier_config.api_requests_per_minute;
+
         // Apply dynamic adjustment based on system load
         if self.config.dynamic_adjustment {
             let load = self.get_system_load();
             if load > self.config.load_threshold {
                 let reduction_factor = 1.0 - (load - self.config.load_threshold) * 0.5;
                 requests_per_minute = (requests_per_minute as f64 * reduction_factor) as u32;
-                debug!("Rate limit reduced due to high system load: {} -> {}", tier_config.api_requests_per_minute, requests_per_minute);
+                debug!(
+                    "Rate limit reduced due to high system load: {} -> {}",
+                    tier_config.api_requests_per_minute, requests_per_minute
+                );
             }
         }
 
@@ -285,12 +313,17 @@ impl RateLimitState {
     }
 
     /// Create tunnel rate limiter with burst handling
-    fn create_tunnel_limiter(&self, tier: String) -> Arc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>> {
-        let tier_config = self.config.user_tiers.get(&tier).unwrap_or_else(|| {
-            self.config.user_tiers.get("Free").unwrap()
-        });
+    fn create_tunnel_limiter(
+        &self,
+        tier: String,
+    ) -> Arc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>> {
+        let tier_config = self
+            .config
+            .user_tiers
+            .get(&tier)
+            .unwrap_or_else(|| self.config.user_tiers.get("Free").unwrap());
 
-        let requests_per_minute = tier_config.tunnel_requests_per_minute as u32;
+        let requests_per_minute = tier_config.tunnel_requests_per_minute;
         let burst_multiplier = tier_config.burst_multiplier;
         let burst_quota = (requests_per_minute as f64 * burst_multiplier) as u32;
 
@@ -300,12 +333,17 @@ impl RateLimitState {
     }
 
     /// Create DNS rate limiter
-    fn create_dns_limiter(&self, tier: String) -> Arc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>> {
-        let tier_config = self.config.user_tiers.get(&tier).unwrap_or_else(|| {
-            self.config.user_tiers.get("Free").unwrap()
-        });
+    fn create_dns_limiter(
+        &self,
+        tier: String,
+    ) -> Arc<RateLimiter<String, DashMapStateStore<String>, DefaultClock>> {
+        let tier_config = self
+            .config
+            .user_tiers
+            .get(&tier)
+            .unwrap_or_else(|| self.config.user_tiers.get("Free").unwrap());
 
-        let requests_per_minute = tier_config.dns_requests_per_minute as u32;
+        let requests_per_minute = tier_config.dns_requests_per_minute;
         let quota = Quota::per_minute(NonZeroU32::new(requests_per_minute).unwrap());
         Arc::new(RateLimiter::keyed(quota))
     }
@@ -317,21 +355,24 @@ impl RateLimitState {
         }
 
         let tier = self.get_user_tier(token);
-        let tier_config = self.config.user_tiers.get(&tier).unwrap_or_else(|| {
-            self.config.user_tiers.get("Free").unwrap()
-        });
+        let tier_config = self
+            .config
+            .user_tiers
+            .get(&tier)
+            .unwrap_or_else(|| self.config.user_tiers.get("Free").unwrap());
 
         if tier_config.bypass_rate_limits {
             return Ok(());
         }
 
-        let limiter = self.api_limiters.entry(token.to_string()).or_insert_with(|| {
-            self.create_api_limiter(tier.clone())
-        });
+        let limiter = self
+            .api_limiters
+            .entry(token.to_string())
+            .or_insert_with(|| self.create_api_limiter(tier.clone()));
 
         match limiter.check_key(&token.to_string()) {
             Ok(_) => Ok(()),
-            Err(_) => Err(format!("API rate limit exceeded for tier: {}", tier))
+            Err(_) => Err(format!("API rate limit exceeded for tier: {tier}")),
         }
     }
 
@@ -342,21 +383,26 @@ impl RateLimitState {
         }
 
         let tier = self.get_user_tier(token);
-        let tier_config = self.config.user_tiers.get(&tier).unwrap_or_else(|| {
-            self.config.user_tiers.get("Free").unwrap()
-        });
+        let tier_config = self
+            .config
+            .user_tiers
+            .get(&tier)
+            .unwrap_or_else(|| self.config.user_tiers.get("Free").unwrap());
 
         if tier_config.bypass_rate_limits {
             return Ok(());
         }
 
-        let limiter = self.tunnel_limiters.entry(token.to_string()).or_insert_with(|| {
-            self.create_tunnel_limiter(tier.clone())
-        });
+        let limiter = self
+            .tunnel_limiters
+            .entry(token.to_string())
+            .or_insert_with(|| self.create_tunnel_limiter(tier.clone()));
 
         match limiter.check_key(&token.to_string()) {
             Ok(_) => Ok(()),
-            Err(_) => Err(format!("Tunnel creation rate limit exceeded for tier: {}", tier))
+            Err(_) => Err(format!(
+                "Tunnel creation rate limit exceeded for tier: {tier}"
+            )),
         }
     }
 
@@ -367,21 +413,26 @@ impl RateLimitState {
         }
 
         let tier = self.get_user_tier(token);
-        let tier_config = self.config.user_tiers.get(&tier).unwrap_or_else(|| {
-            self.config.user_tiers.get("Free").unwrap()
-        });
+        let tier_config = self
+            .config
+            .user_tiers
+            .get(&tier)
+            .unwrap_or_else(|| self.config.user_tiers.get("Free").unwrap());
 
         if tier_config.bypass_rate_limits {
             return Ok(());
         }
 
-        let limiter = self.dns_limiters.entry(token.to_string()).or_insert_with(|| {
-            self.create_dns_limiter(tier.clone())
-        });
+        let limiter = self
+            .dns_limiters
+            .entry(token.to_string())
+            .or_insert_with(|| self.create_dns_limiter(tier.clone()));
 
         match limiter.check_key(&token.to_string()) {
             Ok(_) => Ok(()),
-            Err(_) => Err(format!("DNS operation rate limit exceeded for tier: {}", tier))
+            Err(_) => Err(format!(
+                "DNS operation rate limit exceeded for tier: {tier}"
+            )),
         }
     }
 
@@ -411,19 +462,42 @@ impl RateLimitState {
     /// Get rate limit information for a token
     pub fn get_rate_limit_info(&self, token: &str) -> HashMap<String, String> {
         let tier = self.get_user_tier(token);
-        let tier_config = self.config.user_tiers.get(&tier).unwrap_or_else(|| {
-            self.config.user_tiers.get("Free").unwrap()
-        });
+        let tier_config = self
+            .config
+            .user_tiers
+            .get(&tier)
+            .unwrap_or_else(|| self.config.user_tiers.get("Free").unwrap());
 
         let mut info = HashMap::new();
         info.insert("tier".to_string(), tier);
-        info.insert("api_requests_per_minute".to_string(), tier_config.api_requests_per_minute.to_string());
-        info.insert("tunnel_requests_per_minute".to_string(), tier_config.tunnel_requests_per_minute.to_string());
-        info.insert("dns_requests_per_minute".to_string(), tier_config.dns_requests_per_minute.to_string());
-        info.insert("max_concurrent_tunnels".to_string(), tier_config.max_concurrent_tunnels.to_string());
-        info.insert("burst_multiplier".to_string(), tier_config.burst_multiplier.to_string());
-        info.insert("bypass_rate_limits".to_string(), tier_config.bypass_rate_limits.to_string());
-        info.insert("system_load".to_string(), self.get_system_load().to_string());
+        info.insert(
+            "api_requests_per_minute".to_string(),
+            tier_config.api_requests_per_minute.to_string(),
+        );
+        info.insert(
+            "tunnel_requests_per_minute".to_string(),
+            tier_config.tunnel_requests_per_minute.to_string(),
+        );
+        info.insert(
+            "dns_requests_per_minute".to_string(),
+            tier_config.dns_requests_per_minute.to_string(),
+        );
+        info.insert(
+            "max_concurrent_tunnels".to_string(),
+            tier_config.max_concurrent_tunnels.to_string(),
+        );
+        info.insert(
+            "burst_multiplier".to_string(),
+            tier_config.burst_multiplier.to_string(),
+        );
+        info.insert(
+            "bypass_rate_limits".to_string(),
+            tier_config.bypass_rate_limits.to_string(),
+        );
+        info.insert(
+            "system_load".to_string(),
+            self.get_system_load().to_string(),
+        );
 
         info
     }
@@ -438,7 +512,7 @@ pub async fn rate_limit_middleware(
     let headers = req.headers();
     let path = req.uri().path();
     let method = req.method().as_str();
-    
+
     // Extract API token from Authorization header
     let token = headers
         .get("authorization")
@@ -484,42 +558,50 @@ pub async fn rate_limit_middleware(
     match check_result {
         Ok(_) => {
             debug!(token = token, path = path, ip = ?client_ip, "Rate limit check passed");
-            
+
             // Get rate limit info for response headers
             let rate_limit_info = state.get_rate_limit_info(token);
             let default_tier = "Free".to_string();
             let default_limit = "60".to_string();
             let tier = rate_limit_info.get("tier").unwrap_or(&default_tier);
-            let api_limit = rate_limit_info.get("api_requests_per_minute").unwrap_or(&default_limit);
-            
+            let api_limit = rate_limit_info
+                .get("api_requests_per_minute")
+                .unwrap_or(&default_limit);
+
             // Run the request
             let mut response = next.run(req).await;
-            
+
             // Add rate limit headers
             let headers = response.headers_mut();
-            headers.insert("X-RateLimit-Tier", HeaderValue::from_str(tier).unwrap_or_else(|_| HeaderValue::from_static("Free")));
-            headers.insert("X-RateLimit-Limit", HeaderValue::from_str(api_limit).unwrap_or_else(|_| HeaderValue::from_static("60")));
+            headers.insert(
+                "X-RateLimit-Tier",
+                HeaderValue::from_str(tier).unwrap_or_else(|_| HeaderValue::from_static("Free")),
+            );
+            headers.insert(
+                "X-RateLimit-Limit",
+                HeaderValue::from_str(api_limit).unwrap_or_else(|_| HeaderValue::from_static("60")),
+            );
             headers.insert("X-RateLimit-Remaining", HeaderValue::from_static("99")); // TODO: Calculate actual remaining
             headers.insert("X-RateLimit-Reset", HeaderValue::from_static("60"));
-            
+
             Ok(response)
         }
         Err(error_msg) => {
             warn!(token = token, path = path, ip = ?client_ip, error = error_msg, "Rate limit exceeded");
-            
+
             let mut response = ApiError::RateLimitExceeded.into_response();
             let headers = response.headers_mut();
             headers.insert("X-RateLimit-Remaining", HeaderValue::from_static("0"));
             headers.insert("Retry-After", HeaderValue::from_static("60"));
             headers.insert("X-RateLimit-Reset", HeaderValue::from_static("60"));
-            
+
             // Add error details to response body
-            let error_body = serde_json::json!({
+            let _error_body = serde_json::json!({
                 "error": "rate_limit_exceeded",
                 "message": error_msg,
                 "retry_after": 60
             });
-            
+
             // TODO: Set response body with error details
             Err(response)
         }
@@ -535,7 +617,15 @@ mod tests {
     fn test_rate_limit_config_default() {
         let config = RateLimitConfig::default();
         assert_eq!(config.default.requests_per_minute, 60);
-        assert_eq!(config.per_endpoint.as_ref().unwrap().get("/api/v1/tunnel").map(|p| p.requests_per_minute), Some(60));
+        assert_eq!(
+            config
+                .per_endpoint
+                .as_ref()
+                .unwrap()
+                .get("/api/v1/tunnel")
+                .map(|p| p.requests_per_minute),
+            Some(60)
+        );
     }
 
     #[test]
@@ -584,7 +674,7 @@ mod tests {
     fn test_token_extraction() {
         let mut headers = HeaderMap::new();
         headers.insert("authorization", "Bearer test-token".parse().unwrap());
-        
+
         let token = headers
             .get("authorization")
             .and_then(|h| h.to_str().ok())
@@ -614,7 +704,7 @@ mod tests {
     #[test]
     fn test_rate_limit_getters() {
         let state = RateLimitState::new(RateLimitConfig::default());
-        
+
         assert_eq!(state.get_user_tier("test-token"), "Free".to_string());
         assert_eq!(state.get_user_tier("admin-token"), "Free".to_string()); // Default to Free
 
@@ -626,4 +716,4 @@ mod tests {
         assert!(state.is_bypass_token("admin-token"));
         assert_eq!(state.get_user_tier("admin-token"), "Free".to_string()); // Bypass overrides tier
     }
-} 
+}

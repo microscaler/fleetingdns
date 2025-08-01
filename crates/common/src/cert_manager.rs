@@ -678,9 +678,9 @@ pub struct CertificateStatistics {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ctor;
     use rustls::crypto::CryptoProvider;
     use rustls::crypto::aws_lc_rs;
-    use ctor;
     #[ctor::ctor]
     fn init_crypto() {
         CryptoProvider::install_default(aws_lc_rs::default_provider()).unwrap();

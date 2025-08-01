@@ -6,8 +6,8 @@ use tracing::info;
 
 #[cfg(feature = "dot")]
 use common::tls;
-use common::{init_tracing, init_metrics, shutdown::GracefulShutdown};
-use dnsd::{redis_cache};
+use common::{init_metrics, init_tracing, shutdown::GracefulShutdown};
+use dnsd::redis_cache;
 
 #[derive(Parser)]
 #[command(name = "dnsd-bin")]
@@ -63,22 +63,16 @@ async fn main() -> common::AppResult<()> {
     let (tls_config, _) = tls::generate_tls_config(&["dot"])?;
 
     // Start DNS server with shutdown signal
-    let shutdown_rx = shutdown.subscribe();
     let serve_result = dnsd::serve_with_shutdown(
         dnsd::Config {
             addr: args.addr,
             redis_pool: pool,
             ddos_config: common::ddos_protection::DdosConfig::default(),
             enable_ddos_protection: true,
-            #[cfg(feature = "dot")]
-            dot_addr: SocketAddr::new(args.addr.ip(), 853),
-            #[cfg(feature = "dot")]
-            tls_config,
-            #[cfg(feature = "dot")]
-            cert_manager: None,
-            dnssec_config: None,
+            dnssec_config: dnsd::sign::DnssecConfig::default(),
+            performance_config: dnsd::dns_handler::PerformanceConfig::default(),
         },
-        shutdown_rx,
+        shutdown.clone(),
     )
     .await;
 

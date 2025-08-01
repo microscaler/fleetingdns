@@ -9,10 +9,10 @@ tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
 metrics = { workspace = true }
 hickory-proto = { version = "0.24", features = ["dnssec", "dnssec-ring"] }
-tokio-rustls = { version = "0.26", optional = true }
-rustls = { version = "0.23", optional = true }
+tokio-rustls = { workspace = true, optional = true }
+rustls = { workspace = true, optional = true }
 bb8 = { workspace = true }
-bb8-redis = "0.24"
+bb8-redis = { workspace = true }
 redis = { workspace = true }
 thiserror = { workspace = true }
 # Redis cluster dependencies
@@ -20,18 +20,17 @@ crc16 = "0.4"
 ring = "0.17"
 # HIGH-1 ENHANCEMENT: Performance and security dependencies
 serde = { workspace = true, features = ["derive"] }
-serde_json = "1.0"
+serde_json = { workspace = true }
 tokio-util = { version = "0.7", features = ["time"] }
 governor = "0.6"
 nonzero_ext = "0.3"
 arc-swap = "1.7"
 # HIGH-3 ENHANCEMENT: Production DNSSEC dependencies
 hex = "0.4"
-rand = "0.8"
-
-[features]
-dot = ["tokio-rustls", "rustls"]
-redis-cluster-integration = [] # Enable Redis cluster integration tests
+rand = { workspace = true }
+# MEDIUM-2 ENHANCEMENT: Performance optimization dependencies
+once_cell = "1.19"
+ttl_cache_with_purging = "0.2.0"
 
 [dev-dependencies]
 tracing-test = "0.2"
@@ -39,5 +38,10 @@ mini-redis = "0.4"
 testcontainers = { workspace = true }
 testcontainers-modules = { workspace = true }
 tempfile = "3.0"
+serial_test = "2.0"
 # Redis cluster integration testing
 redis = { workspace = true } # For direct Redis client in tests
+
+[features]
+dot = ["tokio-rustls", "rustls"]
+redis-cluster-integration = [] # Enable Redis cluster integration tests

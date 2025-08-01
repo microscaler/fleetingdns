@@ -1,12 +1,12 @@
 #[cfg(test)]
 pub mod postgres_test_container {
-    use testcontainers::runners::AsyncRunner;
-    use testcontainers_modules::postgres::Postgres;
-    use testcontainers::ImageExt;
-    use sea_orm::{Database, DatabaseConnection};
     use migration::Migrator;
+    use sea_orm::{Database, DatabaseConnection};
     use sea_orm_migration::MigratorTrait;
     use std::time::Duration;
+    use testcontainers::ImageExt;
+    use testcontainers::runners::AsyncRunner;
+    use testcontainers_modules::postgres::Postgres;
 
     /// PostgreSQL test container configuration
     pub struct PostgresTestContainer {
@@ -26,8 +26,14 @@ pub mod postgres_test_container {
                 .with_env_var("POSTGRES_USER", "test")
                 .with_env_var("POSTGRES_PASSWORD", "test");
 
-            let container = container.start().await.expect("Failed to start Postgres container");
-            let port = container.get_host_port_ipv4(5432).await.expect("Failed to get port");
+            let container = container
+                .start()
+                .await
+                .expect("Failed to start Postgres container");
+            let port = container
+                .get_host_port_ipv4(5432)
+                .await
+                .expect("Failed to get port");
             let url = format!("postgresql://test:test@localhost:{}", port);
 
             // Wait for container to be ready with retry logic
@@ -69,4 +75,4 @@ pub mod postgres_test_container {
             &self.db
         }
     }
-} 
+}

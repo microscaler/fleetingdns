@@ -75,8 +75,9 @@ impl ApiConfig {
                 .unwrap_or_else(|_| "edgehub.fleetingdns.com:443".to_string()),
             jwt_secret: env::var("JWT_SECRET")
                 .unwrap_or_else(|_| "your-jwt-secret-key".to_string()),
-            database_url: env::var("DATABASE_URL")
-                .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/fleetingdns".to_string()),
+            database_url: env::var("DATABASE_URL").unwrap_or_else(|_| {
+                "postgres://postgres:postgres@localhost:5432/fleetingdns".to_string()
+            }),
         })
     }
 

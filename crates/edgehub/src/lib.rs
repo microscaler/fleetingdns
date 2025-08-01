@@ -2,8 +2,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use common::AppResult;
-use common::shutdown::ShutdownSignal;
 use common::gauge;
+use common::shutdown::ShutdownSignal;
 use rand::Rng;
 use rustls::ServerConfig;
 use tokio::io::AsyncWriteExt;
@@ -50,7 +50,7 @@ pub async fn serve(cfg: Config) -> AppResult<()> {
                 Ok(mut tls) => {
                     // Increment tunnel gauge when connection is established
                     gauge!("edge_tunnels_open").increment(1.0);
-                    
+
                     let port: u16 = rand::thread_rng().gen_range(30000..60000);
                     let slot = "demo";
                     if let std::net::IpAddr::V4(ip) = peer.ip() {
@@ -59,7 +59,7 @@ pub async fn serve(cfg: Config) -> AppResult<()> {
                     info!(peer=%peer, slot, port, "tunnel mapped");
                     let _ = tls.shutdown().await;
                     let _ = redis::del_slot(&pool, slot).await;
-                    
+
                     // Decrement tunnel gauge when connection is closed
                     gauge!("edge_tunnels_open").decrement(1.0);
                 }
@@ -100,7 +100,7 @@ pub async fn serve_with_shutdown(
                                 Ok(mut tls) => {
                                     // Increment tunnel gauge when connection is established
                                     gauge!("edge_tunnels_open").increment(1.0);
-                                    
+
                                     let port: u16 = rand::thread_rng().gen_range(30000..60000);
                                     let slot = "demo";
                                     if let std::net::IpAddr::V4(ip) = peer.ip() {
@@ -109,7 +109,7 @@ pub async fn serve_with_shutdown(
                                     info!(peer=%peer, slot, port, "tunnel mapped");
                                     let _ = tls.shutdown().await;
                                     let _ = redis::del_slot(&pool, slot).await;
-                                    
+
                                     // Decrement tunnel gauge when connection is closed
                                     gauge!("edge_tunnels_open").decrement(1.0);
                                 }

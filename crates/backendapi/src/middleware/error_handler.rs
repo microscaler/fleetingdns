@@ -3,39 +3,35 @@
 //! This module provides comprehensive error handling with context extraction,
 //! structured error responses, and enhanced error tracking for production monitoring.
 
-use crate::{ApiError, ApiResult, error::ErrorContext};
+use crate::{ApiError, error::ErrorContext};
 use axum::{
     extract::Request,
     http::{HeaderValue, StatusCode},
     middleware::Next,
-    response::{IntoResponse, Response},
+    response::Response,
 };
-use std::sync::Arc;
-use tracing::{info, warn, error};
-use uuid::Uuid;
 use std::time::Instant;
+use tracing::{error, info, warn};
+use uuid::Uuid;
 
 /// Enhanced error handling middleware
-pub async fn error_handler_middleware(
-    request: Request,
-    next: Next,
-) -> Result<Response, Response> {
+pub async fn error_handler_middleware(request: Request, next: Next) -> Result<Response, Response> {
     let start_time = Instant::now();
     let request_id = Uuid::new_v4().to_string();
-    
+
     // Extract request context
     let context = extract_request_context(&request, &request_id);
-    
+
     // Add request ID to headers for correlation
     let mut request = request;
     request.headers_mut().insert(
         "x-request-id",
-        HeaderValue::from_str(&request_id).unwrap_or_else(|_| HeaderValue::from_static("unknown"))
+        HeaderValue::from_str(&request_id).unwrap_or_else(|_| HeaderValue::from_static("unknown")),
     );
 
     // Process the request
     let response = next.run(request).await;
-    
+
     // Log request completion
     let duration = start_time.elapsed();
     log_request_completion(&context, response.status(), duration);
@@ -47,7 +43,7 @@ pub async fn error_handler_middleware(
 fn extract_request_context(request: &Request, request_id: &str) -> ErrorContext {
     let headers = request.headers();
     let uri = request.uri();
-    
+
     // Extract user ID from JWT token if present
     let user_id = headers
         .get("authorization")
@@ -88,7 +84,11 @@ fn extract_request_context(request: &Request, request_id: &str) -> ErrorContext 
 }
 
 /// Log request completion with performance metrics
-fn log_request_completion(context: &ErrorContext, status: StatusCode, duration: std::time::Duration) {
+fn log_request_completion(
+    context: &ErrorContext,
+    status: StatusCode,
+    duration: std::time::Duration,
+) {
     let log_message = format!(
         "Request completed | ID: {} | User: {:?} | Endpoint: {:?} | Method: {:?} | Status: {} | Duration: {:?}",
         context.request_id.as_deref().unwrap_or("unknown"),
@@ -109,15 +109,10 @@ fn log_request_completion(context: &ErrorContext, status: StatusCode, duration: 
 }
 
 /// Enhanced error recovery middleware
-pub async fn error_recovery_middleware(
-    request: Request,
-    next: Next,
-) -> Result<Response, Response> {
+pub async fn error_recovery_middleware(request: Request, next: Next) -> Result<Response, Response> {
     // Attempt to process the request
     match next.run(request).await {
-        response if response.status().is_success() => {
-            Ok(response)
-        },
+        response if response.status().is_success() => Ok(response),
         response => {
             // Apply error recovery strategies based on status code
             let recovered_response = apply_error_recovery(response).await;
@@ -129,36 +124,34 @@ pub async fn error_recovery_middleware(
 /// Apply error recovery strategies
 async fn apply_error_recovery(response: Response) -> Response {
     let status = response.status();
-    
+
     match status {
         StatusCode::SERVICE_UNAVAILABLE => {
             // For service unavailable, add retry headers
             let mut response = response;
-            response.headers_mut().insert(
-                "retry-after",
-                HeaderValue::from_static("30")
-            );
             response
-        },
+                .headers_mut()
+                .insert("retry-after", HeaderValue::from_static("30"));
+            response
+        }
         StatusCode::TOO_MANY_REQUESTS => {
             // For rate limiting, add rate limit headers
             let mut response = response;
-            response.headers_mut().insert(
-                "retry-after",
-                HeaderValue::from_static("60")
-            );
             response
-        },
+                .headers_mut()
+                .insert("retry-after", HeaderValue::from_static("60"));
+            response
+        }
         StatusCode::INTERNAL_SERVER_ERROR => {
             // For internal errors, add correlation headers
             let mut response = response;
             response.headers_mut().insert(
                 "x-error-correlation",
-                HeaderValue::from_static("internal-error")
+                HeaderValue::from_static("internal-error"),
             );
             response
-        },
-        _ => response
+        }
+        _ => response,
     }
 }
 
@@ -181,26 +174,29 @@ impl CircuitBreaker {
     }
 
     pub fn is_open(&self) -> bool {
-        let failure_count = self.failure_count.load(std::sync::atomic::Ordering::Relaxed);
-        if failure_count >= self.failure_threshold {
-            if let Ok(last_failure) = self.last_failure_time.lock() {
-                if let Some(last_failure_time) = *last_failure {
-                    return last_failure_time.elapsed() < self.timeout_duration;
-                }
-            }
+        let failure_count = self
+            .failure_count
+            .load(std::sync::atomic::Ordering::Relaxed);
+        if failure_count >= self.failure_threshold
+            && let Ok(last_failure) = self.last_failure_time.lock()
+            && let Some(last_failure_time) = *last_failure
+        {
+            return last_failure_time.elapsed() < self.timeout_duration;
         }
         false
     }
 
     pub fn record_success(&self) {
-        self.failure_count.store(0, std::sync::atomic::Ordering::Relaxed);
+        self.failure_count
+            .store(0, std::sync::atomic::Ordering::Relaxed);
         if let Ok(mut last_failure) = self.last_failure_time.lock() {
             *last_failure = None;
         }
     }
 
     pub fn record_failure(&self) {
-        self.failure_count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.failure_count
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         if let Ok(mut last_failure) = self.last_failure_time.lock() {
             *last_failure = Some(Instant::now());
         }
@@ -208,12 +204,9 @@ impl CircuitBreaker {
 }
 
 /// Timeout middleware for request handling
-pub async fn timeout_middleware(
-    request: Request,
-    next: Next,
-) -> Result<Response, Response> {
+pub async fn timeout_middleware(request: Request, next: Next) -> Result<Response, Response> {
     let timeout_duration = std::time::Duration::from_secs(30);
-    
+
     match tokio::time::timeout(timeout_duration, next.run(request)).await {
         Ok(response) => Ok(response),
         Err(_) => {
@@ -225,27 +218,21 @@ pub async fn timeout_middleware(
 }
 
 /// Request size validation middleware
-pub async fn request_size_middleware(
-    request: Request,
-    next: Next,
-) -> Result<Response, Response> {
+pub async fn request_size_middleware(request: Request, next: Next) -> Result<Response, Response> {
     const MAX_REQUEST_SIZE: usize = 1024 * 1024; // 1MB
-    
-    if let Some(content_length) = request.headers().get("content-length") {
-        if let Ok(size_str) = content_length.to_str() {
-            if let Ok(size) = size_str.parse::<usize>() {
-                if size > MAX_REQUEST_SIZE {
-                    let error = ApiError::PayloadTooLarge(format!(
-                        "Request size {} bytes exceeds maximum allowed size of {} bytes",
-                        size, MAX_REQUEST_SIZE
-                    ));
-                    let context = ErrorContext::default();
-                    return Ok(error.into_response_with_context(context));
-                }
-            }
-        }
+
+    if let Some(content_length) = request.headers().get("content-length")
+        && let Ok(size_str) = content_length.to_str()
+        && let Ok(size) = size_str.parse::<usize>()
+        && size > MAX_REQUEST_SIZE
+    {
+        let error = ApiError::PayloadTooLarge(format!(
+            "Request size {size} bytes exceeds maximum allowed size of {MAX_REQUEST_SIZE} bytes"
+        ));
+        let context = ErrorContext::default();
+        return Ok(error.into_response_with_context(context));
     }
-    
+
     Ok(next.run(request).await)
 }
 
@@ -253,7 +240,6 @@ pub async fn request_size_middleware(
 mod tests {
     use super::*;
     use axum::http::Request;
-    use std::sync::Arc;
 
     #[test]
     fn test_circuit_breaker_creation() {
@@ -264,14 +250,14 @@ mod tests {
     #[test]
     fn test_circuit_breaker_failure_recording() {
         let cb = CircuitBreaker::new(2, std::time::Duration::from_secs(1));
-        
+
         // Record failures
         cb.record_failure();
         cb.record_failure();
-        
+
         // Should be open after threshold
         assert!(cb.is_open());
-        
+
         // Wait for timeout
         std::thread::sleep(std::time::Duration::from_millis(1100));
         assert!(!cb.is_open());
@@ -280,12 +266,12 @@ mod tests {
     #[test]
     fn test_circuit_breaker_success_reset() {
         let cb = CircuitBreaker::new(2, std::time::Duration::from_secs(60));
-        
+
         // Record failures
         cb.record_failure();
         cb.record_failure();
         assert!(cb.is_open());
-        
+
         // Record success should reset
         cb.record_success();
         assert!(!cb.is_open());
@@ -296,22 +282,20 @@ mod tests {
         let mut request = Request::new(axum::body::Body::empty());
         request.headers_mut().insert(
             "authorization",
-            HeaderValue::from_static("Bearer test-token-12345")
+            HeaderValue::from_static("Bearer test-token-12345"),
         );
-        request.headers_mut().insert(
-            "x-forwarded-for",
-            HeaderValue::from_static("192.168.1.1")
-        );
-        request.headers_mut().insert(
-            "user-agent",
-            HeaderValue::from_static("test-agent")
-        );
-        
+        request
+            .headers_mut()
+            .insert("x-forwarded-for", HeaderValue::from_static("192.168.1.1"));
+        request
+            .headers_mut()
+            .insert("user-agent", HeaderValue::from_static("test-agent"));
+
         let context = extract_request_context(&request, "test-request-id");
-        
+
         assert_eq!(context.request_id, Some("test-request-id".to_string()));
         assert_eq!(context.user_id, Some("test-token".to_string()));
         assert_eq!(context.client_ip, Some("192.168.1.1".to_string()));
         assert_eq!(context.user_agent, Some("test-agent".to_string()));
     }
-} 
+}

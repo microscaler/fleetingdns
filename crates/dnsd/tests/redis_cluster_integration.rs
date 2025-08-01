@@ -7,14 +7,18 @@
 #![cfg(feature = "redis-cluster-integration")]
 
 use std::time::Duration;
-use testcontainers::{runners::AsyncRunner, GenericImage, ImageExt};
+use testcontainers::{GenericImage, ImageExt, runners::AsyncRunner};
 
 use dnsd::redis_cluster::{ClusterConfig, RedisClusterClient};
 
 #[tokio::test]
 async fn test_cluster_client_creation_with_redis() {
     // Start Redis container
-    let container = GenericImage::new("redis", "7.2.4").with_exposed_port(6379).start().await.expect("Failed to start Redis");
+    let container = GenericImage::new("redis", "7.2.4")
+        .with_exposed_port(6379)
+        .start()
+        .await
+        .expect("Failed to start Redis");
     let port = container.get_host_port_ipv4(6379).await.unwrap();
     let url = format!("redis://127.0.0.1:{port}");
 
@@ -37,9 +41,13 @@ async fn test_cluster_client_creation_with_redis() {
             // Test some basic operations
             for slot in 0..10 {
                 let ip = std::net::Ipv4Addr::new(127, 0, 0, 1);
-                if client.set_slot(&format!("test-slot-{slot}"), ip, 3600).await.is_ok() {
+                if client
+                    .set_slot(&format!("test-slot-{slot}"), ip, 3600)
+                    .await
+                    .is_ok()
+                {
                     println!("✅ Set slot {slot} -> {ip}");
-                    
+
                     if let Ok(retrieved_ip) = client.get_slot(&format!("test-slot-{slot}")).await {
                         println!("✅ Retrieved slot {slot} -> {retrieved_ip}");
                     } else {
@@ -49,14 +57,12 @@ async fn test_cluster_client_creation_with_redis() {
                     println!("⚠️  Could not set slot {slot}");
                 }
             }
-            
+
             let stats = client.get_cluster_stats().await;
             println!("📊 Cluster stats: {stats:?}");
         }
         Err(e) => {
-            println!(
-                "⚠️  Cluster client creation failed (expected with single Redis): {e}"
-            );
+            println!("⚠️  Cluster client creation failed (expected with single Redis): {e}");
         }
     }
 }
@@ -64,7 +70,11 @@ async fn test_cluster_client_creation_with_redis() {
 #[tokio::test]
 async fn test_cluster_bulk_operations_with_redis() {
     // Start Redis container
-    let container = GenericImage::new("redis", "7.2.4").with_exposed_port(6379).start().await.expect("Failed to start Redis");
+    let container = GenericImage::new("redis", "7.2.4")
+        .with_exposed_port(6379)
+        .start()
+        .await
+        .expect("Failed to start Redis");
     let port = container.get_host_port_ipv4(6379).await.unwrap();
     let url = format!("redis://127.0.0.1:{port}");
 
@@ -82,9 +92,21 @@ async fn test_cluster_bulk_operations_with_redis() {
         Ok(client) => {
             // Test bulk set operations
             let operations = vec![
-                ("bulk-slot-1".to_string(), std::net::Ipv4Addr::new(127, 0, 0, 1), 3600),
-                ("bulk-slot-2".to_string(), std::net::Ipv4Addr::new(127, 0, 0, 2), 3600),
-                ("bulk-slot-3".to_string(), std::net::Ipv4Addr::new(127, 0, 0, 3), 3600),
+                (
+                    "bulk-slot-1".to_string(),
+                    std::net::Ipv4Addr::new(127, 0, 0, 1),
+                    3600,
+                ),
+                (
+                    "bulk-slot-2".to_string(),
+                    std::net::Ipv4Addr::new(127, 0, 0, 2),
+                    3600,
+                ),
+                (
+                    "bulk-slot-3".to_string(),
+                    std::net::Ipv4Addr::new(127, 0, 0, 3),
+                    3600,
+                ),
             ];
 
             if client.bulk_set_slots(operations).await.is_ok() {
@@ -112,7 +134,11 @@ async fn test_cluster_config_custom() {
 #[tokio::test]
 async fn test_cluster_performance_with_redis() {
     // Start Redis container
-    let container = GenericImage::new("redis", "7.2.4").with_exposed_port(6379).start().await.expect("Failed to start Redis");
+    let container = GenericImage::new("redis", "7.2.4")
+        .with_exposed_port(6379)
+        .start()
+        .await
+        .expect("Failed to start Redis");
     let port = container.get_host_port_ipv4(6379).await.unwrap();
     let url = format!("redis://127.0.0.1:{port}");
 
@@ -133,11 +159,13 @@ async fn test_cluster_performance_with_redis() {
 
             // Perform operations
             for i in 0..num_operations {
-                let _ = client.set_slot(
-                    &format!("perf-{i}"),
-                    std::net::Ipv4Addr::new(127, 0, 0, 1),
-                    3600,
-                ).await;
+                let _ = client
+                    .set_slot(
+                        &format!("perf-{i}"),
+                        std::net::Ipv4Addr::new(127, 0, 0, 1),
+                        3600,
+                    )
+                    .await;
             }
 
             let duration = start.elapsed();
@@ -204,6 +232,3 @@ async fn test_cluster_client_creation_without_redis() {
         }
     }
 }
-
-
-

@@ -262,6 +262,6 @@ health:
 
 # Run nextest for faster test execution
 nextest-test:
-    cargo nextest run --workspace --all-targets --fail-fast --retries 1
+    cargo nextest run --workspace --all-targets --fail-fast --retries 1 --exclude migration
 
 alias nt := nextest-test

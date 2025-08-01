@@ -238,8 +238,7 @@ async fn test_bulk_operation_batching() {
     assert_eq!(operations.len(), 125);
 
     // This would be split into 3 batches: 50 + 50 + 25
-    let expected_batches =
-        125_usize.div_ceil(config.pipeline_config.batch_size);
+    let expected_batches = 125_usize.div_ceil(config.pipeline_config.batch_size);
     assert_eq!(expected_batches, 3);
 }
 

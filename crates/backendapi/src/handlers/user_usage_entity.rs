@@ -1,6 +1,7 @@
-use sea_orm::entity::prelude::*;
 use chrono::NaiveDateTime;
+use sea_orm::entity::prelude::*;
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "user_usage")]
 pub struct Model {
@@ -14,6 +15,7 @@ pub struct Model {
     pub active_tunnels_count: i32,
 }
 
+#[allow(dead_code)]
 #[derive(Copy, Clone, Debug, EnumIter)]
 pub enum Relation {}
 
@@ -23,4 +25,4 @@ impl RelationTrait for Relation {
     }
 }
 
-impl ActiveModelBehavior for ActiveModel {} 
+impl ActiveModelBehavior for ActiveModel {}

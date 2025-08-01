@@ -1,14 +1,19 @@
 #![cfg(not(feature = "dot"))]
 
-use std::net::{Ipv4Addr, UdpSocket as StdUdpSocket};
+use std::net::Ipv4Addr;
 use std::process::Stdio;
+use std::time::Duration;
 
-use dnsd::{Config, redis_cache, serve};
 use mini_redis::server;
 use tokio::net::TcpListener;
 use tokio::process::Command;
 use tokio::task::JoinHandle;
-use tokio::time::{Duration, sleep};
+use tokio::time::sleep;
+
+use dnsd::dns_handler;
+use dnsd::redis_cache;
+use dnsd::sign;
+use dnsd::{Config, serve};
 
 async fn start_redis() -> Option<(String, JoinHandle<mini_redis::Result<()>>)> {
     let listener = TcpListener::bind("127.0.0.1:0").await.ok()?;
@@ -38,16 +43,17 @@ async fn dig_returns_cached_ip() {
         .await
         .unwrap();
 
-    let std_sock = StdUdpSocket::bind("127.0.0.1:0").unwrap();
+    let std_sock = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
     let addr = std_sock.local_addr().unwrap();
     drop(std_sock);
 
     let cfg = Config {
         addr,
         redis_pool: pool.clone(),
-        dnssec_config: None,
+        dnssec_config: sign::DnssecConfig::default(),
         ddos_config: common::ddos_protection::DdosConfig::default(),
         enable_ddos_protection: false,
+        performance_config: dns_handler::PerformanceConfig::default(),
     };
     let handle = tokio::spawn(async move { serve(cfg).await.unwrap() });
     sleep(Duration::from_millis(50)).await;
@@ -81,16 +87,17 @@ async fn dig_returns_nxdomain_on_miss() {
     };
     let pool = redis_cache::new_pool(&redis_url).await.unwrap();
 
-    let std_sock = StdUdpSocket::bind("127.0.0.1:0").unwrap();
+    let std_sock = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
     let addr = std_sock.local_addr().unwrap();
     drop(std_sock);
 
     let cfg = Config {
         addr,
         redis_pool: pool.clone(),
-        dnssec_config: None,
+        dnssec_config: sign::DnssecConfig::default(),
         ddos_config: common::ddos_protection::DdosConfig::default(),
         enable_ddos_protection: false,
+        performance_config: dns_handler::PerformanceConfig::default(),
     };
     let handle = tokio::spawn(async move { serve(cfg).await.unwrap() });
     sleep(Duration::from_millis(50)).await;
