@@ -235,7 +235,7 @@ mod dot {
         addr: std::net::SocketAddr,
         cfg: ServerConfig,
         pool: redis_cache::RedisPool,
-        mut shutdown_rx: super::broadcast::Receiver<super::ShutdownSignal>,
+        mut shutdown_rx: super::broadcast::Receiver<common::shutdown::ShutdownSignal>,
     ) -> AppResult<()> {
         let listener = TcpListener::bind(addr).await?;
         info!(addr=%listener.local_addr()?, "DoT server listening with graceful shutdown support");
@@ -261,7 +261,7 @@ mod dot {
                                         if tls.read_exact(&mut buf).await.is_err() {
                                             break;
                                         }
-                                        if let Ok(resp) = super::udp::handle_packet(&buf, &pool).await {
+                                        if let Ok(resp) = dns_handler.handle_packet(&buf, &pool).await {
                                             let resp_len = (resp.len() as u16).to_be_bytes();
                                             if tls.write_all(&resp_len).await.is_err() {
                                                 break;
