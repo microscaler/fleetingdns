@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
-use common::shutdown::ShutdownSignal;
 use common::gauge;
+use common::shutdown::ShutdownSignal;
 use rand::Rng;
 use russh::server::{Auth, Msg, Session};
 use russh::{Channel, ChannelId};
@@ -735,7 +735,7 @@ impl russh::server::Handler for SshSession {
 
             // Clean up tunnel info when done
             state.active_tunnels.lock().await.remove(&channel_id);
-            
+
             // Decrement tunnel gauge when SSH tunnel is closed
             gauge!("edge_tunnels_open").decrement(1.0);
         });

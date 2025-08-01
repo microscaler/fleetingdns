@@ -8,10 +8,10 @@ use tokio::process::Command;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
-use dnsd::{serve, Config};
+use dnsd::dns_handler;
 use dnsd::redis_cache;
 use dnsd::sign;
-use dnsd::dns_handler;
+use dnsd::{Config, serve};
 
 #[cfg(feature = "dot")]
 use common::tls;

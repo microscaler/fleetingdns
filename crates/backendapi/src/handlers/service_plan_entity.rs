@@ -1,5 +1,5 @@
-use sea_orm::entity::prelude::*;
 use chrono::NaiveDateTime;
+use sea_orm::entity::prelude::*;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "service_plan")]
@@ -24,4 +24,4 @@ impl RelationTrait for Relation {
     }
 }
 
-impl ActiveModelBehavior for ActiveModel {} 
+impl ActiveModelBehavior for ActiveModel {}

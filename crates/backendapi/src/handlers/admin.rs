@@ -1,12 +1,22 @@
-use crate::{ApiResult, ApiState, rate_limiting::RateLimitConfig, auth::{extract_bearer_token, validate_jwt_token}};
-use axum::{Json, extract::{State, Path}, http::HeaderMap, response::IntoResponse};
-use std::sync::{Arc, RwLock};
-use sea_orm::{EntityTrait, ActiveModelTrait, Set, QueryFilter, ColumnTrait, PaginatorTrait};
-use uuid::Uuid;
-use chrono::Utc;
 use crate::handlers::{service_plan_entity, user_service_plan_entity};
+use crate::{
+    ApiResult, ApiState,
+    auth::{extract_bearer_token, validate_jwt_token},
+    rate_limiting::RateLimitConfig,
+};
+use axum::{
+    Json,
+    extract::{Path, State},
+    http::HeaderMap,
+    response::IntoResponse,
+};
+use chrono::Utc;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
+use std::sync::{Arc, RwLock};
+use uuid::Uuid;
 
 /// Shared, thread-safe rate limit config
+#[allow(dead_code)]
 pub type SharedRateLimitConfig = Arc<RwLock<RateLimitConfig>>;
 
 /// Create a new ServicePlan (admin only)
@@ -18,25 +28,28 @@ pub async fn create_service_plan(
     // Authenticate admin user
     let token = extract_bearer_token(&headers)?;
     let _user = validate_jwt_token(&token, &state.config.jwt_secret)?;
-    
+
     // TODO: Add admin role validation here
-    
+
     let db = &state.db;
-    
+
     // Validate unique name
     let existing = service_plan_entity::Entity::find()
         .filter(service_plan_entity::Column::Name.eq(&plan_data.name))
         .one(db)
         .await?;
-    
+
     if existing.is_some() {
-        return Err(crate::ApiError::ValidationError(format!("ServicePlan with name '{}' already exists", plan_data.name)));
+        return Err(crate::ApiError::ValidationError(format!(
+            "ServicePlan with name '{}' already exists",
+            plan_data.name
+        )));
     }
-    
+
     // Create new ServicePlan
     let plan_id = Uuid::new_v4().to_string();
     let now = Utc::now().naive_utc();
-    
+
     let plan = service_plan_entity::ActiveModel {
         id: Set(plan_id.clone()),
         name: Set(plan_data.name),
@@ -47,9 +60,9 @@ pub async fn create_service_plan(
         features_json: Set(plan_data.features_json.unwrap_or_else(|| "{}".to_string())),
         created_at: Set(now),
     };
-    
+
     let inserted = plan.insert(db).await?;
-    
+
     Ok(Json(ServicePlanResponse {
         id: inserted.id,
         name: inserted.name,
@@ -70,24 +83,25 @@ pub async fn list_service_plans(
     // Authenticate admin user
     let token = extract_bearer_token(&headers)?;
     let _user = validate_jwt_token(&token, &state.config.jwt_secret)?;
-    
+
     let db = &state.db;
-    
-    let plans = service_plan_entity::Entity::find()
-        .all(db)
-        .await?;
-    
-    let responses = plans.into_iter().map(|plan| ServicePlanResponse {
-        id: plan.id,
-        name: plan.name,
-        api_rate_limit: plan.api_rate_limit as u32,
-        tunnel_creation_limit: plan.tunnel_creation_limit as u32,
-        dns_provisioning_limit: plan.dns_provisioning_limit as u32,
-        max_concurrent_tunnels: plan.max_concurrent_tunnels as u32,
-        features_json: plan.features_json,
-        created_at: plan.created_at.and_utc(),
-    }).collect();
-    
+
+    let plans = service_plan_entity::Entity::find().all(db).await?;
+
+    let responses = plans
+        .into_iter()
+        .map(|plan| ServicePlanResponse {
+            id: plan.id,
+            name: plan.name,
+            api_rate_limit: plan.api_rate_limit as u32,
+            tunnel_creation_limit: plan.tunnel_creation_limit as u32,
+            dns_provisioning_limit: plan.dns_provisioning_limit as u32,
+            max_concurrent_tunnels: plan.max_concurrent_tunnels as u32,
+            features_json: plan.features_json,
+            created_at: plan.created_at.and_utc(),
+        })
+        .collect();
+
     Ok(Json(responses))
 }
 
@@ -100,14 +114,16 @@ pub async fn get_service_plan(
     // Authenticate admin user
     let token = extract_bearer_token(&headers)?;
     let _user = validate_jwt_token(&token, &state.config.jwt_secret)?;
-    
+
     let db = &state.db;
-    
+
     let plan = service_plan_entity::Entity::find_by_id(plan_id.clone())
         .one(db)
         .await?
-        .ok_or_else(|| crate::ApiError::NotFound(format!("ServicePlan with id '{}' not found", plan_id)))?;
-    
+        .ok_or_else(|| {
+            crate::ApiError::NotFound(format!("ServicePlan with id '{plan_id}' not found"))
+        })?;
+
     Ok(Json(ServicePlanResponse {
         id: plan.id,
         name: plan.name,
@@ -130,33 +146,37 @@ pub async fn update_service_plan(
     // Authenticate admin user
     let token = extract_bearer_token(&headers)?;
     let _user = validate_jwt_token(&token, &state.config.jwt_secret)?;
-    
+
     let db = &state.db;
-    
+
     // Check if plan exists
     let existing_plan = service_plan_entity::Entity::find_by_id(plan_id.clone())
         .one(db)
         .await?
-        .ok_or_else(|| crate::ApiError::NotFound(format!("ServicePlan with id '{}' not found", plan_id)))?;
-    
+        .ok_or_else(|| {
+            crate::ApiError::NotFound(format!("ServicePlan with id '{plan_id}' not found"))
+        })?;
+
     // If name is being updated, check for uniqueness
-    if let Some(new_name) = &update_data.name {
-        if new_name != &existing_plan.name {
-            let duplicate = service_plan_entity::Entity::find()
-                .filter(service_plan_entity::Column::Name.eq(new_name))
-                .filter(service_plan_entity::Column::Id.ne(plan_id.clone()))
-                .one(db)
-                .await?;
-            
-            if duplicate.is_some() {
-                return Err(crate::ApiError::ValidationError(format!("ServicePlan with name '{}' already exists", new_name)));
-            }
+    if let Some(new_name) = &update_data.name
+        && new_name != &existing_plan.name
+    {
+        let duplicate = service_plan_entity::Entity::find()
+            .filter(service_plan_entity::Column::Name.eq(new_name))
+            .filter(service_plan_entity::Column::Id.ne(plan_id.clone()))
+            .one(db)
+            .await?;
+
+        if duplicate.is_some() {
+            return Err(crate::ApiError::ValidationError(format!(
+                "ServicePlan with name '{new_name}' already exists"
+            )));
         }
     }
-    
+
     // Update the plan
     let mut plan_model: service_plan_entity::ActiveModel = existing_plan.into();
-    
+
     if let Some(name) = update_data.name {
         plan_model.name = Set(name);
     }
@@ -175,9 +195,9 @@ pub async fn update_service_plan(
     if let Some(features_json) = update_data.features_json {
         plan_model.features_json = Set(features_json);
     }
-    
+
     let updated_plan = plan_model.update(db).await?;
-    
+
     Ok(Json(ServicePlanResponse {
         id: updated_plan.id,
         name: updated_plan.name,
@@ -199,34 +219,36 @@ pub async fn delete_service_plan(
     // Authenticate admin user
     let token = extract_bearer_token(&headers)?;
     let _user = validate_jwt_token(&token, &state.config.jwt_secret)?;
-    
+
     let db = &state.db;
-    
+
     // Check if plan exists
     let plan = service_plan_entity::Entity::find_by_id(plan_id.clone())
         .one(db)
         .await?
-        .ok_or_else(|| crate::ApiError::NotFound(format!("ServicePlan with id '{}' not found", plan_id)))?;
-    
+        .ok_or_else(|| {
+            crate::ApiError::NotFound(format!("ServicePlan with id '{plan_id}' not found"))
+        })?;
+
     // Check if plan is in use
     let active_assignments = user_service_plan_entity::Entity::find()
         .filter(user_service_plan_entity::Column::ServicePlanId.eq(plan_id.clone()))
         .filter(user_service_plan_entity::Column::IsActive.eq(true))
         .count(db)
         .await?;
-    
+
     if active_assignments > 0 {
-        return Err(crate::ApiError::ValidationError(
-            format!("Cannot delete ServicePlan '{}' - it has {} active user assignments", 
-                   plan.name, active_assignments)
-        ));
+        return Err(crate::ApiError::ValidationError(format!(
+            "Cannot delete ServicePlan '{}' - it has {} active user assignments",
+            plan.name, active_assignments
+        )));
     }
-    
+
     // Delete the plan
     service_plan_entity::Entity::delete_by_id(plan_id)
         .exec(db)
         .await?;
-    
+
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
@@ -240,35 +262,35 @@ pub async fn assign_service_plan_to_user(
     // Authenticate admin user
     let token = extract_bearer_token(&headers)?;
     let _user = validate_jwt_token(&token, &state.config.jwt_secret)?;
-    
+
     let db = &state.db;
-    
+
     // Verify ServicePlan exists
-    let plan = service_plan_entity::Entity::find_by_id(assignment_data.service_plan_id.clone())
+    let _plan = service_plan_entity::Entity::find_by_id(assignment_data.service_plan_id.clone())
         .one(db)
         .await?
         .ok_or_else(|| crate::ApiError::NotFound("ServicePlan not found".to_string()))?;
-    
+
     // TODO: Verify user exists (when user entity is implemented)
-    
+
     // Deactivate any existing active assignments for this user
     let existing_assignments = user_service_plan_entity::Entity::find()
         .filter(user_service_plan_entity::Column::UserId.eq(user_id.clone()))
         .filter(user_service_plan_entity::Column::IsActive.eq(true))
         .all(db)
         .await?;
-    
+
     for assignment in existing_assignments {
         let mut assignment_model: user_service_plan_entity::ActiveModel = assignment.into();
         assignment_model.is_active = Set(false);
         assignment_model.update(db).await?;
     }
-    
+
     // Create new assignment
     let assignment_id = Uuid::new_v4().to_string();
     let now = Utc::now().naive_utc();
     let end_date = assignment_data.end_date.map(|d| d.naive_utc());
-    
+
     let assignment = user_service_plan_entity::ActiveModel {
         id: Set(assignment_id.clone()),
         user_id: Set(user_id),
@@ -277,9 +299,9 @@ pub async fn assign_service_plan_to_user(
         end_date: Set(end_date.unwrap_or_else(|| now + chrono::Duration::days(365))),
         is_active: Set(true),
     };
-    
+
     let inserted = assignment.insert(db).await?;
-    
+
     Ok(Json(UserServicePlanResponse {
         id: inserted.id,
         user_id: inserted.user_id,
@@ -297,7 +319,7 @@ pub async fn get_rate_limit_policy(
 ) -> ApiResult<Json<RateLimitConfig>> {
     // Authenticate user
     let token = extract_bearer_token(&headers)?;
-    let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
+    let _user = validate_jwt_token(&token, &state.config.jwt_secret)?;
     // Remove all usage of user.tier (GitHubUser has no tier field)
     // Temporarily disable admin checks or add TODO for ServicePlan-based admin logic
     // Fix ServiceExt import and remove unused imports
@@ -316,7 +338,7 @@ pub async fn update_rate_limit_policy(
 ) -> ApiResult<Json<RateLimitConfig>> {
     // Authenticate user
     let token = extract_bearer_token(&headers)?;
-    let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
+    let _user = validate_jwt_token(&token, &state.config.jwt_secret)?;
     // Remove all usage of user.tier (GitHubUser has no tier field)
     // Temporarily disable admin checks or add TODO for ServicePlan-based admin logic
     // Fix ServiceExt import and remove unused imports
@@ -379,18 +401,12 @@ pub struct UserServicePlanResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::http::Request;
-    use axum::body::Body;
-    use axum::Router;
-    use axum::ServiceExt; // for .oneshot
-    use crate::rate_limiting::RateLimitPolicy;
-    use std::collections::HashMap;
 
     #[tokio::test]
     async fn test_get_rate_limit_policy_requires_admin() {
         // Setup dummy state
         let config = RateLimitConfig::default();
-        let shared = Arc::new(RwLock::new(config.clone()));
+        let _shared = Arc::new(RwLock::new(config.clone()));
         // TODO: Mock ApiState with admin user
         // ...
         // This is a placeholder for actual integration test
@@ -400,21 +416,22 @@ mod tests {
 
 #[cfg(test)]
 mod e2e_serviceplan_tests {
-    use super::*;
+
+    use chrono::Utc;
+    use migration::Migrator;
+    use sea_orm::{ActiveModelTrait, Database, EntityTrait};
+    use sea_orm_migration::MigratorTrait;
     use testcontainers::runners::AsyncRunner;
     use testcontainers_modules::postgres::Postgres;
-    use sea_orm::{Database, ActiveModelTrait, EntityTrait};
-    use migration::Migrator;
-    use sea_orm_migration::MigratorTrait;
     use uuid::Uuid;
-    use chrono::{Utc, NaiveDateTime};
-    use crate::handlers::service_plan_entity;
-    use crate::handlers::user_service_plan_entity;
 
     #[tokio::test]
     async fn serviceplan_crud_and_assignment_e2e() {
         // Start Postgres 18 container
-        let container = Postgres::default().start().await.expect("Failed to start Postgres");
+        let container = Postgres::default()
+            .start()
+            .await
+            .expect("Failed to start Postgres");
         let port = container.get_host_port_ipv4(5432).await.unwrap();
         let url = format!("postgres://postgres:postgres@127.0.0.1:{}/postgres", port);
 
@@ -452,11 +469,18 @@ mod e2e_serviceplan_tests {
             features_json: sea_orm::Set("{}".to_string()),
             created_at: sea_orm::Set(now),
         };
-        let inserted = ServicePlanEntity::insert(plan).exec(&db).await.expect("insert");
+        let inserted = ServicePlanEntity::insert(plan)
+            .exec(&db)
+            .await
+            .expect("insert");
         assert_eq!(inserted.last_insert_id, plan_id);
 
         // Read
-        let found = ServicePlanEntity::find_by_id(plan_id.clone()).one(&db).await.expect("find").unwrap();
+        let found = ServicePlanEntity::find_by_id(plan_id.clone())
+            .one(&db)
+            .await
+            .expect("find")
+            .unwrap();
         assert_eq!(found.name, "Pro");
         assert_eq!(found.api_rate_limit, 1000);
 
@@ -491,7 +515,10 @@ mod e2e_serviceplan_tests {
             avatar_url: sea_orm::Set("https://example.com/avatar.png".to_string()),
             created_at: sea_orm::Set(now),
         };
-        let _ = crate::handlers::user_entity::Entity::insert(user).exec(&db).await.expect("create user");
+        let _ = crate::handlers::user_entity::Entity::insert(user)
+            .exec(&db)
+            .await
+            .expect("create user");
 
         // Assign
         let start_date = Utc::now().naive_utc();
@@ -504,19 +531,30 @@ mod e2e_serviceplan_tests {
             end_date: sea_orm::Set(end_date),
             is_active: sea_orm::Set(true),
         };
-        let assigned = UserServicePlanEntity::insert(assignment).exec(&db).await.expect("assign");
+        let assigned = UserServicePlanEntity::insert(assignment)
+            .exec(&db)
+            .await
+            .expect("assign");
         assert_eq!(assigned.last_insert_id, assigned.last_insert_id);
 
         // Prevent deletion of ServicePlan in use
-        let del_result = ServicePlanEntity::delete_by_id(plan_id.clone()).exec(&db).await;
+        let del_result = ServicePlanEntity::delete_by_id(plan_id.clone())
+            .exec(&db)
+            .await;
         assert!(del_result.is_err(), "Should not delete plan in use");
 
         // Unassign
         let assignment_id = assigned.last_insert_id;
-        let _ = UserServicePlanEntity::delete_by_id(assignment_id).exec(&db).await.expect("unassign");
+        let _ = UserServicePlanEntity::delete_by_id(assignment_id)
+            .exec(&db)
+            .await
+            .expect("unassign");
 
         // Now deletion should succeed
         let del_result2 = ServicePlanEntity::delete_by_id(plan_id).exec(&db).await;
-        assert!(del_result2.unwrap().rows_affected == 1, "Plan should be deleted after unassignment");
+        assert!(
+            del_result2.unwrap().rows_affected == 1,
+            "Plan should be deleted after unassignment"
+        );
     }
-} 
+}

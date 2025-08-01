@@ -4,7 +4,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::models::{GitHubUser, ServicePlan, UserServicePlan};
+use crate::models::{GitHubUser, ServicePlan};
 
 /// GitHub OAuth authorization request
 #[derive(Debug, Deserialize)]
@@ -233,6 +233,7 @@ pub fn validate_jwt_token(token: &str, secret: &str) -> ApiResult<crate::models:
 
 /// Authenticated user with resolved service plan
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct AuthenticatedUserWithPlan {
     pub user: GitHubUser,
     pub service_plan: ServicePlan,
@@ -241,7 +242,11 @@ pub struct AuthenticatedUserWithPlan {
 /// Validate JWT token and resolve user's active service plan
 ///
 /// Returns AuthenticatedUserWithPlan (user + plan)
-pub fn validate_jwt_token_with_plan(token: &str, secret: &str) -> ApiResult<AuthenticatedUserWithPlan> {
+#[allow(dead_code)]
+pub fn validate_jwt_token_with_plan(
+    token: &str,
+    secret: &str,
+) -> ApiResult<AuthenticatedUserWithPlan> {
     // Validate JWT as before
     let user = validate_jwt_token(token, secret)?;
 

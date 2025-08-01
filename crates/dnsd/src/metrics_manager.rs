@@ -1,7 +1,7 @@
+use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
-use std::collections::VecDeque;
 use tracing::warn;
 
 /// Singleton metrics manager for DNS performance tracking
@@ -45,13 +45,13 @@ impl MetricsManager {
 
         // Update response time statistics
         let response_time_ms = response_time.as_millis() as f64;
-        self.avg_response_time_ms = 
-            (self.avg_response_time_ms * (self.total_queries - 1) as f64 + response_time_ms) 
+        self.avg_response_time_ms = (self.avg_response_time_ms * (self.total_queries - 1) as f64
+            + response_time_ms)
             / self.total_queries as f64;
 
         // Store response time for percentile calculation
         self.response_times.push_back(response_time);
-        
+
         // Keep only last N response times for memory efficiency
         if self.response_times.len() > self.max_response_times {
             self.response_times.pop_front();
@@ -61,10 +61,10 @@ impl MetricsManager {
         if self.response_times.len() >= 20 {
             let mut sorted_times: Vec<Duration> = self.response_times.iter().copied().collect();
             sorted_times.sort();
-            
+
             let p95_idx = (sorted_times.len() as f64 * 0.95) as usize;
             let p99_idx = (sorted_times.len() as f64 * 0.99) as usize;
-            
+
             self.p95_response_time_ms = sorted_times[p95_idx].as_millis() as f64;
             self.p99_response_time_ms = sorted_times[p99_idx].as_millis() as f64;
         }
@@ -103,7 +103,7 @@ impl MetricsManager {
 }
 
 /// Global singleton instance
-static METRICS_MANAGER: once_cell::sync::Lazy<Arc<RwLock<MetricsManager>>> = 
+static METRICS_MANAGER: once_cell::sync::Lazy<Arc<RwLock<MetricsManager>>> =
     once_cell::sync::Lazy::new(|| {
         Arc::new(RwLock::new(MetricsManager::new(50))) // Default 50ms threshold
     });
@@ -173,11 +173,11 @@ mod tests {
     async fn test_metrics_manager_singleton() {
         // Reset singleton before test
         reset_singleton().await;
-        
+
         // Test metrics update
         update_metrics(true, Duration::from_millis(50)).await;
         update_metrics(false, Duration::from_millis(100)).await;
-        
+
         let metrics = get_metrics().await;
         assert_eq!(metrics.total_queries, 2);
         assert_eq!(metrics.cache_hits, 1);
@@ -190,14 +190,14 @@ mod tests {
     async fn test_metrics_reset() {
         // Reset singleton before test
         reset_singleton().await;
-        
+
         // Add some metrics
         update_metrics(false, Duration::from_millis(100)).await;
         update_metrics(true, Duration::from_millis(50)).await;
-        
+
         // Reset
         reset_metrics().await;
-        
+
         let metrics = get_metrics().await;
         assert_eq!(metrics.total_queries, 0);
         assert_eq!(metrics.cache_hits, 0);
@@ -209,7 +209,7 @@ mod tests {
     async fn test_concurrent_metrics_updates() {
         // Reset singleton before test
         reset_singleton().await;
-        
+
         // Test concurrent updates with proper synchronization
         let mut handles = vec![];
         for i in 0..10 {
@@ -218,16 +218,16 @@ mod tests {
             });
             handles.push(handle);
         }
-        
+
         // Wait for all tasks to complete
         for handle in handles {
             handle.await.unwrap();
         }
-        
+
         // Add small delay to ensure all updates are processed
         tokio::time::sleep(Duration::from_millis(10)).await;
-        
+
         let metrics = get_metrics().await;
         assert_eq!(metrics.total_queries, 10);
     }
-} 
+}

@@ -1,18 +1,18 @@
+use common::{AppResult, shutdown::GracefulShutdown};
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
-use tracing::{info, instrument, error};
-use common::{AppResult, shutdown::GracefulShutdown};
 use tokio::sync::broadcast;
+use tracing::{error, info, instrument};
 
 use crate::dns_handler::{DnsHandler, PerformanceConfig};
 
-pub mod redis_cache;
-pub mod sign;
-pub mod redis_performance;
-pub mod redis_sentinel;
-pub mod redis_cluster;
 pub mod dns_handler;
 pub mod metrics_manager;
+pub mod redis_cache;
+pub mod redis_cluster;
+pub mod redis_performance;
+pub mod redis_sentinel;
+pub mod sign;
 
 /// Configuration for the DNS server.
 pub struct Config {
@@ -35,7 +35,8 @@ impl Default for Config {
         Self {
             addr: "0.0.0.0:5353".parse().unwrap(),
             redis_pool: {
-                let manager = bb8_redis::RedisConnectionManager::new("redis://localhost:6379").unwrap();
+                let manager =
+                    bb8_redis::RedisConnectionManager::new("redis://localhost:6379").unwrap();
                 bb8::Pool::builder().build_unchecked(manager)
             },
             ddos_config: common::ddos_protection::DdosConfig::default(),
@@ -52,10 +53,10 @@ pub async fn serve(cfg: Config) -> AppResult<()> {
     info!("Starting DNS server on {}", cfg.addr);
 
     // Initialize DNSSEC signer if configured
-    if cfg.dnssec_config.enable_signature_cache {
-        if let Err(e) = sign::init_production_signer(cfg.dnssec_config.clone()) {
-            error!("Failed to initialize DNSSEC signer: {}", e);
-        }
+    if cfg.dnssec_config.enable_signature_cache
+        && let Err(e) = sign::init_production_signer(cfg.dnssec_config.clone())
+    {
+        error!("Failed to initialize DNSSEC signer: {}", e);
     }
 
     // Create unified DNS handler with performance optimizations
@@ -76,11 +77,10 @@ pub async fn serve(cfg: Config) -> AppResult<()> {
                 match result {
                     Ok((len, peer)) => {
                         // Use unified DNS handler
-                        if let Ok(resp) = dns_handler.handle_packet(&buf[..len], &cfg.redis_pool).await {
-                            if let Err(e) = socket.send_to(&resp, peer).await {
+                        if let Ok(resp) = dns_handler.handle_packet(&buf[..len], &cfg.redis_pool).await
+                            && let Err(e) = socket.send_to(&resp, peer).await {
                                 error!("Failed to send response to {}: {}", peer, e);
                             }
-                        }
                     }
                     Err(e) => {
                         error!("Failed to receive packet: {}", e);
@@ -98,17 +98,14 @@ pub async fn serve(cfg: Config) -> AppResult<()> {
 }
 
 /// Start the DNS server with graceful shutdown support.
-pub async fn serve_with_shutdown(
-    cfg: Config,
-    shutdown: GracefulShutdown,
-) -> AppResult<()> {
+pub async fn serve_with_shutdown(cfg: Config, shutdown: GracefulShutdown) -> AppResult<()> {
     info!("Starting DNS server with graceful shutdown on {}", cfg.addr);
 
     // Initialize DNSSEC signer if configured
-    if cfg.dnssec_config.enable_signature_cache {
-        if let Err(e) = sign::init_production_signer(cfg.dnssec_config.clone()) {
-            error!("Failed to initialize DNSSEC signer: {}", e);
-        }
+    if cfg.dnssec_config.enable_signature_cache
+        && let Err(e) = sign::init_production_signer(cfg.dnssec_config.clone())
+    {
+        error!("Failed to initialize DNSSEC signer: {}", e);
     }
 
     // Create unified DNS handler with performance optimizations
@@ -127,11 +124,10 @@ pub async fn serve_with_shutdown(
                 match result {
                     Ok((len, peer)) => {
                         // Use unified DNS handler
-                        if let Ok(resp) = dns_handler.handle_packet(&buf[..len], &cfg.redis_pool).await {
-                            if let Err(e) = socket.send_to(&resp, peer).await {
+                        if let Ok(resp) = dns_handler.handle_packet(&buf[..len], &cfg.redis_pool).await
+                            && let Err(e) = socket.send_to(&resp, peer).await {
                                 error!("Failed to send response to {}: {}", peer, e);
                             }
-                        }
                     }
                     Err(e) => {
                         error!("Failed to receive packet: {}", e);
@@ -162,8 +158,8 @@ mod tests {
 
 #[cfg(feature = "dot")]
 mod dot {
-    use super::redis_cache;
     use super::dns_handler::DnsHandler;
+    use super::redis_cache;
     use common::AppResult;
     use rustls::ServerConfig;
     use std::sync::Arc;
@@ -194,10 +190,10 @@ mod dot {
         let listener = TcpListener::bind(addr).await?;
         info!(addr=%listener.local_addr()?, "dot listening");
         let acceptor = TlsAcceptor::from(Arc::new(cfg));
-        
+
         // Create unified DNS handler
         let dns_handler = DnsHandler::new(super::dns_handler::PerformanceConfig::default());
-        
+
         loop {
             let (stream, peer) = listener.accept().await?;
             let acceptor = acceptor.clone();

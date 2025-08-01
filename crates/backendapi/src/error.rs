@@ -3,11 +3,11 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use serde::{Deserialize, Serialize};
-use thiserror::Error;
 use chrono::{DateTime, Utc};
-use uuid::Uuid;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use thiserror::Error;
+use uuid::Uuid;
 
 /// Enhanced API error types with detailed error information
 #[derive(Error, Debug, Clone)]
@@ -100,28 +100,28 @@ pub type ApiResult<T> = Result<T, ApiError>;
 pub struct ErrorResponse {
     /// Error type/code
     pub error: String,
-    
+
     /// Human-readable error message
     pub message: String,
-    
+
     /// HTTP status code
     pub code: u16,
-    
+
     /// Unique error ID for tracking
     pub error_id: String,
-    
+
     /// Timestamp when error occurred
     pub timestamp: DateTime<Utc>,
-    
+
     /// Request ID for correlation (if available)
     pub request_id: Option<String>,
-    
+
     /// Additional error details
     pub details: Option<HashMap<String, serde_json::Value>>,
-    
+
     /// Retry information
     pub retry_after: Option<u64>,
-    
+
     /// Error category for client handling
     pub category: ErrorCategory,
 }
@@ -131,31 +131,31 @@ pub struct ErrorResponse {
 pub enum ErrorCategory {
     /// Client error - user should fix request
     Client,
-    
+
     /// Authentication error - user should re-authenticate
     Authentication,
-    
+
     /// Authorization error - user lacks permissions
     Authorization,
-    
+
     /// Rate limiting error - user should wait
     RateLimit,
-    
+
     /// Resource error - system resource constraints
     Resource,
-    
+
     /// Service error - internal system issue
     Service,
-    
+
     /// Network error - connectivity issues
     Network,
-    
+
     /// Validation error - data validation failed
     Validation,
 }
 
 /// Error context for enhanced error tracking
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ErrorContext {
     pub request_id: Option<String>,
     pub user_id: Option<String>,
@@ -165,24 +165,11 @@ pub struct ErrorContext {
     pub user_agent: Option<String>,
 }
 
-impl Default for ErrorContext {
-    fn default() -> Self {
-        Self {
-            request_id: None,
-            user_id: None,
-            endpoint: None,
-            method: None,
-            client_ip: None,
-            user_agent: None,
-        }
-    }
-}
-
 impl ApiError {
     /// Create enhanced error response with context
     pub fn into_response_with_context(self, context: ErrorContext) -> Response {
         let (status_code, error_type, message, category, retry_after) = self.get_error_info();
-        
+
         let error_response = ErrorResponse {
             error: error_type.to_string(),
             message,
@@ -391,34 +378,58 @@ impl ApiError {
     }
 
     /// Get additional error details for enhanced debugging
-    fn get_error_details(&self, context: &ErrorContext) -> Option<HashMap<String, serde_json::Value>> {
+    fn get_error_details(
+        &self,
+        context: &ErrorContext,
+    ) -> Option<HashMap<String, serde_json::Value>> {
         let mut details = HashMap::new();
-        
+
         // Add context information
         if let Some(user_id) = &context.user_id {
-            details.insert("user_id".to_string(), serde_json::Value::String(user_id.clone()));
+            details.insert(
+                "user_id".to_string(),
+                serde_json::Value::String(user_id.clone()),
+            );
         }
         if let Some(endpoint) = &context.endpoint {
-            details.insert("endpoint".to_string(), serde_json::Value::String(endpoint.clone()));
+            details.insert(
+                "endpoint".to_string(),
+                serde_json::Value::String(endpoint.clone()),
+            );
         }
         if let Some(method) = &context.method {
-            details.insert("method".to_string(), serde_json::Value::String(method.clone()));
+            details.insert(
+                "method".to_string(),
+                serde_json::Value::String(method.clone()),
+            );
         }
         if let Some(client_ip) = &context.client_ip {
-            details.insert("client_ip".to_string(), serde_json::Value::String(client_ip.clone()));
+            details.insert(
+                "client_ip".to_string(),
+                serde_json::Value::String(client_ip.clone()),
+            );
         }
 
         // Add error-specific details
         match self {
             ApiError::RateLimitExceeded | ApiError::TooManyRequests(_) => {
-                details.insert("retry_after_seconds".to_string(), serde_json::Value::Number(serde_json::Number::from(60)));
-            },
+                details.insert(
+                    "retry_after_seconds".to_string(),
+                    serde_json::Value::Number(serde_json::Number::from(60)),
+                );
+            }
             ApiError::QuotaExceeded(_) => {
-                details.insert("quota_type".to_string(), serde_json::Value::String("user_quota".to_string()));
-            },
+                details.insert(
+                    "quota_type".to_string(),
+                    serde_json::Value::String("user_quota".to_string()),
+                );
+            }
             ApiError::ValidationError(_) => {
-                details.insert("validation_type".to_string(), serde_json::Value::String("request_validation".to_string()));
-            },
+                details.insert(
+                    "validation_type".to_string(),
+                    serde_json::Value::String("request_validation".to_string()),
+                );
+            }
             _ => {}
         }
 
@@ -431,24 +442,22 @@ impl ApiError {
 
     /// Log error with context for monitoring and debugging
     fn log_error(&self, context: &ErrorContext) {
-        use tracing::{error, warn, info};
-        
+        use tracing::{error, info, warn};
+
         let log_message = format!(
             "API Error: {} | User: {:?} | Endpoint: {:?} | Method: {:?} | Client IP: {:?}",
-            self,
-            context.user_id,
-            context.endpoint,
-            context.method,
-            context.client_ip
+            self, context.user_id, context.endpoint, context.method, context.client_ip
         );
 
         match self {
-            ApiError::InternalError(_) | ApiError::DatabaseError(_) | ApiError::CertificateError(_) => {
+            ApiError::InternalError(_)
+            | ApiError::DatabaseError(_)
+            | ApiError::CertificateError(_) => {
                 error!("{}", log_message);
-            },
+            }
             ApiError::RateLimitExceeded | ApiError::TooManyRequests(_) => {
                 warn!("{}", log_message);
-            },
+            }
             _ => {
                 info!("{}", log_message);
             }

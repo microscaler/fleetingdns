@@ -1,9 +1,12 @@
-use crate::{ApiResult, ApiState, auth::{extract_bearer_token, validate_jwt_token}};
-use axum::{Json, extract::State, http::HeaderMap};
-use sea_orm::{EntityTrait, QueryFilter, ColumnTrait};
-use uuid::Uuid;
-use serde::{Deserialize, Serialize};
 use crate::handlers::{service_plan_entity, user_service_plan_entity};
+use crate::{
+    ApiResult, ApiState,
+    auth::{extract_bearer_token, validate_jwt_token},
+};
+use axum::{Json, extract::State, http::HeaderMap};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// Get current user's ServicePlan information
 pub async fn get_my_service_plan(
@@ -44,9 +47,12 @@ pub async fn get_my_service_plan(
     Ok(Json(MyServicePlanResponse {
         service_plan_id: service_plan.id,
         name: service_plan.name,
-        description: format!("Service plan with {} API calls per hour", service_plan.api_rate_limit),
-        features: features,
-        quotas: quotas,
+        description: format!(
+            "Service plan with {} API calls per hour",
+            service_plan.api_rate_limit
+        ),
+        features,
+        quotas,
         pricing: 0.0, // TODO: Add pricing field to entity
         assignment_date: user_service_plan.start_date,
         end_date: Some(user_service_plan.end_date),
@@ -123,9 +129,7 @@ pub async fn get_available_service_plans(
         .await?;
 
     // Get all available ServicePlans
-    let service_plans = service_plan_entity::Entity::find()
-        .all(&state.db)
-        .await?;
+    let service_plans = service_plan_entity::Entity::find().all(&state.db).await?;
 
     let mut available_plans = Vec::new();
 
@@ -133,7 +137,7 @@ pub async fn get_available_service_plans(
         // Parse features JSON
         let features: serde_json::Value = serde_json::from_str(&plan.features_json)
             .map_err(|_| crate::ApiError::InternalError("Invalid features JSON".to_string()))?;
-        
+
         // Create quotas from the actual fields
         let quotas = serde_json::json!({
             "api_rate_limit": plan.api_rate_limit,
@@ -154,7 +158,10 @@ pub async fn get_available_service_plans(
         available_plans.push(AvailableServicePlanResponse {
             id: plan.id,
             name: plan.name,
-            description: format!("Service plan with {} API calls per hour", plan.api_rate_limit),
+            description: format!(
+                "Service plan with {} API calls per hour",
+                plan.api_rate_limit
+            ),
             features,
             quotas,
             pricing: 0.0, // TODO: Add pricing field to entity
@@ -180,7 +187,7 @@ pub async fn request_service_plan_change(
 
     // Validate the target ServicePlan exists
     let service_plan_id = request.service_plan_id.clone();
-    let target_plan = service_plan_entity::Entity::find_by_id(&service_plan_id)
+    let _target_plan = service_plan_entity::Entity::find_by_id(&service_plan_id)
         .one(&state.db)
         .await?
         .ok_or_else(|| crate::ApiError::NotFound("Target ServicePlan not found".to_string()))?;
@@ -194,13 +201,17 @@ pub async fn request_service_plan_change(
         .await?;
 
     if current_assignment.is_some() {
-        return Err(crate::ApiError::ValidationError("User already has this ServicePlan".to_string()));
+        return Err(crate::ApiError::ValidationError(
+            "User already has this ServicePlan".to_string(),
+        ));
     }
 
     // TODO: Implement actual ServicePlan change logic
     // For now, return a success response indicating the request was received
     Ok(Json(ServicePlanChangeResponse {
-        message: "ServicePlan change request received. An admin will review and process your request.".to_string(),
+        message:
+            "ServicePlan change request received. An admin will review and process your request."
+                .to_string(),
         request_id: Uuid::new_v4(),
         status: "pending".to_string(),
         estimated_processing_time: "24-48 hours".to_string(),
@@ -255,6 +266,7 @@ pub struct AvailableServicePlanResponse {
 #[derive(Deserialize)]
 pub struct ServicePlanChangeRequest {
     pub service_plan_id: String,
+    #[allow(dead_code)]
     pub reason: Option<String>,
 }
 
@@ -264,24 +276,24 @@ pub struct ServicePlanChangeResponse {
     pub request_id: Uuid,
     pub status: String,
     pub estimated_processing_time: String,
-} 
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::postgres_test_container::PostgresTestContainer;
-    use sea_orm::{Database, ActiveModelTrait};
-    use uuid::Uuid;
-    use chrono::{Utc, NaiveDateTime};
     use crate::handlers::service_plan_entity;
-    use crate::handlers::user_service_plan_entity;
     use crate::handlers::user_entity;
+    use crate::handlers::user_service_plan_entity;
+    use crate::test_utils::postgres_test_container::PostgresTestContainer;
+    use chrono::Utc;
+
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn test_database_operations_with_real_postgres() {
         let container = PostgresTestContainer::new().await;
         let db = container.database().clone();
-        
+
         // Create a test user
         let user_id = Uuid::new_v4().to_string();
         let now = Utc::now().naive_utc();
@@ -293,7 +305,10 @@ mod tests {
             avatar_url: sea_orm::Set("https://example.com/avatar.png".to_string()),
             created_at: sea_orm::Set(now),
         };
-        let _ = user_entity::Entity::insert(user).exec(&db).await.expect("create user");
+        let _ = user_entity::Entity::insert(user)
+            .exec(&db)
+            .await
+            .expect("create user");
 
         // Create a test service plan
         let plan_id = Uuid::new_v4().to_string();
@@ -307,7 +322,10 @@ mod tests {
             features_json: sea_orm::Set("{}".to_string()),
             created_at: sea_orm::Set(now),
         };
-        let _ = service_plan_entity::Entity::insert(plan).exec(&db).await.expect("create service plan");
+        let _ = service_plan_entity::Entity::insert(plan)
+            .exec(&db)
+            .await
+            .expect("create service plan");
 
         // Assign service plan to user
         let assignment = user_service_plan_entity::ActiveModel {
@@ -318,7 +336,10 @@ mod tests {
             end_date: sea_orm::Set(now + chrono::Duration::days(30)),
             is_active: sea_orm::Set(true),
         };
-        let _ = user_service_plan_entity::Entity::insert(assignment).exec(&db).await.expect("assign service plan");
+        let _ = user_service_plan_entity::Entity::insert(assignment)
+            .exec(&db)
+            .await
+            .expect("assign service plan");
 
         // Verify the data was created correctly
         let user_service_plan = user_service_plan_entity::Entity::find()
@@ -347,7 +368,7 @@ mod tests {
     async fn test_service_plan_queries_with_real_postgres() {
         let container = PostgresTestContainer::new().await;
         let db = container.database().clone();
-        
+
         // Create multiple service plans
         let now = Utc::now().naive_utc();
         let plan1 = service_plan_entity::ActiveModel {
@@ -360,7 +381,10 @@ mod tests {
             features_json: sea_orm::Set("{}".to_string()),
             created_at: sea_orm::Set(now),
         };
-        let _ = service_plan_entity::Entity::insert(plan1).exec(&db).await.expect("create service plan 1");
+        let _ = service_plan_entity::Entity::insert(plan1)
+            .exec(&db)
+            .await
+            .expect("create service plan 1");
 
         let plan2 = service_plan_entity::ActiveModel {
             id: sea_orm::Set(Uuid::new_v4().to_string()),
@@ -372,7 +396,10 @@ mod tests {
             features_json: sea_orm::Set("{}".to_string()),
             created_at: sea_orm::Set(now),
         };
-        let _ = service_plan_entity::Entity::insert(plan2).exec(&db).await.expect("create service plan 2");
+        let _ = service_plan_entity::Entity::insert(plan2)
+            .exec(&db)
+            .await
+            .expect("create service plan 2");
 
         // Query all service plans
         let all_plans = service_plan_entity::Entity::find()
@@ -389,7 +416,7 @@ mod tests {
     async fn test_user_service_plan_queries_with_real_postgres() {
         let container = PostgresTestContainer::new().await;
         let db = container.database().clone();
-        
+
         // Create a test user
         let user_id = Uuid::new_v4().to_string();
         let now = Utc::now().naive_utc();
@@ -401,7 +428,10 @@ mod tests {
             avatar_url: sea_orm::Set("https://example.com/avatar.png".to_string()),
             created_at: sea_orm::Set(now),
         };
-        let _ = user_entity::Entity::insert(user).exec(&db).await.expect("create user");
+        let _ = user_entity::Entity::insert(user)
+            .exec(&db)
+            .await
+            .expect("create user");
 
         // Create a test service plan
         let plan_id = Uuid::new_v4().to_string();
@@ -415,7 +445,10 @@ mod tests {
             features_json: sea_orm::Set("{}".to_string()),
             created_at: sea_orm::Set(now),
         };
-        let _ = service_plan_entity::Entity::insert(plan).exec(&db).await.expect("create service plan");
+        let _ = service_plan_entity::Entity::insert(plan)
+            .exec(&db)
+            .await
+            .expect("create service plan");
 
         // Assign service plan to user
         let assignment = user_service_plan_entity::ActiveModel {
@@ -426,7 +459,10 @@ mod tests {
             end_date: sea_orm::Set(now + chrono::Duration::days(30)),
             is_active: sea_orm::Set(true),
         };
-        let _ = user_service_plan_entity::Entity::insert(assignment).exec(&db).await.expect("assign service plan");
+        let _ = user_service_plan_entity::Entity::insert(assignment)
+            .exec(&db)
+            .await
+            .expect("assign service plan");
 
         // Query user's active service plan
         let active_plan = user_service_plan_entity::Entity::find()
@@ -441,4 +477,4 @@ mod tests {
         assert_eq!(active_plan.service_plan_id, plan_id);
         assert!(active_plan.is_active);
     }
-} 
+}

@@ -5,19 +5,19 @@ use common::shutdown::GracefulShutdown;
 use dnsd::redis_cache;
 use edgehub::{Config, ssh_server::SshConfig, ssh_server::SshServer};
 use hickory_resolver::TokioAsyncResolver;
+use migration::Migrator;
+use sea_orm::{ConnectionTrait, Database, DatabaseConnection};
+use sea_orm_migration::MigratorTrait;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
+use testcontainers::ImageExt;
+use testcontainers::runners::AsyncRunner;
+use testcontainers_modules::postgres::Postgres;
+use testcontainers_modules::redis::Redis;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::time::timeout;
 use tracing::{debug, error, info, warn};
-use testcontainers::runners::AsyncRunner;
-use testcontainers_modules::redis::Redis;
-use testcontainers_modules::postgres::Postgres;
-use testcontainers::ImageExt;
-use sea_orm::{Database, DatabaseConnection, ConnectionTrait};
-use migration::Migrator;
-use sea_orm_migration::MigratorTrait;
 
 /// Test container configuration for E2E tests
 struct TestContainers {
@@ -37,8 +37,11 @@ impl TestContainers {
             .start()
             .await
             .expect("Failed to start Redis container");
-        
-        let redis_port = redis_container.get_host_port_ipv4(6379).await.expect("Failed to get Redis port");
+
+        let redis_port = redis_container
+            .get_host_port_ipv4(6379)
+            .await
+            .expect("Failed to get Redis port");
         let redis_url = format!("redis://localhost:{}", redis_port);
 
         // Start PostgreSQL container
@@ -51,7 +54,10 @@ impl TestContainers {
             .await
             .expect("Failed to start Postgres container");
 
-        let postgres_port = postgres_container.get_host_port_ipv4(5432).await.expect("Failed to get Postgres port");
+        let postgres_port = postgres_container
+            .get_host_port_ipv4(5432)
+            .await
+            .expect("Failed to get Postgres port");
         let postgres_url = format!("postgresql://test:test@localhost:{}", postgres_port);
 
         // Connect to PostgreSQL with retry logic
@@ -172,8 +178,11 @@ async fn test_e2e_tunnel_core_functionality() {
             .start()
             .await
             .expect("Failed to start Redis container");
-        
-        let redis_port = redis_container.get_host_port_ipv4(6379).await.expect("Failed to get Redis port");
+
+        let redis_port = redis_container
+            .get_host_port_ipv4(6379)
+            .await
+            .expect("Failed to get Redis port");
         let redis_url = format!("redis://localhost:{}", redis_port);
 
         // Create Redis pool using testcontainer
@@ -218,9 +227,9 @@ async fn test_e2e_tunnel_core_functionality() {
 async fn test_database_operations(db: &DatabaseConnection) {
     // Test that we can perform basic database operations
     // This validates that our database connection works with real PostgreSQL
-    use sea_orm::{EntityTrait, ActiveModelTrait, QueryTrait, DatabaseConnection};
+    use chrono::{NaiveDateTime, Utc};
+    use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, QueryTrait};
     use uuid::Uuid;
-    use chrono::{Utc, NaiveDateTime};
 
     // Test basic database connectivity by running a simple query
     let result = db.execute_unprepared("SELECT 1 as test").await;
@@ -231,13 +240,15 @@ async fn test_database_operations(db: &DatabaseConnection) {
 
     // Test that we can create a simple table and insert data
     // This validates the database schema and migrations work
-    let create_result = db.execute_unprepared(
-        "CREATE TABLE IF NOT EXISTS e2e_test_table (
+    let create_result = db
+        .execute_unprepared(
+            "CREATE TABLE IF NOT EXISTS e2e_test_table (
             id VARCHAR PRIMARY KEY,
             name VARCHAR NOT NULL,
             created_at TIMESTAMP NOT NULL
-        )"
-    ).await;
+        )",
+        )
+        .await;
 
     match create_result {
         Ok(_) => info!("Test table creation passed"),
@@ -247,11 +258,13 @@ async fn test_database_operations(db: &DatabaseConnection) {
     // Insert test data
     let test_id = Uuid::new_v4().to_string();
     let now = Utc::now().naive_utc();
-    
-    let insert_result = db.execute_unprepared(&format!(
-        "INSERT INTO e2e_test_table (id, name, created_at) VALUES ('{}', 'E2E Test', '{}')",
-        test_id, now
-    )).await;
+
+    let insert_result = db
+        .execute_unprepared(&format!(
+            "INSERT INTO e2e_test_table (id, name, created_at) VALUES ('{}', 'E2E Test', '{}')",
+            test_id, now
+        ))
+        .await;
 
     match insert_result {
         Ok(_) => info!("Test data insertion passed"),
@@ -259,10 +272,12 @@ async fn test_database_operations(db: &DatabaseConnection) {
     }
 
     // Query test data
-    let query_result = db.execute_unprepared(&format!(
-        "SELECT id, name FROM e2e_test_table WHERE id = '{}'",
-        test_id
-    )).await;
+    let query_result = db
+        .execute_unprepared(&format!(
+            "SELECT id, name FROM e2e_test_table WHERE id = '{}'",
+            test_id
+        ))
+        .await;
 
     match query_result {
         Ok(result) => {
@@ -276,7 +291,9 @@ async fn test_database_operations(db: &DatabaseConnection) {
     }
 
     // Clean up test table
-    let cleanup_result = db.execute_unprepared("DROP TABLE IF EXISTS e2e_test_table").await;
+    let cleanup_result = db
+        .execute_unprepared("DROP TABLE IF EXISTS e2e_test_table")
+        .await;
     match cleanup_result {
         Ok(_) => info!("Test table cleanup passed"),
         Err(e) => warn!("Test table cleanup failed: {e:?}"),

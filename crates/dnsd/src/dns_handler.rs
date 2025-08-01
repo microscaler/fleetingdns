@@ -5,19 +5,19 @@
 //! - Performance optimizations (caching, metrics, monitoring)
 //! - Enterprise-grade features (error handling, logging, monitoring)
 
+use crate::metrics_manager::{PerformanceMetrics, get_metrics, update_metrics};
+use crate::redis_cache::RedisPool;
+use common::{AppError, AppResult};
+use hickory_proto::op::{Message, MessageType, ResponseCode};
+use hickory_proto::rr::rdata::A;
+use hickory_proto::rr::{Name, Record};
+use std::net::Ipv4Addr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use ttl_cache_with_purging::{cache::TtlCache, purging::start_periodic_purge};
-use tokio::time::{interval, Instant as TokioInstant};
-use hickory_proto::op::{Message, MessageType, ResponseCode};
-use hickory_proto::rr::{Name, Record};
-use hickory_proto::rr::rdata::A;
-use std::net::Ipv4Addr;
+use tokio::time::{Instant as TokioInstant, interval};
 use tracing::warn;
-use common::{AppError, AppResult};
-use crate::redis_cache::RedisPool;
-use crate::metrics_manager::{update_metrics, get_metrics, PerformanceMetrics};
+use ttl_cache_with_purging::{cache::TtlCache, purging::start_periodic_purge};
 
 /// Time provider trait for testable cache operations
 pub trait TimeProvider {
@@ -38,16 +38,22 @@ pub struct MockTimeProvider {
     current_time: std::sync::RwLock<Instant>,
 }
 
+impl Default for MockTimeProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MockTimeProvider {
     pub fn new() -> Self {
         Self {
             current_time: std::sync::RwLock::new(Instant::now()),
         }
     }
-    
+
     pub fn advance(&self, duration: std::time::Duration) {
         let mut time = self.current_time.write().unwrap();
-        *time = *time + duration;
+        *time += duration;
     }
 }
 
@@ -92,6 +98,7 @@ impl Default for PerformanceConfig {
 pub struct DnsHandler {
     config: PerformanceConfig,
     cache: Arc<RwLock<TtlCache<String, Vec<u8>>>>,
+    #[allow(dead_code)]
     time_provider: Arc<dyn TimeProvider + Send + Sync>,
     max_cache_size: usize,
 }
@@ -101,7 +108,7 @@ impl DnsHandler {
     pub fn new(config: PerformanceConfig) -> Self {
         let cache = Arc::new(RwLock::new(TtlCache::new()));
         let max_cache_size = 10_000; // Default max cache size
-        
+
         // Start background purging every 30 seconds (smaller saw effect)
         // Note: This requires a tokio runtime to be running
         if let Ok(rt) = tokio::runtime::Handle::try_current() {
@@ -111,7 +118,7 @@ impl DnsHandler {
                 start_periodic_purge(cache_clone, purge_interval);
             });
         }
-        
+
         Self {
             config,
             cache,
@@ -119,15 +126,15 @@ impl DnsHandler {
             max_cache_size,
         }
     }
-    
+
     /// Create a new DNS handler with custom time provider (for testing)
     pub fn new_with_time_provider(
-        config: PerformanceConfig, 
-        time_provider: Arc<dyn TimeProvider + Send + Sync>
+        config: PerformanceConfig,
+        time_provider: Arc<dyn TimeProvider + Send + Sync>,
     ) -> Self {
         let cache = Arc::new(RwLock::new(TtlCache::new()));
         let max_cache_size = 10_000;
-        
+
         Self {
             config,
             cache,
@@ -139,64 +146,70 @@ impl DnsHandler {
     /// Handle a DNS packet with Redis integration and performance tracking
     pub async fn handle_packet(&self, packet: &[u8], pool: &RedisPool) -> AppResult<Vec<u8>> {
         let start_time = Instant::now();
-        
-        if self.config.enable_compression {
-            if let Some(cached_response) = self.get_cached_response(packet).await {
-                if self.config.enable_metrics {
-                    update_metrics(true, start_time.elapsed()).await;
-                }
-                return Ok(cached_response);
+
+        if self.config.enable_compression
+            && let Some(cached_response) = self.get_cached_response(packet).await
+        {
+            if self.config.enable_metrics {
+                update_metrics(true, start_time.elapsed()).await;
             }
+            return Ok(cached_response);
         }
-        
+
         let result = self.process_dns_query(packet, pool).await;
-        
-        if let Ok(ref response) = result {
-            if self.config.enable_compression {
-                self.cache_response(packet, response.clone()).await;
-            }
+
+        if let Ok(ref response) = result
+            && self.config.enable_compression
+        {
+            self.cache_response(packet, response.clone()).await;
         }
-        
+
         if self.config.enable_metrics {
             update_metrics(false, start_time.elapsed()).await;
         }
-        
+
         result
     }
 
     /// Process a DNS query with Redis slot lookup
     pub async fn process_dns_query(&self, packet: &[u8], pool: &RedisPool) -> AppResult<Vec<u8>> {
         let message = Message::from_vec(packet)
-            .map_err(|e| AppError::Message(format!("Failed to parse DNS message: {}", e)))?;
-        
+            .map_err(|e| AppError::Message(format!("Failed to parse DNS message: {e}")))?;
+
         if message.header().message_type() == MessageType::Response {
             return Err(AppError::Message("Received response packet".into()));
         }
-        
-        let query = message.queries().first()
+
+        let query = message
+            .queries()
+            .first()
             .ok_or_else(|| AppError::Message("No query found".into()))?;
-        
+
         let qname = query.name().clone();
         let slot = self.lookup_slot_in_redis(qname.to_string(), pool).await?;
-        
+
         self.build_dns_response(&message, query, &qname, slot).await
     }
 
     /// Look up a domain slot in Redis
-    pub async fn lookup_slot_in_redis(&self, qname: String, pool: &RedisPool) -> AppResult<Option<String>> {
+    pub async fn lookup_slot_in_redis(
+        &self,
+        qname: String,
+        pool: &RedisPool,
+    ) -> AppResult<Option<String>> {
         if qname.is_empty() {
             return Ok(None);
         }
-        
-        let mut conn = pool.get().await
-            .map_err(|e| AppError::Message(format!("Redis connection failed: {}", e)))?;
-        
-        let key = format!("slot:{}", qname);
-        let result: Result<Option<String>, redis::RedisError> = redis::cmd("GET")
-            .arg(&key)
-            .query_async(&mut *conn)
-            .await;
-        
+
+        let mut conn = pool
+            .get()
+            .await
+            .map_err(|e| AppError::Message(format!("Redis connection failed: {e}")))?;
+
+        let key = format!("slot:{qname}");
+        let result: Result<Option<String>, redis::RedisError> =
+            redis::cmd("GET").arg(&key).query_async(&mut *conn).await;
+
         match result {
             Ok(slot) => Ok(slot),
             Err(e) => {
@@ -218,15 +231,16 @@ impl DnsHandler {
         response.set_id(message.header().id());
         response.set_message_type(MessageType::Response);
         response.set_response_code(ResponseCode::NoError);
-        
+
         // Add the query
         response.add_query(query.clone());
-        
+
         // Add answer if slot is provided
         if let Some(slot_ip) = slot {
-            let ip: Ipv4Addr = slot_ip.parse()
-                .map_err(|_| AppError::Message(format!("Invalid IP address: {}", slot_ip)))?;
-            
+            let ip: Ipv4Addr = slot_ip
+                .parse()
+                .map_err(|_| AppError::Message(format!("Invalid IP address: {slot_ip}")))?;
+
             let record = Record::from_rdata(
                 qname.clone(),
                 300, // TTL
@@ -234,20 +248,22 @@ impl DnsHandler {
             );
             response.add_answer(record);
         }
-        
-        Ok(response.to_vec().map_err(|e| AppError::Message(format!("Failed to serialize response: {}", e)))?)
+
+        response
+            .to_vec()
+            .map_err(|e| AppError::Message(format!("Failed to serialize response: {e}")))
     }
 
     /// Get cached response with lazy cleanup and size management
     async fn get_cached_response(&self, packet: &[u8]) -> Option<Vec<u8>> {
         let key = self.generate_cache_key(packet);
-        
+
         // Get cached response (lazy cleanup happens automatically)
         let cache = self.cache.read().await;
         if let Some(value) = cache.get(&key) {
             return Some(value.clone());
         }
-        
+
         None
     }
 
@@ -255,12 +271,13 @@ impl DnsHandler {
     async fn cache_response(&self, packet: &[u8], response: Vec<u8>) {
         let key = self.generate_cache_key(packet);
         let expires_at = TokioInstant::now() + Duration::from_secs(self.config.cache_ttl);
-        
+
         let mut cache = self.cache.write().await;
         cache.insert(key, response, expires_at);
     }
 
     /// Evict oldest entries when cache size exceeds limit
+    #[allow(dead_code)]
     async fn evict_oldest_entries(&self) {
         // TtlCache handles expiration automatically, so we don't need manual eviction
         // The background purge thread will handle expired entries
@@ -270,7 +287,7 @@ impl DnsHandler {
     fn generate_cache_key(&self, packet: &[u8]) -> String {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         packet.hash(&mut hasher);
         format!("dns:{}", hasher.finish())
@@ -280,7 +297,7 @@ impl DnsHandler {
     pub async fn get_metrics(&self) -> PerformanceMetrics {
         get_metrics().await
     }
-    
+
     /// Get cache statistics for monitoring
     pub async fn get_cache_stats(&self) -> (usize, usize) {
         // TtlCache doesn't expose len() method, so we return max_cache_size as current size
@@ -292,8 +309,8 @@ impl DnsHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::metrics_manager::{get_metrics, reset_metrics, reset_singleton};
     use std::time::Duration;
-    use crate::metrics_manager::{reset_metrics, get_metrics, reset_singleton};
 
     #[test]
     fn test_performance_config_default() {
@@ -310,7 +327,7 @@ mod tests {
     async fn test_dns_handler_creation() {
         let config = PerformanceConfig::default();
         let handler = DnsHandler::new(config);
-        
+
         assert_eq!(handler.config.enable_compression, true);
         assert_eq!(handler.config.cache_ttl, 300);
         assert_eq!(handler.config.enable_metrics, true);
@@ -321,14 +338,14 @@ mod tests {
     async fn test_metrics_update() {
         // Reset singleton before test
         reset_singleton().await;
-        
+
         // Test cache hit
         update_metrics(true, Duration::from_millis(50)).await;
         let metrics = get_metrics().await;
         assert_eq!(metrics.total_queries, 1);
         assert_eq!(metrics.cache_hits, 1);
         assert_eq!(metrics.cache_misses, 0);
-        
+
         // Test cache miss
         update_metrics(false, Duration::from_millis(100)).await;
         let metrics = get_metrics().await;
@@ -342,10 +359,10 @@ mod tests {
         let handler = DnsHandler::new(PerformanceConfig::default());
         let packet = b"test_dns_packet";
         let response = vec![1, 2, 3, 4];
-        
+
         // Test cache response
         handler.cache_response(packet, response.clone()).await;
-        
+
         // Test get cached response
         let cached = handler.get_cached_response(packet).await;
         assert!(cached.is_some());
@@ -357,19 +374,19 @@ mod tests {
         let mut config = PerformanceConfig::default();
         config.cache_ttl = 1; // 1 second TTL
         let handler = DnsHandler::new(config);
-        
+
         let packet = b"expire_test_packet";
         let response = vec![1, 2, 3];
-        
+
         // Cache response
         handler.cache_response(packet, response.clone()).await;
-        
+
         // Should be cached immediately
         assert!(handler.get_cached_response(packet).await.is_some());
-        
+
         // Wait for expiration (TtlCache handles this automatically)
         tokio::time::sleep(Duration::from_millis(1100)).await;
-        
+
         // Should be expired (TtlCache automatically removes expired entries)
         assert!(handler.get_cached_response(packet).await.is_none());
     }
@@ -379,12 +396,12 @@ mod tests {
         let mut config = PerformanceConfig::default();
         config.batch_size = 2;
         let handler = DnsHandler::new(config);
-        
+
         // Add 3 items
         handler.cache_response(b"key1", vec![1]).await;
         handler.cache_response(b"key2", vec![2]).await;
         handler.cache_response(b"key3", vec![3]).await;
-        
+
         // Should only have 2 items (LRU eviction)
         // Note: TtlCache doesn't expose len(), so we can't verify cache size
         // The background purge will handle expired entries automatically
@@ -394,7 +411,7 @@ mod tests {
     fn test_generate_cache_key() {
         let handler = DnsHandler::new(PerformanceConfig::default());
         let packet = b"test_dns_packet";
-        
+
         let key = handler.generate_cache_key(packet);
         assert!(!key.is_empty());
         assert!(key.len() > 0);
@@ -405,7 +422,7 @@ mod tests {
     async fn test_response_time_percentiles() {
         // Reset singleton before test
         reset_singleton().await;
-        
+
         // Add more response times for better percentile calculation
         update_metrics(false, Duration::from_millis(10)).await;
         update_metrics(false, Duration::from_millis(20)).await;
@@ -417,11 +434,11 @@ mod tests {
         update_metrics(false, Duration::from_millis(80)).await;
         update_metrics(false, Duration::from_millis(90)).await;
         update_metrics(false, Duration::from_millis(100)).await;
-        
+
         let metrics = get_metrics().await;
         assert_eq!(metrics.total_queries, 10);
         assert!(metrics.avg_response_time_ms > 0.0);
-        
+
         // Test that average response time is calculated correctly
         assert!(metrics.avg_response_time_ms >= 50.0); // Should be around 55ms
     }
@@ -431,7 +448,7 @@ mod tests {
     async fn test_concurrent_access() {
         // Reset singleton before test
         reset_singleton().await;
-        
+
         // Test concurrent metrics updates
         let mut handles = vec![];
         for i in 0..10 {
@@ -440,15 +457,15 @@ mod tests {
             });
             handles.push(handle);
         }
-        
+
         // Wait for all tasks
         for handle in handles {
             handle.await.unwrap();
         }
-        
+
         // Add small delay to ensure all updates are processed
         tokio::time::sleep(Duration::from_millis(10)).await;
-        
+
         let metrics = get_metrics().await;
         assert_eq!(metrics.total_queries, 10);
     }
@@ -463,12 +480,12 @@ mod tests {
             enable_batching: false,
             batch_size: 10,
         };
-        
+
         // Test serialization
         let serialized = serde_json::to_string(&config).unwrap();
         assert!(serialized.contains("enable_compression"));
         assert!(serialized.contains("600"));
-        
+
         // Test deserialization
         let deserialized: PerformanceConfig = serde_json::from_str(&serialized).unwrap();
         assert_eq!(deserialized.enable_compression, config.enable_compression);
@@ -480,14 +497,14 @@ mod tests {
     async fn test_metrics_reset() {
         // Reset singleton before test
         reset_singleton().await;
-        
+
         // Add some metrics
         update_metrics(false, Duration::from_millis(100)).await;
         update_metrics(true, Duration::from_millis(50)).await;
-        
+
         // Reset metrics
         reset_metrics().await;
-        
+
         let metrics = get_metrics().await;
         assert_eq!(metrics.total_queries, 0);
         assert_eq!(metrics.cache_hits, 0);
@@ -499,17 +516,17 @@ mod tests {
         let mut config = PerformanceConfig::default();
         config.cache_ttl = 1;
         let handler = DnsHandler::new(config);
-        
+
         // Add items to cache
         handler.cache_response(b"test1", vec![1]).await;
         handler.cache_response(b"test2", vec![2]).await;
         handler.cache_response(b"test3", vec![3]).await;
-        
+
         // All items should be accessible initially
         assert!(handler.get_cached_response(b"test1").await.is_some());
         assert!(handler.get_cached_response(b"test2").await.is_some());
         assert!(handler.get_cached_response(b"test3").await.is_some());
-        
+
         // TtlCache handles expiration automatically via background purge
         // We can't directly test cache size since TtlCache doesn't expose len()
         // The background purge thread will handle expired entries
@@ -523,4 +540,4 @@ mod tests {
     fn create_test_message() -> Message {
         Message::new()
     }
-} 
+}

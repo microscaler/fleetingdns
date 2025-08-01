@@ -58,7 +58,7 @@ async fn test_cluster_config_custom() {
         "redis://custom-node-2:6379".to_string(),
     ];
 
-    let config = ClusterConfig { 
+    let config = ClusterConfig {
         nodes: custom_nodes.clone(),
         pool_config: dnsd::redis_cluster::PoolConfig {
             max_size: 50,
@@ -68,7 +68,7 @@ async fn test_cluster_config_custom() {
             enable_pipelining: false,
             ..Default::default()
         },
-        ..Default::default() 
+        ..Default::default()
     };
 
     assert_eq!(config.nodes, custom_nodes);
@@ -97,17 +97,11 @@ async fn test_slot_calculation_consistency() {
         let slot = client.calculate_slot(key);
 
         // Verify slot is within valid range
-        assert!(
-            slot < 16384,
-            "Slot {slot} for key '{key}' exceeds maximum"
-        );
+        assert!(slot < 16384, "Slot {slot} for key '{key}' exceeds maximum");
 
         // Verify consistency - same key should always produce same slot
         let slot2 = client.calculate_slot(key);
-        assert_eq!(
-            slot, slot2,
-            "Slot calculation inconsistent for key '{key}'"
-        );
+        assert_eq!(slot, slot2, "Slot calculation inconsistent for key '{key}'");
     }
 }
 

@@ -51,7 +51,8 @@ impl CertificateAuthority {
 
     /// Issue an ephemeral certificate
     pub async fn issue_certificate(&self, request: IssuanceRequest) -> CaResult<IssuanceResponse> {
-        counter!("certificate_operations_total", "operation" => "issue", "status" => "requested").increment(1);
+        counter!("certificate_operations_total", "operation" => "issue", "status" => "requested")
+            .increment(1);
 
         info!(
             request_id = %request.request_id,
@@ -110,7 +111,8 @@ impl CertificateAuthority {
             .await
             .record_issuance(&request.client_id);
 
-        counter!("certificate_operations_total", "operation" => "issue", "status" => "success").increment(1);
+        counter!("certificate_operations_total", "operation" => "issue", "status" => "success")
+            .increment(1);
 
         info!(
             request_id = %request.request_id,
@@ -164,7 +166,8 @@ impl CertificateAuthority {
 
     /// Revoke a certificate (mark as invalid)
     pub async fn revoke_certificate(&self, serial_number: &str) -> CaResult<()> {
-        counter!("certificate_operations_total", "operation" => "revoke", "status" => "requested").increment(1);
+        counter!("certificate_operations_total", "operation" => "revoke", "status" => "requested")
+            .increment(1);
 
         // For ephemeral certificates, we just remove from registry
         // In production, this might involve CRL or OCSP
@@ -183,12 +186,14 @@ impl CertificateAuthority {
 
     /// Clean up expired certificates
     pub async fn cleanup_expired_certificates(&self) -> usize {
-        counter!("certificate_operations_total", "operation" => "cleanup", "status" => "requested").increment(1);
-        
+        counter!("certificate_operations_total", "operation" => "cleanup", "status" => "requested")
+            .increment(1);
+
         let cleaned_count = self.registry.cleanup_expired().await;
-        
-        counter!("certificate_operations_total", "operation" => "cleanup", "status" => "success").increment(1);
-        
+
+        counter!("certificate_operations_total", "operation" => "cleanup", "status" => "success")
+            .increment(1);
+
         cleaned_count
     }
 

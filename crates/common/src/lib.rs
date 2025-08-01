@@ -1,18 +1,16 @@
-#![feature(let_chains)]
 //! Common utilities shared across `FleetingDNS` crates.
 //!
 //! Provides application-wide tracing initialization, a basic error type,
 //! and re-exports of helpful metrics macros.
 
-
-use tracing::info;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, fmt};
 use thiserror::Error;
+use tracing::info;
+use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
-pub mod metrics;
-pub mod shutdown;
 pub mod cert_manager;
 pub mod ddos_protection;
+pub mod metrics;
+pub mod shutdown;
 pub mod tls;
 
 // Re-export metrics for convenience
@@ -63,8 +61,7 @@ macro_rules! histogram {
 
 /// Initialize tracing with the given service name
 pub fn init_tracing(service_name: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     tracing_subscriber::registry()
         .with(env_filter)
@@ -88,7 +85,7 @@ mod tests {
     fn test_trace_id_generation() {
         let id1 = generate_trace_id();
         let id2 = generate_trace_id();
-        
+
         assert!(id1.starts_with("trace-"));
         // Both should be the same since they use process ID
         assert_eq!(id1, id2);
@@ -97,13 +94,13 @@ mod tests {
     #[test]
     fn test_trace_id_format() {
         let trace_id = generate_trace_id();
-        
+
         // Should start with "trace-"
         assert!(trace_id.starts_with("trace-"));
-        
+
         // Should be 22 characters long (6 for "trace-" + 16 for hex)
         assert_eq!(trace_id.len(), 22);
-        
+
         // Should contain valid hex digits after "trace-"
         let hex_part = &trace_id[6..];
         assert!(hex_part.chars().all(|c| c.is_ascii_hexdigit()));
@@ -175,9 +172,8 @@ mod tests {
         let io_error = AppError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "test"));
         assert!(!format!("{}", io_error).is_empty());
 
-        let json_error = AppError::SerdeJson(
-            serde_json::from_str::<serde_json::Value>("invalid").unwrap_err()
-        );
+        let json_error =
+            AppError::SerdeJson(serde_json::from_str::<serde_json::Value>("invalid").unwrap_err());
         assert!(!format!("{}", json_error).is_empty());
 
         let message_error = AppError::Message("test message".to_string());
@@ -190,9 +186,8 @@ mod tests {
         let io_error = AppError::Io(std::io::Error::new(std::io::ErrorKind::NotFound, "test"));
         assert!(!format!("{:?}", io_error).is_empty());
 
-        let json_error = AppError::SerdeJson(
-            serde_json::from_str::<serde_json::Value>("invalid").unwrap_err()
-        );
+        let json_error =
+            AppError::SerdeJson(serde_json::from_str::<serde_json::Value>("invalid").unwrap_err());
         assert!(!format!("{:?}", json_error).is_empty());
 
         let message_error = AppError::Message("test message".to_string());
@@ -203,13 +198,17 @@ mod tests {
     fn test_error_send_sync() {
         // Test that AppError is Send and Sync
         fn assert_send_sync<T: Send + Sync>() {}
-        unsafe { assert_send_sync::<AppError>(); }
+        unsafe {
+            assert_send_sync::<AppError>();
+        }
     }
 
     #[test]
     fn test_app_result_send_sync() {
         // Test that AppResult is Send and Sync
         fn assert_send_sync<T: Send + Sync>() {}
-        unsafe { assert_send_sync::<AppResult<String>>(); }
+        unsafe {
+            assert_send_sync::<AppResult<String>>();
+        }
     }
 }

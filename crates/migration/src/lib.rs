@@ -6,21 +6,24 @@
 // See ServicePlan PRD for policy details.
 #[cfg(test)]
 mod tests {
-    use serial_test::serial;
-    use testcontainers::runners::SyncRunner;
-    use testcontainers_modules::postgres::Postgres;
-    use testcontainers::{Image, ImageExt};
-    use sea_orm_migration::{MigratorTrait, SchemaManager, sea_orm::Database};
     use crate::Migrator;
+    use sea_orm::ConnectionTrait;
+    use sea_orm_migration::{MigratorTrait, SchemaManager, sea_orm::Database};
+    use serial_test::serial;
     use std::process::Command;
     use std::time::{Duration, Instant};
-    use sea_orm::ConnectionTrait;
+    use testcontainers::runners::SyncRunner;
+    use testcontainers::{Image, ImageExt};
+    use testcontainers_modules::postgres::Postgres;
 
     // Pin to stable Postgres version
     const POSTGRES_VERSION: &str = "17.5-alpine";
 
     /// Robust container setup with comprehensive error handling and resource management
-    fn setup_test_container() -> (testcontainers::Container<testcontainers_modules::postgres::Postgres>, u16) {
+    fn setup_test_container() -> (
+        testcontainers::Container<testcontainers_modules::postgres::Postgres>,
+        u16,
+    ) {
         // Clean up any existing containers that might be using the same ports
         cleanup_dangling_containers();
         // Start container with retry logic for port conflicts
@@ -36,7 +39,7 @@ mod tests {
         let output = Command::new("docker")
             .args(["ps", "-q", "--filter", "ancestor=postgres:17.5-alpine"])
             .output();
-        
+
         if let Ok(output) = output {
             let container_ids = String::from_utf8_lossy(&output.stdout);
             for container_id in container_ids.lines() {
@@ -50,7 +53,8 @@ mod tests {
     }
 
     /// Start container with retry logic for port conflicts
-    fn start_container_with_retry() -> testcontainers::Container<testcontainers_modules::postgres::Postgres> {
+    fn start_container_with_retry()
+    -> testcontainers::Container<testcontainers_modules::postgres::Postgres> {
         let max_retries = 3;
         let mut last_error = None;
         for attempt in 1..=max_retries {
@@ -65,36 +69,47 @@ mod tests {
                 Err(e) => {
                     last_error = Some(e);
                     if attempt < max_retries {
-                        println!("⚠️  Container start failed on attempt {}, retrying...", attempt);
+                        println!(
+                            "⚠️  Container start failed on attempt {}, retrying...",
+                            attempt
+                        );
                         std::thread::sleep(Duration::from_millis(1000 * attempt as u64));
                         cleanup_dangling_containers();
                     }
                 }
             }
         }
-        panic!("Failed to start container after {} attempts: {:?}", max_retries, last_error);
+        panic!(
+            "Failed to start container after {} attempts: {:?}",
+            max_retries, last_error
+        );
     }
 
     /// Comprehensive container readiness check with multiple health indicators
-    fn wait_for_container_ready(container: &testcontainers::Container<testcontainers_modules::postgres::Postgres>, port: u16) {
+    fn wait_for_container_ready(
+        container: &testcontainers::Container<testcontainers_modules::postgres::Postgres>,
+        port: u16,
+    ) {
         let timeout = std::env::var("POSTGRES_READY_TIMEOUT_SECS")
             .ok()
             .and_then(|s| s.parse().ok())
             .map(Duration::from_secs)
             .unwrap_or_else(|| Duration::from_secs(60));
-        
+
         let start = Instant::now();
         let mut last_error = None;
-        
+
         loop {
             // Check if container is still running
             if !is_container_running(container.id()) {
                 panic!("Container stopped unexpectedly");
             }
-            
+
             // Try to connect to the database using blocking operations
             let rt = tokio::runtime::Runtime::new().expect("create tokio runtime");
-            match rt.block_on(sea_orm::Database::connect(&format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres"))) {
+            match rt.block_on(sea_orm::Database::connect(&format!(
+                "postgres://postgres:postgres@127.0.0.1:{port}/postgres"
+            ))) {
                 Ok(conn) => {
                     // Use tokio runtime to execute async database operations
                     match rt.block_on(conn.execute_unprepared("SELECT 1")) {
@@ -111,11 +126,14 @@ mod tests {
                     last_error = Some(format!("Connection failed: {:?}", e));
                 }
             }
-            
+
             if start.elapsed() > timeout {
-                panic!("Failed to connect to Postgres after {:?}. Last error: {:?}", timeout, last_error);
+                panic!(
+                    "Failed to connect to Postgres after {:?}. Last error: {:?}",
+                    timeout, last_error
+                );
             }
-            
+
             std::thread::sleep(Duration::from_millis(100));
         }
     }
@@ -131,19 +149,22 @@ mod tests {
                 let status = status_string.trim();
                 status == "true"
             }
-            Err(_) => false
+            Err(_) => false,
         }
     }
 
     /// Simple database connection without retry logic
     fn connect_to_database(port: u16) -> sea_orm::DatabaseConnection {
-        let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres?connect_timeout=10&pool_timeout=30&max_connections=1");
+        let url = format!(
+            "postgres://postgres:postgres@127.0.0.1:{port}/postgres?connect_timeout=10&pool_timeout=30&max_connections=1"
+        );
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(1)
             .enable_all()
             .build()
             .expect("create tokio runtime");
-        rt.block_on(Database::connect(&url)).expect("connect to postgres")
+        rt.block_on(Database::connect(&url))
+            .expect("connect to postgres")
     }
 
     #[test]
@@ -159,41 +180,53 @@ mod tests {
     #[ignore] // TODO: Currently ignored, we will determine if we need this test later.
     fn test_migration_runs_on_postgres_17_5() {
         let (_container, port) = setup_test_container();
-        
+
         // Use direct SQLx connection instead of SeaORM to bypass connection pool issues
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(1)
             .enable_all()
             .build()
             .expect("create tokio runtime");
-        
+
         rt.block_on(async {
             // Wait a bit for the database to be fully ready
             tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
-            
+
             // Test basic connectivity with direct SQLx
             let url = format!("postgres://postgres:postgres@127.0.0.1:{port}/postgres");
-            let pool = sqlx::PgPool::connect(&url).await.expect("connect to postgres");
-            
+            let pool = sqlx::PgPool::connect(&url)
+                .await
+                .expect("connect to postgres");
+
             // Test basic query
-            sqlx::query("SELECT 1").execute(&pool).await.expect("test query");
+            sqlx::query("SELECT 1")
+                .execute(&pool)
+                .await
+                .expect("test query");
             println!("✅ Database connectivity confirmed");
-            
+
             // Create SeaORM connection using the URL directly
-            let db = sea_orm::Database::connect(&url).await.expect("create sea-orm connection");
-            
+            let db = sea_orm::Database::connect(&url)
+                .await
+                .expect("create sea-orm connection");
+
             // Run migrations with timeout
             let timeout = tokio::time::Duration::from_secs(60);
             match tokio::time::timeout(timeout, Migrator::up(&db, None)).await {
                 Ok(result) => result.expect("migrate up"),
                 Err(_) => panic!("Migration timed out after {:?}", timeout),
             }
-            
+
             // Verify schema was created
             let schema_manager = SchemaManager::new(&db);
-            assert!(schema_manager.has_table("service_plan").await.expect("check table exists"));
+            assert!(
+                schema_manager
+                    .has_table("service_plan")
+                    .await
+                    .expect("check table exists")
+            );
         });
-        
+
         println!("✅ Migration test passed");
     }
 

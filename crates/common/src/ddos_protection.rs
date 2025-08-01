@@ -1,13 +1,13 @@
 //! DDoS protection and connection limiting utilities
 
 use dashmap::DashMap;
+use serde::{Deserialize, Serialize};
 use std::{
     net::IpAddr,
     sync::Arc,
     time::{Duration, Instant},
 };
 use tracing::{debug, warn};
-use serde::{Serialize, Deserialize};
 
 /// DDoS protection configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -29,9 +29,9 @@ impl Default for DdosConfig {
         Self {
             max_connections_per_ip: 10,
             connection_rate_per_minute: 100,
-            max_request_size: 1024 * 1024, // 1MB
+            max_request_size: 1024 * 1024,            // 1MB
             block_duration: Duration::from_secs(300), // 5 minutes
-            rate_window: Duration::from_secs(60), // 1 minute
+            rate_window: Duration::from_secs(60),     // 1 minute
         }
     }
 }
@@ -65,8 +65,10 @@ impl DdosProtection {
 
     /// Check if an IP address is currently blocked
     pub fn is_blocked(&self, ip: IpAddr) -> bool {
-        if let Some(info) = self.ip_info.get(&ip) 
-            && info.blocked_until.is_some_and(|blocked_until| Instant::now() < blocked_until) 
+        if let Some(info) = self.ip_info.get(&ip)
+            && info
+                .blocked_until
+                .is_some_and(|blocked_until| Instant::now() < blocked_until)
         {
             debug!(ip = %ip, "IP is blocked");
             return true;
@@ -91,9 +93,9 @@ impl DdosProtection {
         });
 
         // Clean up old connection timestamps
-        info_ref.recent_connections.retain(|&timestamp| {
-            now.duration_since(timestamp) < self.config.rate_window
-        });
+        info_ref
+            .recent_connections
+            .retain(|&timestamp| now.duration_since(timestamp) < self.config.rate_window);
 
         // Check connection rate limit
         if info_ref.recent_connections.len() >= self.config.connection_rate_per_minute as usize {
@@ -127,7 +129,8 @@ impl DdosProtection {
         // Allow the connection
         info_ref.active_connections += 1;
         info_ref.recent_connections.push(now);
-        crate::counter!("ddos_protection_connections_allowed_total", "ip" => ip.to_string()).increment(1);
+        crate::counter!("ddos_protection_connections_allowed_total", "ip" => ip.to_string())
+            .increment(1);
 
         Ok(())
     }
@@ -160,7 +163,10 @@ impl DdosProtection {
         let now = Instant::now();
         for entry in self.ip_info.iter() {
             let info = entry.value();
-            if info.blocked_until.is_some_and(|blocked_until| now < blocked_until) {
+            if info
+                .blocked_until
+                .is_some_and(|blocked_until| now < blocked_until)
+            {
                 blocked_ips += 1;
             }
             total_active_connections += info.active_connections;
@@ -182,12 +188,14 @@ impl DdosProtection {
             // Remove if no active connections and no recent activity
             if info.active_connections == 0 {
                 // Check if there are any recent connections
-                let has_recent_activity = info.recent_connections.iter().any(|&timestamp| {
-                    now.duration_since(timestamp) < cleanup_threshold
-                });
+                let has_recent_activity = info
+                    .recent_connections
+                    .iter()
+                    .any(|&timestamp| now.duration_since(timestamp) < cleanup_threshold);
 
                 // Check if still blocked
-                let is_still_blocked = info.blocked_until
+                let is_still_blocked = info
+                    .blocked_until
                     .map(|blocked_until| now < blocked_until)
                     .unwrap_or(false);
 
@@ -232,7 +240,7 @@ mod tests {
             block_duration: Duration::from_secs(600),
             rate_window: Duration::from_secs(30),
         };
-        
+
         assert_eq!(config.max_connections_per_ip, 5);
         assert_eq!(config.connection_rate_per_minute, 50);
         assert_eq!(config.max_request_size, 2048 * 1024);
@@ -277,7 +285,7 @@ mod tests {
         // Each IP should have its own limit
         assert!(ddos.check_connection_limit(ip1).is_ok());
         assert!(ddos.check_connection_limit(ip2).is_ok());
-        
+
         // Second connection from same IP should fail
         assert!(ddos.check_connection_limit(ip1).is_err());
         assert!(ddos.check_connection_limit(ip2).is_err());
@@ -435,12 +443,12 @@ mod tests {
 
         // Add a connection
         assert!(ddos.check_connection_limit(ip).is_ok());
-        
+
         // Close multiple times (should not go below 0)
         ddos.connection_closed(ip);
         ddos.connection_closed(ip);
         ddos.connection_closed(ip);
-        
+
         let stats = ddos.get_stats();
         assert_eq!(stats.total_active_connections, 0);
     }
@@ -470,7 +478,7 @@ mod tests {
         // Close the connection and cleanup
         ddos.connection_closed(ip);
         ddos.cleanup_old_entries();
-        
+
         // Should still have the IP tracked (cleanup doesn't remove immediately)
         let stats = ddos.get_stats();
         assert_eq!(stats.total_tracked_ips, 1);
@@ -480,7 +488,7 @@ mod tests {
     fn test_ddos_protection_creation() {
         let config = DdosConfig::default();
         let ddos = DdosProtection::new(config);
-        
+
         // Should be created successfully
         let stats = ddos.get_stats();
         assert_eq!(stats.total_tracked_ips, 0);
@@ -496,8 +504,8 @@ mod tests {
         // Should work with IPv6 addresses
         assert!(ddos.check_connection_limit(ip).is_ok());
         assert!(!ddos.is_blocked(ip));
-        
+
         let stats = ddos.get_stats();
         assert_eq!(stats.total_tracked_ips, 1);
     }
-} 
+}

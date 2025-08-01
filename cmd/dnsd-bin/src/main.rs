@@ -6,8 +6,8 @@ use tracing::info;
 
 #[cfg(feature = "dot")]
 use common::tls;
-use common::{init_tracing, init_metrics, shutdown::GracefulShutdown};
-use dnsd::{redis_cache};
+use common::{init_metrics, init_tracing, shutdown::GracefulShutdown};
+use dnsd::redis_cache;
 
 #[derive(Parser)]
 #[command(name = "dnsd-bin")]

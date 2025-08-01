@@ -10,10 +10,10 @@ use tokio::process::Command;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
-use dnsd::{serve, Config};
+use dnsd::dns_handler;
 use dnsd::redis_cache;
 use dnsd::sign;
-use dnsd::dns_handler;
+use dnsd::{Config, serve};
 
 async fn start_redis() -> Option<(String, JoinHandle<mini_redis::Result<()>>)> {
     let listener = TcpListener::bind("127.0.0.1:0").await.ok()?;
