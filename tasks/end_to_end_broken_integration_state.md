@@ -457,6 +457,8 @@ tests/integration/
 2. **Docker Image Validation**: Test images in isolation
 3. **Parallel Development**: Work on multiple phases simultaneously
 4. **Rollback Plan**: Keep working unit tests as safety net
+5. **Documentation**: Maintain clear documentation of changes and tests
+6. **All new code must be covered by unit tests**: Ensure all new features have corresponding unit tests to prevent regressions
 
 ## Comprehensive Telemetry/Metrics/Logging Call Points
 
