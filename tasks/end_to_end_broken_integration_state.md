@@ -175,170 +175,170 @@ The FleetingDNS system has **fundamental integration issues** that prevent end-t
 
 ### **Phase 1: Critical Infrastructure Fixes** (Priority 1)
 
-#### **Task 1.1: Fix API Service Docker Image**
-- **Objective**: Resolve `libssl.so.3` dependency issue
-- **Steps**:
-  1. Update `docker/Dockerfile.api` to include proper SSL libraries
-  2. Add `libssl3` and `libssl-dev` packages to runtime stage
-  3. Verify API service starts successfully
-  4. Test basic API health endpoint
-- **Acceptance Criteria**: API service starts without errors, health endpoint responds
-- **Estimated Time**: 2 hours
+- [ ] **Task 1.1: Fix API Service Docker Image**
+  - **Objective**: Resolve `libssl.so.3` dependency issue
+  - **Steps**:
+    1. Update `docker/Dockerfile.api` to include proper SSL libraries
+    2. Add `libssl3` and `libssl-dev` packages to runtime stage
+    3. Verify API service starts successfully
+    4. Test basic API health endpoint
+  - **Acceptance Criteria**: API service starts without errors, health endpoint responds
+  - **Estimated Time**: 2 hours
 
-#### **Task 1.2: Fix DNS Response Delivery**
-- **Objective**: Resolve UDP socket response delivery issue
-- **Steps**:
-  1. Debug DNS service UDP socket configuration
-  2. Verify socket binding and response sending
-  3. Test DNS query/response cycle end-to-end
-  4. Add UDP send metrics for monitoring
-- **Acceptance Criteria**: DNS queries return responses to clients
-- **Estimated Time**: 4 hours
+- [ ] **Task 1.2: Fix DNS Response Delivery**
+  - **Objective**: Resolve UDP socket response delivery issue
+  - **Steps**:
+    1. Debug DNS service UDP socket configuration
+    2. Verify socket binding and response sending
+    3. Test DNS query/response cycle end-to-end
+    4. Add UDP send metrics for monitoring
+  - **Acceptance Criteria**: DNS queries return responses to clients
+  - **Estimated Time**: 4 hours
 
-#### **Task 1.3: Validate Docker Compose Service Communication**
-- **Objective**: Ensure all services can communicate within Docker network
-- **Steps**:
-  1. Test DNS → Redis communication
-  2. Test API → PostgreSQL communication
-  3. Test API → Redis communication
-  4. Test EdgeHub → Redis communication
-  5. Verify network connectivity between all services
-- **Acceptance Criteria**: All service-to-service calls succeed
-- **Estimated Time**: 3 hours
+- [ ] **Task 1.3: Validate Docker Compose Service Communication**
+  - **Objective**: Ensure all services can communicate within Docker network
+  - **Steps**:
+    1. Test DNS → Redis communication
+    2. Test API → PostgreSQL communication
+    3. Test API → Redis communication
+    4. Test EdgeHub → Redis communication
+    5. Verify network connectivity between all services
+  - **Acceptance Criteria**: All service-to-service calls succeed
+  - **Estimated Time**: 3 hours
 
 ### **Phase 2: Integration Test Infrastructure** (Priority 2)
 
-#### **Task 2.1: Create Robust Test Harness**
-- **Objective**: Replace individual testcontainers with shared infrastructure
-- **Steps**:
-  1. Create `tests/integration/harness.rs` with shared Redis/PostgreSQL setup
-  2. Implement `IntegrationTestHarness` struct with setup/teardown
-  3. Add connection pooling for test databases
-  4. Create test data seeding utilities
-  5. Add health check utilities for all services
-- **Acceptance Criteria**: Single Redis/PostgreSQL instance per test suite
-- **Estimated Time**: 8 hours
+- [ ] **Task 2.1: Create Robust Test Harness**
+  - **Objective**: Replace individual testcontainers with shared infrastructure
+  - **Steps**:
+    1. Create `tests/integration/harness.rs` with shared Redis/PostgreSQL setup
+    2. Implement `IntegrationTestHarness` struct with setup/teardown
+    3. Add connection pooling for test databases
+    4. Create test data seeding utilities
+    5. Add health check utilities for all services
+  - **Acceptance Criteria**: Single Redis/PostgreSQL instance per test suite
+  - **Estimated Time**: 8 hours
 
-#### **Task 2.2: Add Service Communication Tests**
-- **Objective**: Test all critical service-to-service call paths
-- **Steps**:
-  1. **DNS → Redis Test**: Verify slot lookup functionality
-  2. **API → PostgreSQL Test**: Verify slot CRUD operations
-  3. **API → Redis Test**: Verify caching functionality
-  4. **EdgeHub → Redis Test**: Verify tunnel tracking
-  5. **EdgeHub → DNS Test**: Verify tunnel DNS registration
-- **Acceptance Criteria**: All service communication tests pass
-- **Estimated Time**: 6 hours
+- [ ] **Task 2.2: Add Service Communication Tests**
+  - **Objective**: Test all critical service-to-service call paths
+  - **Steps**:
+    1. **DNS → Redis Test**: Verify slot lookup functionality
+    2. **API → PostgreSQL Test**: Verify slot CRUD operations
+    3. **API → Redis Test**: Verify caching functionality
+    4. **EdgeHub → Redis Test**: Verify tunnel tracking
+    5. **EdgeHub → DNS Test**: Verify tunnel DNS registration
+  - **Acceptance Criteria**: All service communication tests pass
+  - **Estimated Time**: 6 hours
 
-#### **Task 2.3: Add End-to-End Flow Tests**
-- **Objective**: Test complete user workflows
-- **Steps**:
-  1. **Slot Creation Flow**: API → DB → Redis → DNS resolution
-  2. **Tunnel Creation Flow**: SSH → EdgeHub → Redis → DNS registration
-  3. **DNS Resolution Flow**: Query → DNS → Redis → Response
-  4. **Slot Management Flow**: API → DB → Redis → API response
-- **Acceptance Criteria**: Complete user workflows function end-to-end
-- **Estimated Time**: 8 hours
+- [ ] **Task 2.3: Add End-to-End Flow Tests**
+  - **Objective**: Test complete user workflows
+  - **Steps**:
+    1. **Slot Creation Flow**: API → DB → Redis → DNS resolution
+    2. **Tunnel Creation Flow**: SSH → EdgeHub → Redis → DNS registration
+    3. **DNS Resolution Flow**: Query → DNS → Redis → Response
+    4. **Slot Management Flow**: API → DB → Redis → API response
+  - **Acceptance Criteria**: Complete user workflows function end-to-end
+  - **Estimated Time**: 8 hours
 
 ### **Phase 3: Missing Call Point Integration Tests** (Priority 3)
 
-#### **Task 3.1: API Service Integration Tests**
-- **Objective**: Add comprehensive API integration testing
-- **Missing Tests**:
-  1. **Authentication Flow**: OAuth → JWT → API access
-  2. **Slot CRUD Operations**: Create, read, update, delete slots
-  3. **Rate Limiting**: Test API rate limiting functionality
-  4. **Error Handling**: Test API error responses and logging
-  5. **Database Operations**: Test all PostgreSQL interactions
-- **Acceptance Criteria**: All API endpoints tested with real database
-- **Estimated Time**: 10 hours
+- [ ] **Task 3.1: API Service Integration Tests**
+  - **Objective**: Add comprehensive API integration testing
+  - **Missing Tests**:
+    1. **Authentication Flow**: OAuth → JWT → API access
+    2. **Slot CRUD Operations**: Create, read, update, delete slots
+    3. **Rate Limiting**: Test API rate limiting functionality
+    4. **Error Handling**: Test API error responses and logging
+    5. **Database Operations**: Test all PostgreSQL interactions
+  - **Acceptance Criteria**: All API endpoints tested with real database
+  - **Estimated Time**: 10 hours
 
-#### **Task 3.2: DNS Service Integration Tests**
-- **Objective**: Add comprehensive DNS integration testing
-- **Missing Tests**:
-  1. **UDP Response Delivery**: Test actual DNS response sending
-  2. **Cache Integration**: Test DNS caching with Redis
-  3. **DNSSEC Integration**: Test DNSSEC signing and validation
-  4. **Performance Testing**: Test DNS query performance under load
-  5. **Error Scenarios**: Test DNS error handling and logging
-- **Acceptance Criteria**: DNS service fully tested with real clients
-- **Estimated Time**: 8 hours
+- [ ] **Task 3.2: DNS Service Integration Tests**
+  - **Objective**: Add comprehensive DNS integration testing
+  - **Missing Tests**:
+    1. **UDP Response Delivery**: Test actual DNS response sending
+    2. **Cache Integration**: Test DNS caching with Redis
+    3. **DNSSEC Integration**: Test DNSSEC signing and validation
+    4. **Performance Testing**: Test DNS query performance under load
+    5. **Error Scenarios**: Test DNS error handling and logging
+  - **Acceptance Criteria**: DNS service fully tested with real clients
+  - **Estimated Time**: 8 hours
 
-#### **Task 3.3: EdgeHub Integration Tests**
-- **Objective**: Add comprehensive tunnel integration testing
-- **Missing Tests**:
-  1. **SSH Tunnel Creation**: Test actual SSH tunnel establishment
-  2. **TLS Connection Handling**: Test TLS termination and routing
-  3. **Certificate Management**: Test certificate validation and issuance
-  4. **Tunnel Lifecycle**: Test tunnel creation, maintenance, cleanup
-  5. **Load Testing**: Test multiple concurrent tunnels
-- **Acceptance Criteria**: Tunnel functionality fully tested
-- **Estimated Time**: 12 hours
+- [ ] **Task 3.3: EdgeHub Integration Tests**
+  - **Objective**: Add comprehensive tunnel integration testing
+  - **Missing Tests**:
+    1. **SSH Tunnel Creation**: Test actual SSH tunnel establishment
+    2. **TLS Connection Handling**: Test TLS termination and routing
+    3. **Certificate Management**: Test certificate validation and issuance
+    4. **Tunnel Lifecycle**: Test tunnel creation, maintenance, cleanup
+    5. **Load Testing**: Test multiple concurrent tunnels
+  - **Acceptance Criteria**: Tunnel functionality fully tested
+  - **Estimated Time**: 12 hours
 
-#### **Task 3.4: Database Integration Tests**
-- **Objective**: Add comprehensive database integration testing
-- **Missing Tests**:
-  1. **Connection Pooling**: Test database connection management
-  2. **Transaction Handling**: Test database transaction integrity
-  3. **Migration Testing**: Test database schema migrations
-  4. **Performance Testing**: Test database query performance
-  5. **Error Recovery**: Test database error handling and recovery
-- **Acceptance Criteria**: Database operations fully tested
-- **Estimated Time**: 6 hours
+- [ ] **Task 3.4: Database Integration Tests**
+  - **Objective**: Add comprehensive database integration testing
+  - **Missing Tests**:
+    1. **Connection Pooling**: Test database connection management
+    2. **Transaction Handling**: Test database transaction integrity
+    3. **Migration Testing**: Test database schema migrations
+    4. **Performance Testing**: Test database query performance
+    5. **Error Recovery**: Test database error handling and recovery
+  - **Acceptance Criteria**: Database operations fully tested
+  - **Estimated Time**: 6 hours
 
 ### **Phase 4: Telemetry Integration Tests** (Priority 4)
 
-#### **Task 4.1: Metrics Collection Tests**
-- **Objective**: Verify all telemetry call points work
-- **Steps**:
-  1. Test metrics export to Otel-Collector
-  2. Verify Prometheus metrics collection
-  3. Test custom metrics creation and export
-  4. Verify metrics aggregation and storage
-- **Acceptance Criteria**: All metrics properly collected and stored
-- **Estimated Time**: 4 hours
+- [ ] **Task 4.1: Metrics Collection Tests**
+  - **Objective**: Verify all telemetry call points work
+  - **Steps**:
+    1. Test metrics export to Otel-Collector
+    2. Verify Prometheus metrics collection
+    3. Test custom metrics creation and export
+    4. Verify metrics aggregation and storage
+  - **Acceptance Criteria**: All metrics properly collected and stored
+  - **Estimated Time**: 4 hours
 
-#### **Task 4.2: Logging Integration Tests**
-- **Objective**: Verify structured logging works
-- **Steps**:
-  1. Test log aggregation to Loki
-  2. Verify structured log format
-  3. Test log level configuration
-  4. Verify log correlation across services
-- **Acceptance Criteria**: All logs properly aggregated and searchable
-- **Estimated Time**: 3 hours
+- [ ] **Task 4.2: Logging Integration Tests**
+  - **Objective**: Verify structured logging works
+  - **Steps**:
+    1. Test log aggregation to Loki
+    2. Verify structured log format
+    3. Test log level configuration
+    4. Verify log correlation across services
+  - **Acceptance Criteria**: All logs properly aggregated and searchable
+  - **Estimated Time**: 3 hours
 
-#### **Task 4.3: Distributed Tracing Tests**
-- **Objective**: Implement and test distributed tracing
-- **Steps**:
-  1. Add trace propagation across services
-  2. Test trace correlation in Otel-Collector
-  3. Verify trace visualization in Grafana
-  4. Test trace sampling and filtering
-- **Acceptance Criteria**: End-to-end traces visible and correlated
-- **Estimated Time**: 6 hours
+- [ ] **Task 4.3: Distributed Tracing Tests**
+  - **Objective**: Implement and test distributed tracing
+  - **Steps**:
+    1. Add trace propagation across services
+    2. Test trace correlation in Otel-Collector
+    3. Verify trace visualization in Grafana
+    4. Test trace sampling and filtering
+  - **Acceptance Criteria**: End-to-end traces visible and correlated
+  - **Estimated Time**: 6 hours
 
 ### **Phase 5: Performance and Load Testing** (Priority 5)
 
-#### **Task 5.1: Load Testing Infrastructure**
-- **Objective**: Create load testing framework
-- **Steps**:
-  1. Create load testing utilities
-  2. Add performance benchmarks
-  3. Test system under various load conditions
-  4. Measure and document performance characteristics
-- **Acceptance Criteria**: System performance documented and tested
-- **Estimated Time**: 8 hours
+- [ ] **Task 5.1: Load Testing Infrastructure**
+  - **Objective**: Create load testing framework
+  - **Steps**:
+    1. Create load testing utilities
+    2. Add performance benchmarks
+    3. Test system under various load conditions
+    4. Measure and document performance characteristics
+  - **Acceptance Criteria**: System performance documented and tested
+  - **Estimated Time**: 8 hours
 
-#### **Task 5.2: Stress Testing**
-- **Objective**: Test system under stress conditions
-- **Steps**:
-  1. Test high concurrent DNS queries
-  2. Test multiple tunnel creation/deletion
-  3. Test database connection limits
-  4. Test memory and CPU limits
-- **Acceptance Criteria**: System remains stable under stress
-- **Estimated Time**: 6 hours
+- [ ] **Task 5.2: Stress Testing**
+  - **Objective**: Test system under stress conditions
+  - **Steps**:
+    1. Test high concurrent DNS queries
+    2. Test multiple tunnel creation/deletion
+    3. Test database connection limits
+    4. Test memory and CPU limits
+  - **Acceptance Criteria**: System remains stable under stress
+  - **Estimated Time**: 6 hours
 
 ## **Integration Test Infrastructure Requirements**
 
@@ -607,4 +607,292 @@ slot:test.fdns.run -> 127.0.0.1
 - ✅ Redis: Running (port 6379)
 - ✅ EdgeHub: Running (port 2222)
 - ❌ API service: Failed to start
-- ❌ DNS client queries: Timeout 
+- ❌ DNS client queries: Timeout
+
+## Tunnel End-to-End Journey Specification
+
+### **Critical Missing Functionality: Tunnel Testing**
+
+The FleetingDNS system **cannot be considered functional** without proven tunnel end-to-end journey. This is the core value proposition - creating tunnels that allow external access to local services.
+
+### **Test FastAPI Service Requirements**
+```python
+# test-service/main.py
+from fastapi import FastAPI
+from pydantic import BaseModel
+import uvicorn
+from datetime import datetime
+import uuid
+
+app = FastAPI(title="FleetingDNS Test Service")
+
+class TestResponse(BaseModel):
+    message: str
+    timestamp: str
+    tunnel_id: str
+    request_id: str
+
+@app.get("/")
+async def root():
+    return {"status": "ok", "service": "fleetingdns-test"}
+
+@app.get("/api/test")
+async def test_endpoint():
+    return TestResponse(
+        message="Hello from FleetingDNS tunnel!",
+        timestamp=datetime.utcnow().isoformat(),
+        tunnel_id="test-tunnel-123",
+        request_id=str(uuid.uuid4())
+    )
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy"}
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+```
+
+### **Tunnel Journey Call Points**
+| Call Point | Service | Operation | Telemetry | Status |
+|------------|---------|-----------|-----------|---------|
+| **T-1** | CLI | SSH key generation | Key generation metrics | ❌ Missing |
+| **T-2** | CLI | Tunnel creation request | API call metrics | ❌ Missing |
+| **T-3** | API | Tunnel registration | Database metrics | ❌ Missing |
+| **T-4** | API | Certificate issuance | CA metrics | ❌ Missing |
+| **T-5** | EdgeHub | SSH connection acceptance | Connection metrics | ❌ Missing |
+| **T-6** | EdgeHub | Tunnel proxy setup | Proxy metrics | ❌ Missing |
+| **T-7** | EdgeHub | HTTP request forwarding | Forwarding metrics | ❌ Missing |
+| **T-8** | Test Service | HTTP request processing | Service metrics | ❌ Missing |
+| **T-9** | EdgeHub | HTTP response forwarding | Response metrics | ❌ Missing |
+| **T-10** | CLI | Tunnel cleanup | Cleanup metrics | ❌ Missing |
+
+### **Tunnel Integration Test Scenarios**
+1. **Basic Tunnel Creation**
+   - Generate SSH key pair
+   - Create tunnel via API
+   - Verify tunnel registration in database
+   - Test SSH connection to EdgeHub
+
+2. **HTTP Forwarding Test**
+   - Start local FastAPI service
+   - Create tunnel pointing to local service
+   - Make HTTP request through tunnel
+   - Verify response from local service
+
+3. **Tunnel Lifecycle Test**
+   - Create multiple tunnels
+   - Test concurrent tunnel operations
+   - Verify proper cleanup on tunnel deletion
+
+4. **Error Handling Test**
+   - Test tunnel creation with invalid parameters
+   - Test connection to non-existent local service
+   - Test EdgeHub connection failures
+
+### **Tunnel Sequence Diagram**
+```mermaid
+sequenceDiagram
+    participant CLI
+    participant API
+    participant EdgeHub
+    participant TestService
+    participant PostgreSQL
+    participant Redis
+    participant Otel-Collector
+
+    Note over CLI,TestService: TUNNEL END-TO-END JOURNEY
+    CLI->>CLI: Generate SSH key pair
+    Note right of CLI: ❌ Missing: Key generation metrics
+    CLI->>API: POST /api/v1/tunnels
+    Note right of API: ❌ BROKEN: API service not running
+    Note right of API: ❌ Missing: Tunnel creation metrics
+    API->>PostgreSQL: Store tunnel metadata
+    Note right of PostgreSQL: ❌ Missing: DB operation metrics
+    API->>API: Issue ephemeral certificate
+    Note right of API: ❌ Missing: Certificate metrics
+    API-->>CLI: Tunnel configuration
+    Note right of CLI: ❌ Missing: Configuration metrics
+
+    CLI->>EdgeHub: SSH connection with cert
+    Note right of EdgeHub: ❌ Missing: SSH auth metrics
+    EdgeHub->>EdgeHub: Validate certificate
+    Note right of EdgeHub: ❌ Missing: Cert validation metrics
+    EdgeHub->>Redis: Update tunnel status
+    Note right of Redis: ✅ Done: Redis operation metrics
+    EdgeHub-->>CLI: Tunnel established
+    Note right of CLI: ❌ Missing: Connection success metrics
+
+    Note over CLI,TestService: HTTP FORWARDING TEST
+    TestService->>TestService: Start FastAPI service
+    Note right of TestService: ❌ Missing: Service start metrics
+    CLI->>EdgeHub: HTTP request through tunnel
+    Note right of EdgeHub: ❌ Missing: HTTP forwarding metrics
+    EdgeHub->>TestService: Forward HTTP request
+    Note right of TestService: ❌ Missing: Request processing metrics
+    TestService-->>EdgeHub: HTTP response
+    Note right of EdgeHub: ❌ Missing: Response forwarding metrics
+    EdgeHub-->>CLI: HTTP response through tunnel
+    Note right of CLI: ❌ Missing: Response metrics
+
+    Note over CLI,TestService: CLEANUP
+    CLI->>API: DELETE /api/v1/tunnels/{id}
+    Note right of API: ❌ BROKEN: API service not running
+    API->>PostgreSQL: Remove tunnel metadata
+    Note right of PostgreSQL: ❌ Missing: Cleanup metrics
+    API->>Redis: Remove tunnel status
+    Note right of Redis: ✅ Done: Redis cleanup metrics
+
+    Note over Otel-Collector,Otel-Collector: MONITORING
+    CLI->>Otel-Collector: Export CLI metrics
+    Note right of Otel-Collector: ❌ Missing: CLI telemetry
+    API->>Otel-Collector: Export API metrics
+    Note right of Otel-Collector: ❌ Missing: API service down
+    EdgeHub->>Otel-Collector: Export tunnel metrics
+    Note right of Otel-Collector: ✅ Done: Basic tunnel metrics
+    TestService->>Otel-Collector: Export service metrics
+    Note right of Otel-Collector: ❌ Missing: Test service telemetry
+```
+
+## **Enhanced Integration Test Recovery Plan**
+
+### **Phase 1: Critical Infrastructure Fixes**
+- [ ] **Task 1.1**: Fix API service SSL library dependency
+- [ ] **Task 1.2**: Fix DNS response delivery issue
+- [ ] **Task 1.3**: Verify all Docker Compose services start
+- [ ] **Task 1.4**: Test basic inter-service communication
+
+### **Phase 2: Grafana Dashboard Foundation**
+- [ ] **Task 2.1**: Set up Grafana with Prometheus and Loki data sources
+- [ ] **Task 2.2**: Create service health dashboard (DNS, API, EdgeHub, Redis)
+- [ ] **Task 2.3**: Create telemetry metrics dashboard (request rates, response times)
+- [ ] **Task 2.4**: Create log aggregation dashboard with Loki
+- [ ] **Task 2.5**: Create alerting rules for critical service failures
+
+### **Phase 3: Robust Test Harness Creation**
+- [ ] **Task 3.1**: Create shared infrastructure test harness
+- [ ] **Task 3.2**: Implement Redis/PostgreSQL test containers
+- [ ] **Task 3.3**: Add health check verification
+- [ ] **Task 3.4**: Create service lifecycle management
+
+### **Phase 4: Missing Call Point Integration Tests**
+- [ ] **Task 4.1**: API → PostgreSQL communication tests
+- [ ] **Task 4.2**: DNS → Redis communication tests
+- [ ] **Task 4.3**: EdgeHub → Redis communication tests
+- [ ] **Task 4.4**: Inter-service authentication tests
+
+### **Phase 5: Telemetry Integration Tests**
+- [ ] **Task 5.1**: Verify metrics collection from all services
+- [ ] **Task 5.2**: Test log aggregation and correlation
+- [ ] **Task 5.3**: Validate distributed tracing
+- [ ] **Task 5.4**: Test alerting and monitoring dashboards
+
+### **Phase 6: Tunnel End-to-End Journey Testing**
+- [ ] **Task 6.1**: Create simple Python FastAPI test service
+- [ ] **Task 6.2**: Implement SSH key generation and management
+- [ ] **Task 6.3**: Test tunnel creation and registration
+- [ ] **Task 6.4**: Verify tunnel routing and HTTP forwarding
+- [ ] **Task 6.5**: Test end-to-end HTTP request through tunnel
+- [ ] **Task 6.6**: Create tunnel-specific Grafana dashboard
+
+### **Phase 7: Performance and Load Testing**
+- [ ] **Task 7.1**: Load test DNS service with concurrent queries
+- [ ] **Task 7.2**: Stress test Redis connection pool under load
+- [ ] **Task 7.3**: Performance test tunnel creation and management
+- [ ] **Task 7.4**: End-to-end latency measurement
+- [ ] **Task 7.5**: Resource usage monitoring under load
+- [ ] **Task 7.6**: Create performance monitoring dashboard
+
+## **Grafana Dashboard Specifications**
+
+### **Dashboard 1: Service Health Overview**
+**Purpose**: Real-time service status and health monitoring
+**Panels**:
+- [ ] Service status indicators (DNS, API, EdgeHub, Redis, PostgreSQL)
+- [ ] Service uptime and restart counts
+- [ ] Container resource usage (CPU, Memory, Network)
+- [ ] Service response time trends
+- [ ] Error rate indicators
+- [ ] Health check status
+
+### **Dashboard 2: Telemetry Metrics**
+**Purpose**: Comprehensive metrics collection and visualization
+**Panels**:
+- [ ] DNS query rates and response times
+- [ ] Redis operation rates and latency
+- [ ] API request rates and response times
+- [ ] EdgeHub tunnel connection counts
+- [ ] Certificate issuance rates
+- [ ] Database operation metrics
+
+### **Dashboard 3: Log Aggregation**
+**Purpose**: Centralized log viewing and correlation
+**Panels**:
+- [ ] Service log streams (DNS, API, EdgeHub)
+- [ ] Error log filtering and alerting
+- [ ] Request correlation across services
+- [ ] Audit log visualization
+- [ ] Security event monitoring
+
+### **Dashboard 4: Tunnel Operations**
+**Purpose**: Tunnel-specific monitoring and metrics
+**Panels**:
+- [ ] Active tunnel count and status
+- [ ] Tunnel creation/deletion rates
+- [ ] SSH connection success/failure rates
+- [ ] HTTP forwarding metrics
+- [ ] Tunnel bandwidth usage
+- [ ] Certificate validation metrics
+
+### **Dashboard 5: Performance Monitoring**
+**Purpose**: Load testing and performance analysis
+**Panels**:
+- [ ] Concurrent request handling
+- [ ] Response time percentiles
+- [ ] Resource utilization under load
+- [ ] Throughput metrics
+- [ ] Bottleneck identification
+- [ ] Capacity planning indicators
+
+### **Alerting Rules**
+- [ ] Service down alerts (5-minute threshold)
+- [ ] High error rate alerts (>5% error rate)
+- [ ] High response time alerts (>2s average)
+- [ ] Certificate expiration warnings
+- [ ] Tunnel connection failures
+- [ ] Database connection issues
+
+## **Acceptance Criteria Verification**
+
+### **Unit Tests**
+- [ ] All existing unit tests pass (294 tests)
+- [ ] No clippy warnings
+- [ ] No compilation errors
+- [ ] Test coverage remains above 65%
+
+### **Docker Compose Integration**
+- [ ] All services start successfully
+- [ ] Health checks pass for all services
+- [ ] Inter-service communication verified
+- [ ] No resource conflicts or port issues
+
+### **Call Path Verification**
+- [ ] DNS → Redis communication working
+- [ ] API → PostgreSQL communication working
+- [ ] EdgeHub → Redis communication working
+- [ ] All telemetry data flowing to monitoring stack
+
+### **Tunnel End-to-End Journey**
+- [ ] SSH key generation working
+- [ ] Tunnel creation via API working
+- [ ] EdgeHub SSH connection accepting
+- [ ] HTTP forwarding through tunnel working
+- [ ] Local FastAPI service responding through tunnel
+- [ ] Tunnel cleanup working properly
+
+### **Grafana Dashboard Verification**
+- [ ] All 5 dashboards operational
+- [ ] Data sources properly configured
+- [ ] Alerting rules functional
+- [ ] Real-time data flowing
+- [ ] Historical data retention working 
