@@ -13,8 +13,8 @@ use dnsd::redis_cache;
 #[command(name = "dnsd-bin")]
 #[command(about = "FleetingDNS DNS server")]
 struct Args {
-    /// Address to bind to (e.g., 127.0.0.1:5353 or 0.0.0.0:5353)
-    #[arg(long, default_value = "0.0.0.0:5353")]
+    /// Address to bind to (e.g., 127.0.0.1:6353 or 0.0.0.0:6353)
+    #[arg(long, default_value = "0.0.0.0:6353")]
     addr: SocketAddr,
 
     /// Path to control socket for graceful shutdown

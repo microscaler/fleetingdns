@@ -12,7 +12,7 @@ use dnsd::{self, Config, redis_cache};
 #[derive(Parser, Debug, Clone)]
 struct Args {
     /// Address to listen on.
-    #[arg(long, default_value = "0.0.0.0:5353")]
+    #[arg(long, default_value = "0.0.0.0:6353")]
     addr: SocketAddr,
 }
 

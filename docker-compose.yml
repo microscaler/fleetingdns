@@ -1,4 +1,4 @@
-version: "3.9"
+
 
 x-rust-build: &rust-build
   context: .
@@ -11,7 +11,7 @@ services:
       dockerfile: docker/Dockerfile.dnsd
     image: fleetingdns/dnsd:dev
     command: ["/app/dnsd-bin", "--addr", "0.0.0.0:53"]
-    ports: ["5353:53/udp"]
+    ports: ["6353:53/udp"]
     depends_on: [otel-collector]
 
   edgehub:

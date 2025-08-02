@@ -34,7 +34,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            addr: "0.0.0.0:5353".parse().unwrap(),
+            addr: "0.0.0.0:6353".parse().unwrap(),
             redis_pool: {
                 let manager =
                     bb8_redis::RedisConnectionManager::new("redis://localhost:6379").unwrap();
