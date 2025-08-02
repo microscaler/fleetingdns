@@ -83,6 +83,13 @@ services:
       - REDIS_URL=redis://redis:6379
       - RUST_LOG=info
       - API_BIND_ADDRESS=0.0.0.0:8080
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - SERVICE_NAME=api
+      - SERVICE_VERSION=0.1.0
+      - ENVIRONMENT=development
+      - TELEMETRY_TRACING_ENABLED=true
+      - TELEMETRY_METRICS_ENABLED=true
+      - TELEMETRY_LOGGING_ENABLED=true
     depends_on: [postgres, redis, otel-collector]
 
   redis:
