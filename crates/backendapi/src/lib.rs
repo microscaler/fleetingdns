@@ -50,9 +50,6 @@ pub async fn run() -> ApiResult<()> {
 
 /// Run the API server with custom configuration
 pub async fn run_with_config(config: ApiConfig) -> ApiResult<()> {
-    // Initialize tracing
-    tracing_subscriber::fmt::init();
-
     info!("Starting FleetingDNS API server on {}", config.bind_address);
 
     // Initialize certificate authority
@@ -111,8 +108,8 @@ fn create_router(state: ApiState) -> Router {
         .route("/v1/auth/token", post(handlers::auth::exchange_token))
         // Tunnel management endpoints
         .route("/v1/tunnels", post(handlers::tunnels::create_tunnel))
-        .route("/v1/tunnels/:id", get(handlers::tunnels::get_tunnel))
-        .route("/v1/tunnels/:id", delete(handlers::tunnels::delete_tunnel))
+        .route("/v1/tunnels/{id}", get(handlers::tunnels::get_tunnel))
+        .route("/v1/tunnels/{id}", delete(handlers::tunnels::delete_tunnel))
         .route("/v1/tunnels", get(handlers::tunnels::list_tunnels))
         // Certificate management
         .route(
@@ -120,7 +117,7 @@ fn create_router(state: ApiState) -> Router {
             post(handlers::certificates::issue_certificate),
         )
         .route(
-            "/v1/certificates/:serial",
+            "/v1/certificates/{serial}",
             get(handlers::certificates::get_certificate),
         )
         // Statistics and monitoring
@@ -144,19 +141,19 @@ fn create_router(state: ApiState) -> Router {
             get(handlers::admin::list_service_plans),
         )
         .route(
-            "/admin/service-plans/:id",
+            "/admin/service-plans/{id}",
             get(handlers::admin::get_service_plan),
         )
         .route(
-            "/admin/service-plans/:id",
+            "/admin/service-plans/{id}",
             put(handlers::admin::update_service_plan),
         )
         .route(
-            "/admin/service-plans/:id",
+            "/admin/service-plans/{id}",
             delete(handlers::admin::delete_service_plan),
         )
         .route(
-            "/admin/users/:user_id/service-plan",
+            "/admin/users/{user_id}/service-plan",
             post(handlers::admin::assign_service_plan_to_user),
         )
         // User-facing ServicePlan endpoints
