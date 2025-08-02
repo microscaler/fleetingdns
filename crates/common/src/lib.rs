@@ -14,6 +14,7 @@ pub mod config;
 pub mod ddos_protection;
 pub mod metrics;
 pub mod shutdown;
+pub mod telemetry;
 pub mod tls;
 
 // Re-export metrics for convenience

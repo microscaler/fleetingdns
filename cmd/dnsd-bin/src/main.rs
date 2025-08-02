@@ -28,9 +28,18 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> common::AppResult<()> {
-    init_tracing("dnsd").map_err(|e| common::AppError::Message(e.to_string()))?;
-    init_metrics();
     let args = Args::parse();
+    
+    // Initialize comprehensive telemetry
+    let telemetry_config = common::telemetry::TelemetryConfig {
+        service_name: "dnsd".to_string(),
+        service_version: "0.1.0".to_string(),
+        environment: std::env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string()),
+        ..Default::default()
+    };
+    
+    common::telemetry::init_telemetry(telemetry_config)
+        .map_err(|e| common::AppError::Message(format!("Failed to initialize telemetry: {}", e)))?;
 
     // Initialize graceful shutdown framework
     let mut shutdown = if let Some(socket_path) = args.control_socket {

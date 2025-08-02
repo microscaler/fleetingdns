@@ -21,6 +21,13 @@ services:
       - DNS_CACHE_TTL=300
       - DNS_MAX_CACHE_SIZE=5000
       - RUST_LOG=info
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - SERVICE_NAME=dnsd
+      - SERVICE_VERSION=0.1.0
+      - ENVIRONMENT=development
+      - TELEMETRY_TRACING_ENABLED=true
+      - TELEMETRY_METRICS_ENABLED=true
+      - TELEMETRY_LOGGING_ENABLED=true
     depends_on: [redis, otel-collector]
 
   edgehub:
