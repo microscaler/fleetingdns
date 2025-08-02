@@ -7,10 +7,14 @@ use thiserror::Error;
 use tracing::info;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
+pub mod batch_audit_logger;
+pub mod batch_metrics_collector;
 pub mod cert_manager;
+pub mod config;
 pub mod ddos_protection;
 pub mod metrics;
 pub mod shutdown;
+pub mod telemetry;
 pub mod tls;
 
 // Re-export metrics for convenience

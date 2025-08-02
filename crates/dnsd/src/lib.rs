@@ -12,6 +12,7 @@ pub mod redis_cache;
 pub mod redis_cluster;
 pub mod redis_performance;
 pub mod redis_sentinel;
+pub mod response_compression;
 pub mod sign;
 
 /// Configuration for the DNS server.
@@ -32,15 +33,17 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
+        let config = common::config::FleetingDnsConfig::from_env();
+        let redis_url = config.redis.url.clone();
+        
         Self {
-            addr: "0.0.0.0:5353".parse().unwrap(),
+            addr: config.dns_addr().unwrap_or_else(|_| "0.0.0.0:6353".parse().unwrap()),
             redis_pool: {
-                let manager =
-                    bb8_redis::RedisConnectionManager::new("redis://localhost:6379").unwrap();
+                let manager = bb8_redis::RedisConnectionManager::new(redis_url).unwrap();
                 bb8::Pool::builder().build_unchecked(manager)
             },
             ddos_config: common::ddos_protection::DdosConfig::default(),
-            enable_ddos_protection: false,
+            enable_ddos_protection: config.dns.enable_ddos_protection,
             dnssec_config: sign::DnssecConfig::default(),
             performance_config: PerformanceConfig::default(),
         }
@@ -76,11 +79,19 @@ pub async fn serve(cfg: Config) -> AppResult<()> {
             result = socket.recv_from(&mut buf) => {
                 match result {
                     Ok((len, peer)) => {
+                        info!("Received DNS packet from {}: {} bytes", peer, len);
                         // Use unified DNS handler
-                        if let Ok(resp) = dns_handler.handle_packet(&buf[..len], &cfg.redis_pool).await
-                            && let Err(e) = socket.send_to(&resp, peer).await {
-                                error!("Failed to send response to {}: {}", peer, e);
+                        match dns_handler.handle_packet(&buf[..len], &cfg.redis_pool).await {
+                            Ok(resp) => {
+                                info!("Sending DNS response to {}: {} bytes", peer, resp.len());
+                                if let Err(e) = socket.send_to(&resp, peer).await {
+                                    error!("Failed to send response to {}: {}", peer, e);
+                                }
                             }
+                            Err(e) => {
+                                error!("Failed to handle DNS packet: {}", e);
+                            }
+                        }
                     }
                     Err(e) => {
                         error!("Failed to receive packet: {}", e);
@@ -124,10 +135,16 @@ pub async fn serve_with_shutdown(cfg: Config, shutdown: GracefulShutdown) -> App
                 match result {
                     Ok((len, peer)) => {
                         // Use unified DNS handler
-                        if let Ok(resp) = dns_handler.handle_packet(&buf[..len], &cfg.redis_pool).await
-                            && let Err(e) = socket.send_to(&resp, peer).await {
-                                error!("Failed to send response to {}: {}", peer, e);
+                        match dns_handler.handle_packet(&buf[..len], &cfg.redis_pool).await {
+                            Ok(resp) => {
+                                if let Err(e) = socket.send_to(&resp, peer).await {
+                                    error!("Failed to send response to {}: {}", peer, e);
+                                }
                             }
+                            Err(e) => {
+                                error!("Failed to handle DNS packet: {}", e);
+                            }
+                        }
                     }
                     Err(e) => {
                         error!("Failed to receive packet: {}", e);
@@ -235,11 +252,12 @@ mod dot {
         addr: std::net::SocketAddr,
         cfg: ServerConfig,
         pool: redis_cache::RedisPool,
-        mut shutdown_rx: super::broadcast::Receiver<super::ShutdownSignal>,
+        mut shutdown_rx: super::broadcast::Receiver<common::shutdown::ShutdownSignal>,
     ) -> AppResult<()> {
         let listener = TcpListener::bind(addr).await?;
         info!(addr=%listener.local_addr()?, "DoT server listening with graceful shutdown support");
         let acceptor = TlsAcceptor::from(Arc::new(cfg));
+        let dns_handler = dns_handler::DnsHandler::new(dns_handler::PerformanceConfig::default());
 
         loop {
             tokio::select! {
@@ -261,7 +279,7 @@ mod dot {
                                         if tls.read_exact(&mut buf).await.is_err() {
                                             break;
                                         }
-                                        if let Ok(resp) = super::udp::handle_packet(&buf, &pool).await {
+                                        if let Ok(resp) = dns_handler.handle_packet(&buf, &pool).await {
                                             let resp_len = (resp.len() as u16).to_be_bytes();
                                             if tls.write_all(&resp_len).await.is_err() {
                                                 break;

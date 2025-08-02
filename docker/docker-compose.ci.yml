@@ -1,17 +1,58 @@
-version: "3.9"
-
 services:
+  # Core FleetingDNS services - inherit from main compose file and override only what's needed for CI
+  dnsd:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dnsd
+      target: runtime
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - RUST_LOG=info
+
+  edgehub:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.edgehub  
+      target: runtime
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - RUST_LOG=info
+
+  intake_collector:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.intake_collector
+      target: runtime
+
+  ml_scorer:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ml_scorer
+      target: runtime
+
+  feed_grpc:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.feed_grpc
+      target: runtime
+
+  feed_webhook:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.feed_webhook
+      target: runtime
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+      target: runtime
+    environment:
+      - DATABASE_URL=postgresql://fdns:fdns@postgres:5432/fdns
+      - REDIS_URL=redis://redis:6379
+      - RUST_LOG=info
+
+  # CI overrides for otel-collector to use CI-specific config
   otel-collector:
     volumes:
-      - ./otel-collector-config.ci.yaml:/etc/otel/config.yaml:ro
-
-  grafana:
-    depends_on:
-      - prometheus
-
-  loki:
-    profiles: ["ci-omit"]
-  promtail:
-    profiles: ["ci-omit"]
-  mimir:
-    profiles: ["ci-omit"]
+      - ./docker/otel-collector-config.ci.yaml:/etc/otel/config.yaml:ro

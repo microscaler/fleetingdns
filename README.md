@@ -317,7 +317,7 @@ This repository includes a minimal DNS daemon for local testing. Start it with:
 cargo run -p dnsd-bin
 ```
 
-The service binds to `0.0.0.0:5353` by default and logs `dnsd listening` when ready.
+The service binds to `0.0.0.0:6353` by default and logs `dnsd listening` when ready.
 
 ### Prototype 0.1
 
@@ -325,7 +325,7 @@ Spin up the proof-of-concept in three quick commands:
 
 ```bash
 cargo run -p dnsd-bin
-dig @127.0.0.1 -p5353 test.fdns.run +short
+dig @127.0.0.1 -p6353 test.fdns.run +short
 ```
 
 If everything is running correctly, the final command prints `127.0.0.1`. A fresh machine should be able to run through the setup in under five minutes.

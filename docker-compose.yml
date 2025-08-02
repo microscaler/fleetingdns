@@ -1,4 +1,4 @@
-version: "3.9"
+
 
 x-rust-build: &rust-build
   context: .
@@ -10,16 +10,32 @@ services:
       <<: *rust-build
       dockerfile: docker/Dockerfile.dnsd
     image: fleetingdns/dnsd:dev
-    command: ["/app/dnsd-bin", "--addr", "0.0.0.0:53"]
-    ports: ["5353:53/udp"]
-    depends_on: [otel-collector]
+    command: ["--addr", "0.0.0.0:53"]
+    ports: ["6353:53/udp"]
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DNS_BIND_ADDR=0.0.0.0
+      - DNS_PORT=53
+      - DNS_ENABLE_DNSSEC=true
+      - DNS_ENABLE_DDOS_PROTECTION=true
+      - DNS_CACHE_TTL=300
+      - DNS_MAX_CACHE_SIZE=5000
+      - RUST_LOG=info
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - SERVICE_NAME=dnsd
+      - SERVICE_VERSION=0.1.0
+      - ENVIRONMENT=development
+      - TELEMETRY_TRACING_ENABLED=true
+      - TELEMETRY_METRICS_ENABLED=true
+      - TELEMETRY_LOGGING_ENABLED=true
+    depends_on: [redis, otel-collector]
 
   edgehub:
     build:
       <<: *rust-build
       dockerfile: docker/Dockerfile.edgehub
     image: fleetingdns/edgehub:dev
-    command: ["/app/edgehub-bin"]
+    command: []
     ports: ["2222:2222"]
     depends_on: [dnsd, otel-collector]
 
@@ -28,7 +44,7 @@ services:
       <<: *rust-build
       dockerfile: docker/Dockerfile.intake_collector
     image: fleetingdns/intake_collector:dev
-    command: ["/app/intake_collector-bin"]
+    command: []
     depends_on: [otel-collector]
 
   ml_scorer:
@@ -36,7 +52,7 @@ services:
       <<: *rust-build
       dockerfile: docker/Dockerfile.ml_scorer
     image: fleetingdns/ml_scorer:dev
-    command: ["/app/ml_scorer-bin"]
+    command: []
     depends_on: [otel-collector]
 
   feed_grpc:
@@ -44,7 +60,7 @@ services:
       <<: *rust-build
       dockerfile: docker/Dockerfile.feed_grpc
     image: fleetingdns/feed_grpc:dev
-    command: ["/app/feed_grpc-bin"]
+    command: []
     depends_on: [otel-collector]
 
   feed_webhook:
@@ -52,7 +68,7 @@ services:
       <<: *rust-build
       dockerfile: docker/Dockerfile.feed_webhook
     image: fleetingdns/feed_webhook:dev
-    command: ["/app/feed_webhook-bin"]
+    command: []
     depends_on: [otel-collector]
 
   api:
@@ -60,7 +76,7 @@ services:
       <<: *rust-build
       dockerfile: docker/Dockerfile.api
     image: fleetingdns/api:dev
-    command: ["/app/api-bin"]
+    command: []
     environment:
       - DATABASE_URL=postgresql://fdns:fdns@postgres:5432/fdns
       - REDIS_URL=redis://redis:6379

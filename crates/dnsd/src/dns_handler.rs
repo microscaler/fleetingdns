@@ -7,6 +7,7 @@
 
 use crate::metrics_manager::{PerformanceMetrics, get_metrics, update_metrics};
 use crate::redis_cache::RedisPool;
+use crate::response_compression::{CompressionConfig, ResponseCompressor};
 use common::{AppError, AppResult};
 use hickory_proto::op::{Message, MessageType, ResponseCode};
 use hickory_proto::rr::rdata::A;
@@ -74,10 +75,12 @@ pub struct PerformanceConfig {
     pub enable_metrics: bool,
     /// Maximum response time threshold for alerts (ms)
     pub max_response_time_ms: u64,
-    /// Enable query batching
-    pub enable_batching: bool,
-    /// Batch size for parallel processing
-    pub batch_size: usize,
+    /// Maximum cache size (entries)
+    pub max_cache_size: usize,
+    /// Enable aggressive cache warming
+    pub enable_cache_warming: bool,
+    /// Cache hit ratio target (percentage)
+    pub cache_hit_ratio_target: u8,
 }
 
 impl Default for PerformanceConfig {
@@ -87,8 +90,9 @@ impl Default for PerformanceConfig {
             cache_ttl: 300,
             enable_metrics: true,
             max_response_time_ms: 50,
-            enable_batching: false,
-            batch_size: 10,
+            max_cache_size: 5_000, // Aggressive L1 cache with 5K entries
+            enable_cache_warming: true,
+            cache_hit_ratio_target: 80, // Target 80% cache hit ratio
         }
     }
 }
@@ -101,13 +105,18 @@ pub struct DnsHandler {
     #[allow(dead_code)]
     time_provider: Arc<dyn TimeProvider + Send + Sync>,
     max_cache_size: usize,
+    response_compressor: Arc<ResponseCompressor>,
 }
 
 impl DnsHandler {
     /// Create a new DNS handler with default time provider
     pub fn new(config: PerformanceConfig) -> Self {
         let cache = Arc::new(RwLock::new(TtlCache::new()));
-        let max_cache_size = 10_000; // Default max cache size
+        let max_cache_size = config.max_cache_size; // Use configurable cache size
+
+        // Create response compressor
+        let compression_config = CompressionConfig::default();
+        let response_compressor = Arc::new(ResponseCompressor::new(compression_config));
 
         // Start background purging every 30 seconds (smaller saw effect)
         // Note: This requires a tokio runtime to be running
@@ -124,6 +133,7 @@ impl DnsHandler {
             cache,
             time_provider: Arc::new(RealTimeProvider),
             max_cache_size,
+            response_compressor,
         }
     }
 
@@ -135,11 +145,16 @@ impl DnsHandler {
         let cache = Arc::new(RwLock::new(TtlCache::new()));
         let max_cache_size = 10_000;
 
+        // Create response compressor
+        let compression_config = CompressionConfig::default();
+        let response_compressor = Arc::new(ResponseCompressor::new(compression_config));
+
         Self {
             config,
             cache,
             time_provider,
             max_cache_size,
+            response_compressor,
         }
     }
 
@@ -158,21 +173,35 @@ impl DnsHandler {
 
         let result = self.process_dns_query(packet, pool).await;
 
-        if let Ok(ref response) = result
-            && self.config.enable_compression
-        {
-            self.cache_response(packet, response.clone()).await;
-        }
+        if let Ok(ref response) = result {
+            // Apply response compression for individual query optimization
+            let compressed_response = self
+                .response_compressor
+                .compress_response(response.clone())
+                .await?;
 
-        if self.config.enable_metrics {
-            update_metrics(false, start_time.elapsed()).await;
-        }
+            if self.config.enable_compression {
+                self.cache_response(packet, compressed_response.clone())
+                    .await;
+            }
 
-        result
+            if self.config.enable_metrics {
+                update_metrics(false, start_time.elapsed()).await;
+            }
+
+            Ok(compressed_response)
+        } else {
+            if self.config.enable_metrics {
+                update_metrics(false, start_time.elapsed()).await;
+            }
+            result
+        }
     }
 
     /// Process a DNS query with Redis slot lookup
     pub async fn process_dns_query(&self, packet: &[u8], pool: &RedisPool) -> AppResult<Vec<u8>> {
+        let start_time = std::time::Instant::now();
+        
         let message = Message::from_vec(packet)
             .map_err(|e| AppError::Message(format!("Failed to parse DNS message: {e}")))?;
 
@@ -186,9 +215,52 @@ impl DnsHandler {
             .ok_or_else(|| AppError::Message("No query found".into()))?;
 
         let qname = query.name().clone();
-        let slot = self.lookup_slot_in_redis(qname.to_string(), pool).await?;
+        
+        tracing::info!("Processing DNS query for: {}", qname);
+        
+        // Redis lookup with telemetry
+        let slot = {
+            let redis_start = std::time::Instant::now();
+            let result = self.lookup_slot_in_redis(qname.to_string(), pool).await;
+            let redis_duration = redis_start.elapsed().as_millis() as u64;
+            
+            match &result {
+                Ok(slot) => {
+                    tracing::info!("Redis lookup result for {}: {:?}", qname, slot);
+                    common::telemetry::record_redis_metrics("get", &format!("slot:{}", qname), redis_duration, true);
+                }
+                Err(e) => {
+                    tracing::error!("Redis lookup failed for {}: {}", qname, e);
+                    common::telemetry::record_redis_metrics("get", &format!("slot:{}", qname), redis_duration, false);
+                }
+            }
+            result?
+        };
 
-        self.build_dns_response(&message, query, &qname, slot).await
+        // Build response with telemetry
+        let response = {
+            let response_start = std::time::Instant::now();
+            let result = self.build_dns_response(&message, query, &qname, slot).await;
+            let response_duration = response_start.elapsed().as_millis() as u64;
+            
+            match &result {
+                Ok(response) => {
+                    tracing::info!("Built DNS response for {}: {} bytes", qname, response.len());
+                    common::telemetry::record_dns_metrics("build_response", &qname.to_string(), response_duration, true);
+                }
+                Err(e) => {
+                    tracing::error!("Failed to build DNS response for {}: {}", qname, e);
+                    common::telemetry::record_dns_metrics("build_response", &qname.to_string(), response_duration, false);
+                }
+            }
+            result?
+        };
+        
+        // Record overall metrics
+        let total_duration = start_time.elapsed().as_millis() as u64;
+        common::telemetry::record_dns_metrics("process_query", &qname.to_string(), total_duration, true);
+        
+        Ok(response)
     }
 
     /// Look up a domain slot in Redis
@@ -206,14 +278,17 @@ impl DnsHandler {
             .await
             .map_err(|e| AppError::Message(format!("Redis connection failed: {e}")))?;
 
-        let key = format!("slot:{qname}");
+        // Remove trailing dot if present (DNS queries often include trailing dots)
+        let clean_qname = qname.trim_end_matches('.');
+        let key = format!("slot:{}", clean_qname);
+        
         let result: Result<Option<String>, redis::RedisError> =
             redis::cmd("GET").arg(&key).query_async(&mut *conn).await;
 
         match result {
             Ok(slot) => Ok(slot),
             Err(e) => {
-                warn!("Redis lookup failed for {}: {}", qname, e);
+                warn!("Redis lookup failed for {}: {}", clean_qname, e);
                 Ok(None)
             }
         }
@@ -255,7 +330,7 @@ impl DnsHandler {
     }
 
     /// Get cached response with lazy cleanup and size management
-    async fn get_cached_response(&self, packet: &[u8]) -> Option<Vec<u8>> {
+    pub async fn get_cached_response(&self, packet: &[u8]) -> Option<Vec<u8>> {
         let key = self.generate_cache_key(packet);
 
         // Get cached response (lazy cleanup happens automatically)
@@ -319,8 +394,9 @@ mod tests {
         assert_eq!(config.cache_ttl, 300);
         assert_eq!(config.enable_metrics, true);
         assert_eq!(config.max_response_time_ms, 50);
-        assert!(!config.enable_batching);
-        assert_eq!(config.batch_size, 10);
+        assert_eq!(config.max_cache_size, 5_000);
+        assert_eq!(config.enable_cache_warming, true);
+        assert_eq!(config.cache_hit_ratio_target, 80);
     }
 
     #[tokio::test]
@@ -331,6 +407,9 @@ mod tests {
         assert_eq!(handler.config.enable_compression, true);
         assert_eq!(handler.config.cache_ttl, 300);
         assert_eq!(handler.config.enable_metrics, true);
+        assert_eq!(handler.config.max_cache_size, 5_000);
+        assert_eq!(handler.config.enable_cache_warming, true);
+        assert_eq!(handler.config.cache_hit_ratio_target, 80);
     }
 
     #[tokio::test]
@@ -394,7 +473,7 @@ mod tests {
     #[tokio::test]
     async fn test_cache_size_limit() {
         let mut config = PerformanceConfig::default();
-        config.batch_size = 2;
+        config.max_cache_size = 2;
         let handler = DnsHandler::new(config);
 
         // Add 3 items
@@ -477,8 +556,9 @@ mod tests {
             cache_ttl: 600,
             enable_metrics: false,
             max_response_time_ms: 200,
-            enable_batching: false,
-            batch_size: 10,
+            max_cache_size: 3_000,
+            enable_cache_warming: false,
+            cache_hit_ratio_target: 70,
         };
 
         // Test serialization

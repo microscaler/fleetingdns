@@ -17,10 +17,10 @@ jobs:
       - name: Wait for services
         run: |
           for i in {1..10}; do
-            dig @127.0.0.1 -p5353 test.fdns.run +short | grep -q "127.0.0.1" && break
+            dig @127.0.0.1 -p6353 test.fdns.run +short | grep -q "127.0.0.1" && break
             sleep 5
           done
-          dig @127.0.0.1 -p5353 test.fdns.run +short | grep "127.0.0.1"
+          dig @127.0.0.1 -p6353 test.fdns.run +short | grep "127.0.0.1"
       - name: Grafana health check
         run: |
           for i in {1..10}; do

@@ -15,7 +15,7 @@ cargo run -p slot-setter demo 127.0.0.1 --ttl 60
 
 # Wait for dnsd to serve the slot
 for i in {1..10}; do
-    IP=$(dig @127.0.0.1 -p5353 demo.fdns.run +short || true)
+    IP=$(dig @127.0.0.1 -p6353 demo.fdns.run +short || true)
     if [[ "$IP" == "127.0.0.1" ]]; then
         break
     fi
