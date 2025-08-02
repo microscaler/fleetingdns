@@ -12,6 +12,7 @@ use tokio::sync::Mutex;
 use tracing::info;
 use uuid::Uuid;
 
+pub mod batch_operations;
 pub mod ca;
 pub mod certificate;
 pub mod errors;

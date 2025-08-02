@@ -7,6 +7,8 @@ use thiserror::Error;
 use tracing::info;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
+pub mod batch_audit_logger;
+pub mod batch_metrics_collector;
 pub mod cert_manager;
 pub mod ddos_protection;
 pub mod metrics;
