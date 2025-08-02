@@ -174,14 +174,21 @@ impl DnsHandler {
         let result = self.process_dns_query(packet, pool).await;
 
         if let Ok(ref response) = result {
-            // Apply response compression for individual query optimization
-            let compressed_response = self
-                .response_compressor
-                .compress_response(response.clone())
-                .await?;
+            // TEMPORARILY DISABLE COMPRESSION TO DEBUG
+            let final_response = if self.config.enable_compression {
+                match self.response_compressor.compress_response(response.clone()).await {
+                    Ok(compressed) => compressed,
+                    Err(e) => {
+                        warn!("Compression failed, using uncompressed response: {}", e);
+                        response.clone()
+                    }
+                }
+            } else {
+                response.clone()
+            };
 
             if self.config.enable_compression {
-                self.cache_response(packet, compressed_response.clone())
+                self.cache_response(packet, final_response.clone())
                     .await;
             }
 
@@ -189,7 +196,7 @@ impl DnsHandler {
                 update_metrics(false, start_time.elapsed()).await;
             }
 
-            Ok(compressed_response)
+            Ok(final_response)
         } else {
             if self.config.enable_metrics {
                 update_metrics(false, start_time.elapsed()).await;
