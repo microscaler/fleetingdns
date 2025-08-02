@@ -78,24 +78,139 @@ docker run --rm --network fleetingdns_default alpine sh -c "
 "
 
 echo ""
-echo "📋 Test 4: Interactive Shell"
-echo "----------------------------"
-echo "➡️  Starting interactive shell with DNS tools..."
-echo ""
-echo "You can now run DNS queries manually:"
-echo "  dig @dnsd -p 6353 test.fdns.run A"
-echo "  dig @dnsd -p 6353 app1.fdns.run A"
-echo "  nslookup test.fdns.run dnsd -port=6353"
-echo ""
-echo "Type 'exit' to quit"
+echo "📋 Test 4: Performance Test"
+echo "---------------------------"
+echo "➡️  Running 10 rapid DNS queries..."
 echo ""
 
-docker run --rm -it --network fleetingdns_default alpine sh -c "
+# Performance test with timing
+start_time=$(date +%s.%N)
+for i in {1..10}; do
+    docker run --rm --network fleetingdns_default alpine sh -c '
+        apk add --no-cache bind-tools > /dev/null 2>&1
+        dig @dnsd -p 6353 test.fdns.run A +short > /dev/null
+    ' 2>/dev/null
+    echo -n "."
+done
+end_time=$(date +%s.%N)
+duration=$(echo "$end_time - $start_time" | bc)
+echo ""
+echo "✅ Completed 10 queries in ${duration} seconds"
+
+# Generate test report
+REPORT_DIR="${REPORT_DIR:-./test-reports}"
+mkdir -p "$REPORT_DIR"
+REPORT_FILE="$REPORT_DIR/dns-integration-test-$(date +%Y%m%d-%H%M%S).json"
+
+# Actually track ALL test results
+TEST_STATUS="PASSED"
+
+# Test 1 result
+BASIC_QUERY_RESULT=$(docker run --rm --network fleetingdns_default alpine sh -c "
     apk add --no-cache bind-tools > /dev/null 2>&1
-    echo '🎯 Connected to FleetingDNS network. DNS server: dnsd:6353'
-    echo ''
-    /bin/sh
-"
+    dig @dnsd -p 6353 test.fdns.run A +short 2>/dev/null || echo 'FAILED'
+")
+BASIC_QUERY_STATUS=$([[ "$BASIC_QUERY_RESULT" == "192.168.1.100" ]] && echo "PASSED" || echo "FAILED")
+[[ "$BASIC_QUERY_STATUS" == "FAILED" ]] && TEST_STATUS="FAILED"
+
+# Test 2 results - check each domain
+MULTI_STATUS="PASSED"
+APP1_RESULT=$(docker run --rm --network fleetingdns_default alpine sh -c "
+    apk add --no-cache bind-tools > /dev/null 2>&1
+    dig @dnsd -p 6353 app1.fdns.run A +short 2>/dev/null || echo 'FAILED'
+")
+APP2_RESULT=$(docker run --rm --network fleetingdns_default alpine sh -c "
+    apk add --no-cache bind-tools > /dev/null 2>&1
+    dig @dnsd -p 6353 app2.fdns.run A +short 2>/dev/null || echo 'FAILED'
+")
+WEBHOOK_RESULT=$(docker run --rm --network fleetingdns_default alpine sh -c "
+    apk add --no-cache bind-tools > /dev/null 2>&1
+    dig @dnsd -p 6353 webhook.fdns.run A +short 2>/dev/null || echo 'FAILED'
+")
+[[ "$APP1_RESULT" != "10.0.0.1" || "$APP2_RESULT" != "10.0.0.2" || "$WEBHOOK_RESULT" != "172.16.0.50" ]] && MULTI_STATUS="FAILED" && TEST_STATUS="FAILED"
+
+# Test 3 result
+NONEXIST_RESULT=$(docker run --rm --network fleetingdns_default alpine sh -c "
+    apk add --no-cache bind-tools > /dev/null 2>&1
+    dig @dnsd -p 6353 nonexistent.fdns.run A +short 2>/dev/null || echo ''
+")
+NONEXIST_STATUS=$([[ -z "$NONEXIST_RESULT" ]] && echo "PASSED" || echo "FAILED")
+[[ "$NONEXIST_STATUS" == "FAILED" ]] && TEST_STATUS="FAILED"
+
+# Test 4 - performance
+PERF_COUNT=0
+PERF_SUCCESS=0
+for i in {1..10}; do
+    RESULT=$(docker run --rm --network fleetingdns_default alpine sh -c "
+        apk add --no-cache bind-tools > /dev/null 2>&1
+        dig @dnsd -p 6353 test.fdns.run A +short 2>/dev/null
+    " 2>/dev/null)
+    [[ "$RESULT" == "192.168.1.100" ]] && ((PERF_SUCCESS++))
+    ((PERF_COUNT++))
+done
+PERF_STATUS=$([[ $PERF_SUCCESS -eq $PERF_COUNT ]] && echo "PASSED" || echo "FAILED")
+[[ "$PERF_STATUS" == "FAILED" ]] && TEST_STATUS="FAILED"
+
+# Create JSON report with actual results
+cat > "$REPORT_FILE" << EOF
+{
+  "test_name": "FleetingDNS Integration Test",
+  "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "status": "$TEST_STATUS",
+  "duration_seconds": ${duration},
+  "tests": {
+    "basic_dns_query": {
+      "status": "$BASIC_QUERY_STATUS",
+      "domain": "test.fdns.run",
+      "expected_ip": "192.168.1.100",
+      "actual_ip": "$BASIC_QUERY_RESULT"
+    },
+    "multiple_domains": {
+      "status": "$MULTI_STATUS",
+      "domains_tested": {
+        "app1.fdns.run": {"expected": "10.0.0.1", "actual": "$APP1_RESULT"},
+        "app2.fdns.run": {"expected": "10.0.0.2", "actual": "$APP2_RESULT"},
+        "webhook.fdns.run": {"expected": "172.16.0.50", "actual": "$WEBHOOK_RESULT"}
+      }
+    },
+    "non_existent_domain": {
+      "status": "$NONEXIST_STATUS",
+      "domain": "nonexistent.fdns.run",
+      "expected_response": "empty",
+      "actual_response": "$NONEXIST_RESULT"
+    },
+    "performance": {
+      "status": "$PERF_STATUS",
+      "queries_count": $PERF_COUNT,
+      "successful_queries": $PERF_SUCCESS,
+      "total_duration_seconds": ${duration},
+      "avg_query_time_seconds": $(echo "scale=4; ${duration} / 10" | bc)
+    }
+  },
+  "environment": {
+    "docker_network": "fleetingdns_default",
+    "dns_port": 6353,
+    "redis_backend": true
+  }
+}
+EOF
 
 echo ""
-echo "✅ End-to-End DNS tests completed!"
+echo "📊 Test report written to: $REPORT_FILE"
+echo ""
+echo "✅ End-to-End DNS tests completed successfully!"
+echo ""
+
+# Exit with appropriate code based on test results
+if [ -f "$REPORT_FILE" ]; then
+    if [ "$TEST_STATUS" == "PASSED" ]; then
+        echo "✅ All tests passed!"
+        exit 0
+    else
+        echo "❌ Some tests failed! Check report: $REPORT_FILE"
+        exit 1
+    fi
+else
+    echo "❌ Failed to write test report"
+    exit 2
+fi
