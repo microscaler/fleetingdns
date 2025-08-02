@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{mpsc, oneshot, RwLock};
+use tokio::sync::{RwLock, mpsc, oneshot};
 use tokio::time::timeout;
 use tracing::{debug, error, info, warn};
 
@@ -25,11 +25,11 @@ pub struct AuditBatchConfig {
 impl Default for AuditBatchConfig {
     fn default() -> Self {
         Self {
-            max_batch_size: 50,        // Process up to 50 log entries per batch
-            max_batch_wait_ms: 200,    // Wait up to 200ms for batch to fill
+            max_batch_size: 50,           // Process up to 50 log entries per batch
+            max_batch_wait_ms: 200,       // Wait up to 200ms for batch to fill
             max_processing_time_ms: 1000, // Process batch within 1s
             enable_stats: true,
-            flush_interval_ms: 5000,   // Flush incomplete batches every 5s
+            flush_interval_ms: 5000, // Flush incomplete batches every 5s
         }
     }
 }
@@ -158,7 +158,9 @@ impl BatchAuditLogger {
         // Send batch to background processor
         if let Err(e) = self.processor_tx.send(batch).await {
             error!("Failed to send audit batch to processor: {}", e);
-            return Err(crate::AppError::Message("Batch processing failed".to_string()));
+            return Err(crate::AppError::Message(
+                "Batch processing failed".to_string(),
+            ));
         }
 
         Ok(())
@@ -199,7 +201,7 @@ impl BatchAuditLogger {
 
             for entry in batch.entries {
                 let result = Self::write_audit_entry(&entry.entry).await;
-                
+
                 match result {
                     Ok(_) => {
                         successful += 1;
@@ -224,13 +226,15 @@ impl BatchAuditLogger {
                 stats_guard.total_entries += batch_size as u64;
                 stats_guard.successful_entries += successful as u64;
                 stats_guard.failed_entries += failed as u64;
-                
+
                 // Update averages
                 if stats_guard.total_batches > 0 {
-                    stats_guard.avg_batch_size = stats_guard.total_entries as f64 / stats_guard.total_batches as f64;
+                    stats_guard.avg_batch_size =
+                        stats_guard.total_entries as f64 / stats_guard.total_batches as f64;
                 }
                 if stats_guard.total_batches > 0 {
-                    stats_guard.avg_processing_time_ms = processing_time.as_millis() as f64 / stats_guard.total_batches as f64;
+                    stats_guard.avg_processing_time_ms =
+                        processing_time.as_millis() as f64 / stats_guard.total_batches as f64;
                 }
             }
 
@@ -334,7 +338,7 @@ mod tests {
     async fn test_batch_audit_logger_creation() {
         let config = AuditBatchConfig::default();
         let logger = BatchAuditLogger::new(config);
-        
+
         let stats = logger.get_stats().await;
         assert_eq!(stats.total_batches, 0);
         assert_eq!(stats.total_entries, 0);
@@ -344,7 +348,7 @@ mod tests {
     async fn test_audit_log_entry_submission() {
         let config = AuditBatchConfig::default();
         let mut logger = BatchAuditLogger::new(config);
-        
+
         let entry = AuditLogEntry {
             timestamp: Instant::now(),
             user_id: Some("test_user".to_string()),
@@ -364,11 +368,11 @@ mod tests {
     async fn test_audit_batch_stats_reset() {
         let config = AuditBatchConfig::default();
         let logger = BatchAuditLogger::new(config);
-        
+
         // Reset stats
         logger.reset_stats().await;
         let stats = logger.get_stats().await;
         assert_eq!(stats.total_batches, 0);
         assert_eq!(stats.total_entries, 0);
     }
-} 
+}

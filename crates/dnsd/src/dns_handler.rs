@@ -7,7 +7,7 @@
 
 use crate::metrics_manager::{PerformanceMetrics, get_metrics, update_metrics};
 use crate::redis_cache::RedisPool;
-use crate::response_compression::{ResponseCompressor, CompressionConfig};
+use crate::response_compression::{CompressionConfig, ResponseCompressor};
 use common::{AppError, AppResult};
 use hickory_proto::op::{Message, MessageType, ResponseCode};
 use hickory_proto::rr::rdata::A;
@@ -175,10 +175,14 @@ impl DnsHandler {
 
         if let Ok(ref response) = result {
             // Apply response compression for individual query optimization
-            let compressed_response = self.response_compressor.compress_response(response.clone()).await?;
-            
+            let compressed_response = self
+                .response_compressor
+                .compress_response(response.clone())
+                .await?;
+
             if self.config.enable_compression {
-                self.cache_response(packet, compressed_response.clone()).await;
+                self.cache_response(packet, compressed_response.clone())
+                    .await;
             }
 
             if self.config.enable_metrics {

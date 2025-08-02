@@ -23,7 +23,7 @@ impl Default for CompressionConfig {
         Self {
             enable_compression: true,
             min_compress_size: 512, // Only compress responses > 512 bytes
-            compression_level: 6,    // Balanced compression level
+            compression_level: 6,   // Balanced compression level
             enable_stats: true,
         }
     }
@@ -70,7 +70,8 @@ impl ResponseCompressor {
 
         // Don't compress small responses
         if response.len() < self.config.min_compress_size {
-            self.update_stats(response.len(), response.len(), false).await;
+            self.update_stats(response.len(), response.len(), false)
+                .await;
             return Ok(response);
         }
 
@@ -84,11 +85,12 @@ impl ResponseCompressor {
         match self.compress_data(&response).await {
             Ok(compressed) => {
                 let compression_ratio = compressed.len() as f64 / response.len() as f64;
-                
+
                 // Only use compression if it's beneficial (ratio < 0.9)
                 if compression_ratio < 0.9 {
                     self.cache_compression_pattern(&response, &compressed).await;
-                    self.update_stats(response.len(), compressed.len(), true).await;
+                    self.update_stats(response.len(), compressed.len(), true)
+                        .await;
                     debug!(
                         "Compressed DNS response: {} -> {} bytes (ratio: {:.2})",
                         response.len(),
@@ -98,7 +100,8 @@ impl ResponseCompressor {
                     Ok(compressed)
                 } else {
                     // Compression not beneficial, return original
-                    self.update_stats(response.len(), response.len(), false).await;
+                    self.update_stats(response.len(), response.len(), false)
+                        .await;
                     debug!(
                         "Compression not beneficial for {} byte response (ratio: {:.2})",
                         response.len(),
@@ -108,9 +111,14 @@ impl ResponseCompressor {
                 }
             }
             Err(e) => {
-                warn!("Compression failed for {} byte response: {}", response.len(), e);
+                warn!(
+                    "Compression failed for {} byte response: {}",
+                    response.len(),
+                    e
+                );
                 // Return original response on compression failure
-                self.update_stats(response.len(), response.len(), false).await;
+                self.update_stats(response.len(), response.len(), false)
+                    .await;
                 Ok(response)
             }
         }
@@ -134,7 +142,11 @@ impl ResponseCompressor {
                 Ok(decompressed)
             }
             Err(e) => {
-                warn!("Decompression failed for {} byte response: {}", compressed.len(), e);
+                warn!(
+                    "Decompression failed for {} byte response: {}",
+                    compressed.len(),
+                    e
+                );
                 // Return original on decompression failure
                 Ok(compressed)
             }
@@ -187,7 +199,7 @@ impl ResponseCompressor {
     /// Cache compression pattern
     async fn cache_compression_pattern(&self, original: &[u8], compressed: &[u8]) {
         let mut cache = self.pattern_cache.write().await;
-        
+
         // Limit cache size to prevent memory issues
         if cache.len() >= 1000 {
             // Remove oldest entries (simple approach)
@@ -196,12 +208,17 @@ impl ResponseCompressor {
                 cache.remove(key);
             }
         }
-        
+
         cache.insert(original.to_vec(), compressed.to_vec());
     }
 
     /// Update compression statistics
-    async fn update_stats(&self, original_size: usize, compressed_size: usize, was_compressed: bool) {
+    async fn update_stats(
+        &self,
+        original_size: usize,
+        compressed_size: usize,
+        was_compressed: bool,
+    ) {
         if !self.config.enable_stats {
             return;
         }
@@ -217,7 +234,8 @@ impl ResponseCompressor {
 
         // Update compression ratio
         if stats.total_original_size > 0 {
-            stats.compression_ratio = stats.total_compressed_size as f64 / stats.total_original_size as f64;
+            stats.compression_ratio =
+                stats.total_compressed_size as f64 / stats.total_original_size as f64;
         }
     }
 }
@@ -239,7 +257,7 @@ mod tests {
     async fn test_compressor_creation() {
         let config = CompressionConfig::default();
         let compressor = ResponseCompressor::new(config);
-        
+
         let stats = compressor.get_stats().await;
         assert_eq!(stats.total_responses, 0);
         assert_eq!(stats.compressed_responses, 0);
@@ -252,8 +270,11 @@ mod tests {
         let compressor = ResponseCompressor::new(config);
 
         let test_data = vec![0u8; 1000];
-        let compressed = compressor.compress_response(test_data.clone()).await.unwrap();
-        
+        let compressed = compressor
+            .compress_response(test_data.clone())
+            .await
+            .unwrap();
+
         // Should return original data when compression is disabled
         assert_eq!(compressed, test_data);
     }
@@ -264,8 +285,11 @@ mod tests {
         let compressor = ResponseCompressor::new(config);
 
         let small_data = vec![0u8; 100]; // Below min_compress_size
-        let result = compressor.compress_response(small_data.clone()).await.unwrap();
-        
+        let result = compressor
+            .compress_response(small_data.clone())
+            .await
+            .unwrap();
+
         // Should return original data for small responses
         assert_eq!(result, small_data);
     }
@@ -299,4 +323,4 @@ mod tests {
         assert_eq!(stats.total_responses, 0);
         assert_eq!(stats.compressed_responses, 0);
     }
-} 
+}

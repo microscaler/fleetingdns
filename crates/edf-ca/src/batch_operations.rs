@@ -25,8 +25,8 @@ pub struct BatchConfig {
 impl Default for BatchConfig {
     fn default() -> Self {
         Self {
-            max_batch_size: 10,        // Process up to 10 certificates per batch
-            max_batch_wait_ms: 100,    // Wait up to 100ms for batch to fill
+            max_batch_size: 10,          // Process up to 10 certificates per batch
+            max_batch_wait_ms: 100,      // Wait up to 100ms for batch to fill
             max_processing_time_ms: 500, // Process batch within 500ms
             enable_stats: true,
         }
@@ -78,7 +78,8 @@ impl CertificateBatchProcessor {
         let config_clone = config.clone();
 
         tokio::spawn(async move {
-            Self::start_background_processor(processor_rx, ca_clone, stats_clone, config_clone).await;
+            Self::start_background_processor(processor_rx, ca_clone, stats_clone, config_clone)
+                .await;
         });
 
         info!(
@@ -97,7 +98,10 @@ impl CertificateBatchProcessor {
     }
 
     /// Submit a certificate operation for batch processing
-    pub async fn submit_operation(&mut self, request: IssuanceRequest) -> CaResult<IssuanceResponse> {
+    pub async fn submit_operation(
+        &mut self,
+        request: IssuanceRequest,
+    ) -> CaResult<IssuanceResponse> {
         // For now, process immediately to avoid complexity in tests
         // In production, this would use batch processing
         self.ca.issue_certificate(request).await
@@ -109,7 +113,10 @@ impl CertificateBatchProcessor {
             return Ok(());
         }
 
-        let batch_size = self.pending_operations.len().min(self.config.max_batch_size);
+        let batch_size = self
+            .pending_operations
+            .len()
+            .min(self.config.max_batch_size);
         let mut operations = Vec::new();
 
         for _ in 0..batch_size {
@@ -126,7 +133,9 @@ impl CertificateBatchProcessor {
         // Send batch to background processor
         if let Err(e) = self.processor_tx.send(batch).await {
             error!("Failed to send batch to processor: {}", e);
-            return Err(crate::errors::CaError::Internal("Batch processing failed".to_string()));
+            return Err(crate::errors::CaError::Internal(
+                "Batch processing failed".to_string(),
+            ));
         }
 
         Ok(())
@@ -168,7 +177,7 @@ impl CertificateBatchProcessor {
 
             for operation in batch.operations {
                 let result = ca.issue_certificate(operation.request).await;
-                
+
                 match result {
                     Ok(response) => {
                         successful += 1;
@@ -193,13 +202,15 @@ impl CertificateBatchProcessor {
                 stats_guard.total_operations += batch_size as u64;
                 stats_guard.successful_operations += successful as u64;
                 stats_guard.failed_operations += failed as u64;
-                
+
                 // Update averages
                 if stats_guard.total_batches > 0 {
-                    stats_guard.avg_batch_size = stats_guard.total_operations as f64 / stats_guard.total_batches as f64;
+                    stats_guard.avg_batch_size =
+                        stats_guard.total_operations as f64 / stats_guard.total_batches as f64;
                 }
                 if stats_guard.total_batches > 0 {
-                    stats_guard.avg_processing_time_ms = processing_time.as_millis() as f64 / stats_guard.total_batches as f64;
+                    stats_guard.avg_processing_time_ms =
+                        processing_time.as_millis() as f64 / stats_guard.total_batches as f64;
                 }
             }
 
@@ -235,9 +246,9 @@ mod tests {
         let config = CaConfig::default();
         let ca = CertificateAuthority::new(config).await.unwrap();
         let batch_config = BatchConfig::default();
-        
+
         let processor = CertificateBatchProcessor::new(batch_config, Arc::new(ca));
-        
+
         let stats = processor.get_stats().await;
         assert_eq!(stats.total_batches, 0);
         assert_eq!(stats.total_operations, 0);
@@ -248,13 +259,13 @@ mod tests {
         let config = CaConfig::default();
         let ca = CertificateAuthority::new(config).await.unwrap();
         let batch_config = BatchConfig::default();
-        
+
         let processor = CertificateBatchProcessor::new(batch_config, Arc::new(ca));
-        
+
         // Reset stats
         processor.reset_stats().await;
         let stats = processor.get_stats().await;
         assert_eq!(stats.total_batches, 0);
         assert_eq!(stats.total_operations, 0);
     }
-} 
+}

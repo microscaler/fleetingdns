@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{mpsc, oneshot, RwLock};
+use tokio::sync::{RwLock, mpsc, oneshot};
 use tokio::time::timeout;
 use tracing::{debug, error, info, warn};
 
@@ -25,11 +25,11 @@ pub struct MetricsBatchConfig {
 impl Default for MetricsBatchConfig {
     fn default() -> Self {
         Self {
-            max_batch_size: 100,       // Process up to 100 metrics per batch
-            max_batch_wait_ms: 100,    // Wait up to 100ms for batch to fill
+            max_batch_size: 100,         // Process up to 100 metrics per batch
+            max_batch_wait_ms: 100,      // Wait up to 100ms for batch to fill
             max_processing_time_ms: 500, // Process batch within 500ms
             enable_stats: true,
-            flush_interval_ms: 2000,   // Flush incomplete batches every 2s
+            flush_interval_ms: 2000, // Flush incomplete batches every 2s
         }
     }
 }
@@ -156,7 +156,9 @@ impl BatchMetricsCollector {
         // Send batch to background processor
         if let Err(e) = self.processor_tx.send(batch).await {
             error!("Failed to send metrics batch to processor: {}", e);
-            return Err(crate::AppError::Message("Batch processing failed".to_string()));
+            return Err(crate::AppError::Message(
+                "Batch processing failed".to_string(),
+            ));
         }
 
         Ok(())
@@ -197,7 +199,7 @@ impl BatchMetricsCollector {
 
             for update in batch.updates {
                 let result = Self::write_metric_update(&update.update).await;
-                
+
                 match result {
                     Ok(_) => {
                         successful += 1;
@@ -222,13 +224,15 @@ impl BatchMetricsCollector {
                 stats_guard.total_metrics += batch_size as u64;
                 stats_guard.successful_updates += successful as u64;
                 stats_guard.failed_updates += failed as u64;
-                
+
                 // Update averages
                 if stats_guard.total_batches > 0 {
-                    stats_guard.avg_batch_size = stats_guard.total_metrics as f64 / stats_guard.total_batches as f64;
+                    stats_guard.avg_batch_size =
+                        stats_guard.total_metrics as f64 / stats_guard.total_batches as f64;
                 }
                 if stats_guard.total_batches > 0 {
-                    stats_guard.avg_processing_time_ms = processing_time.as_millis() as f64 / stats_guard.total_batches as f64;
+                    stats_guard.avg_processing_time_ms =
+                        processing_time.as_millis() as f64 / stats_guard.total_batches as f64;
                 }
             }
 
@@ -248,7 +252,8 @@ impl BatchMetricsCollector {
     async fn write_metric_update(update: &MetricsUpdate) -> AppResult<()> {
         // This would typically write to a metrics backend like Prometheus, InfluxDB, etc.
         // For now, we'll just log to tracing
-        let labels_str = update.labels
+        let labels_str = update
+            .labels
             .iter()
             .map(|(k, v)| format!("{}={}", k, v))
             .collect::<Vec<_>>()
@@ -298,7 +303,7 @@ mod tests {
     async fn test_batch_metrics_collector_creation() {
         let config = MetricsBatchConfig::default();
         let collector = BatchMetricsCollector::new(config);
-        
+
         let stats = collector.get_stats().await;
         assert_eq!(stats.total_batches, 0);
         assert_eq!(stats.total_metrics, 0);
@@ -308,7 +313,7 @@ mod tests {
     async fn test_metrics_update_submission() {
         let config = MetricsBatchConfig::default();
         let mut collector = BatchMetricsCollector::new(config);
-        
+
         let update = MetricsUpdate {
             timestamp: Instant::now(),
             metric_name: "test_counter".to_string(),
@@ -326,11 +331,11 @@ mod tests {
     async fn test_metrics_batch_stats_reset() {
         let config = MetricsBatchConfig::default();
         let collector = BatchMetricsCollector::new(config);
-        
+
         // Reset stats
         collector.reset_stats().await;
         let stats = collector.get_stats().await;
         assert_eq!(stats.total_batches, 0);
         assert_eq!(stats.total_metrics, 0);
     }
-} 
+}
