@@ -12,7 +12,16 @@ services:
     image: fleetingdns/dnsd:dev
     command: ["--addr", "0.0.0.0:53"]
     ports: ["6353:53/udp"]
-    depends_on: [otel-collector]
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - DNS_BIND_ADDR=0.0.0.0
+      - DNS_PORT=53
+      - DNS_ENABLE_DNSSEC=true
+      - DNS_ENABLE_DDOS_PROTECTION=true
+      - DNS_CACHE_TTL=300
+      - DNS_MAX_CACHE_SIZE=5000
+      - RUST_LOG=info
+    depends_on: [redis, otel-collector]
 
   edgehub:
     build:

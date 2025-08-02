@@ -213,9 +213,15 @@ impl DnsHandler {
             .ok_or_else(|| AppError::Message("No query found".into()))?;
 
         let qname = query.name().clone();
+        tracing::info!("Processing DNS query for: {}", qname);
+        
         let slot = self.lookup_slot_in_redis(qname.to_string(), pool).await?;
+        tracing::info!("Redis lookup result for {}: {:?}", qname, slot);
 
-        self.build_dns_response(&message, query, &qname, slot).await
+        let response = self.build_dns_response(&message, query, &qname, slot).await?;
+        tracing::info!("Built DNS response for {}: {} bytes", qname, response.len());
+        
+        Ok(response)
     }
 
     /// Look up a domain slot in Redis
