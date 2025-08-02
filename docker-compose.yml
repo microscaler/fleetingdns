@@ -10,8 +10,8 @@ services:
       <<: *rust-build
       dockerfile: docker/Dockerfile.dnsd
     image: fleetingdns/dnsd:dev
-    command: ["--addr", "0.0.0.0:53"]
-    ports: ["6353:53/udp"]
+    command: ["--addr", "0.0.0.0:6353"]
+    ports: ["6353:6353/udp"]
     environment:
       - REDIS_URL=redis://redis:6379
       - DNS_BIND_ADDR=0.0.0.0

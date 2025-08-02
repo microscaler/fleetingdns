@@ -137,6 +137,7 @@ pub async fn serve_with_shutdown(cfg: Config, shutdown: GracefulShutdown) -> App
                         // Use unified DNS handler
                         match dns_handler.handle_packet(&buf[..len], &cfg.redis_pool).await {
                             Ok(resp) => {
+                                info!("Sending DNS response to {}: {} bytes", peer, resp.len());
                                 if let Err(e) = socket.send_to(&resp, peer).await {
                                     error!("Failed to send response to {}: {}", peer, e);
                                 }
