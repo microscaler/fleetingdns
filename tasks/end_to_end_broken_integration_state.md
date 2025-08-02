@@ -178,14 +178,16 @@ sequenceDiagram
 - [x] **Estimated Time**: 2 hours
 
 ### Task 1.2: Fix DNS Response Delivery
-- [ ] **Objective**: Resolve UDP socket response delivery issue
-- [ ] **Steps**:
-  - [ ] Debug DNS service UDP socket configuration
-  - [ ] Verify socket binding and response sending
-  - [ ] Test DNS query/response cycle end-to-end
-  - [ ] Add UDP send metrics for monitoring
-- [ ] **Acceptance Criteria**: DNS queries return responses to clients
-- [ ] **Estimated Time**: 4 hours
+- [x] **Objective**: Resolve UDP socket response delivery issue ✅
+- [x] **Steps**:
+  - [x] Debug DNS service UDP socket configuration ✅
+  - [x] Verify socket binding and response sending ✅
+  - [x] Test DNS query/response cycle end-to-end ✅
+  - [x] Add UDP send metrics for monitoring ✅
+- [ ] **Acceptance Criteria**: DNS queries return responses to clients ❌
+- [x] **Estimated Time**: 4 hours
+- [ ] **Status**: 🔄 **IN PROGRESS** - DNS service logic fixed but local queries not reaching service
+- [ ] **Issue**: macOS DNS client behavior - local queries not reaching service (network routing issue)
 
 ### Task 1.3: Validate Docker Compose Service Communication
 - [x] **Objective**: Ensure all services can communicate within Docker network ✅

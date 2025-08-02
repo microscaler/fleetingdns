@@ -86,7 +86,7 @@ pub struct PerformanceConfig {
 impl Default for PerformanceConfig {
     fn default() -> Self {
         Self {
-            enable_compression: true,
+            enable_compression: false, // Disable compression for standard DNS clients
             cache_ttl: 300,
             enable_metrics: true,
             max_response_time_ms: 50,
@@ -209,23 +209,32 @@ impl DnsHandler {
     pub async fn process_dns_query(&self, packet: &[u8], pool: &RedisPool) -> AppResult<Vec<u8>> {
         let start_time = std::time::Instant::now();
 
-        let message = Message::from_vec(packet)
-            .map_err(|e| AppError::Message(format!("Failed to parse DNS message: {e}")))?;
+        // Parse DNS message with fallback
+        let message = match Message::from_vec(packet) {
+            Ok(msg) => msg,
+            Err(e) => {
+                tracing::error!("Failed to parse DNS message: {}", e);
+                return self.build_error_response(packet, ResponseCode::FormErr).await;
+            }
+        };
 
         if message.header().message_type() == MessageType::Response {
-            return Err(AppError::Message("Received response packet".into()));
+            tracing::warn!("Received response packet, ignoring");
+            return self.build_error_response(packet, ResponseCode::FormErr).await;
         }
 
-        let query = message
-            .queries()
-            .first()
-            .ok_or_else(|| AppError::Message("No query found".into()))?;
+        let query = match message.queries().first() {
+            Some(q) => q,
+            None => {
+                tracing::error!("No query found in DNS message");
+                return self.build_error_response(packet, ResponseCode::FormErr).await;
+            }
+        };
 
         let qname = query.name().clone();
-
         tracing::info!("Processing DNS query for: {}", qname);
 
-        // Redis lookup with telemetry
+        // Redis lookup with telemetry and fallback
         let slot = {
             let redis_start = std::time::Instant::now();
             let result = self.lookup_slot_in_redis(qname.to_string(), pool).await;
@@ -251,10 +260,18 @@ impl DnsHandler {
                     );
                 }
             }
-            result?
+            
+            // Return None on Redis errors instead of failing
+            match result {
+                Ok(slot) => slot,
+                Err(e) => {
+                    tracing::warn!("Using fallback response due to Redis error: {}", e);
+                    None
+                }
+            }
         };
 
-        // Build response with telemetry
+        // Build response with telemetry and fallback
         let response = {
             let response_start = std::time::Instant::now();
             let result = self.build_dns_response(&message, query, &qname, slot).await;
@@ -280,7 +297,15 @@ impl DnsHandler {
                     );
                 }
             }
-            result?
+            
+            // Return error response on build failure
+            match result {
+                Ok(response) => response,
+                Err(e) => {
+                    tracing::warn!("Using fallback response due to build error: {}", e);
+                    return self.build_error_response(packet, ResponseCode::ServFail).await;
+                }
+            }
         };
 
         // Record overall metrics
@@ -293,6 +318,34 @@ impl DnsHandler {
         );
 
         Ok(response)
+    }
+
+    /// Build an error response for DNS queries
+    async fn build_error_response(&self, packet: &[u8], response_code: ResponseCode) -> AppResult<Vec<u8>> {
+        // Try to parse the original packet to extract the query
+        let message = match Message::from_vec(packet) {
+            Ok(msg) => msg,
+            Err(_) => {
+                // If we can't parse the packet, create a minimal error response
+                let mut response = Message::new();
+                response.set_message_type(MessageType::Response);
+                response.set_response_code(ResponseCode::FormErr);
+                return Ok(response.to_vec().unwrap_or_else(|_| vec![]));
+            }
+        };
+
+        // Create error response with the same ID as the query
+        let mut response = Message::new();
+        response.set_id(message.header().id());
+        response.set_message_type(MessageType::Response);
+        response.set_response_code(response_code);
+
+        // Add the original query to the response
+        if let Some(query) = message.queries().first() {
+            response.add_query(query.clone());
+        }
+
+        Ok(response.to_vec().unwrap_or_else(|_| vec![]))
     }
 
     /// Look up a domain slot in Redis

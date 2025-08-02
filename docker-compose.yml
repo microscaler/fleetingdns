@@ -9,13 +9,15 @@ services:
     build:
       <<: *rust-build
       dockerfile: docker/Dockerfile.dnsd
+      args:
+        DNS_PORT: 6353
+        DNS_BIND_ADDR: 0.0.0.0
     image: fleetingdns/dnsd:dev
-    command: ["--addr", "0.0.0.0:6353"]
     ports: ["6353:6353/udp"]
     environment:
       - REDIS_URL=redis://redis:6379
       - DNS_BIND_ADDR=0.0.0.0
-      - DNS_PORT=53
+      - DNS_PORT=6353
       - DNS_ENABLE_DNSSEC=true
       - DNS_ENABLE_DDOS_PROTECTION=true
       - DNS_CACHE_TTL=300

@@ -112,9 +112,9 @@ impl Default for DnsConfig {
         Self {
             bind_addr: env::var("DNS_BIND_ADDR").unwrap_or_else(|_| "0.0.0.0".to_string()),
             port: env::var("DNS_PORT")
-                .unwrap_or_else(|_| "53".to_string())
+                .unwrap_or_else(|_| "6353".to_string())
                 .parse()
-                .unwrap_or(53),
+                .unwrap_or(6353),
             enable_dnssec: env::var("DNS_ENABLE_DNSSEC")
                 .unwrap_or_else(|_| "true".to_string())
                 .parse()
