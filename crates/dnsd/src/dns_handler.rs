@@ -201,7 +201,7 @@ impl DnsHandler {
     /// Process a DNS query with Redis slot lookup
     pub async fn process_dns_query(&self, packet: &[u8], pool: &RedisPool) -> AppResult<Vec<u8>> {
         let start_time = std::time::Instant::now();
-        
+
         let message = Message::from_vec(packet)
             .map_err(|e| AppError::Message(format!("Failed to parse DNS message: {e}")))?;
 
@@ -215,23 +215,33 @@ impl DnsHandler {
             .ok_or_else(|| AppError::Message("No query found".into()))?;
 
         let qname = query.name().clone();
-        
+
         tracing::info!("Processing DNS query for: {}", qname);
-        
+
         // Redis lookup with telemetry
         let slot = {
             let redis_start = std::time::Instant::now();
             let result = self.lookup_slot_in_redis(qname.to_string(), pool).await;
             let redis_duration = redis_start.elapsed().as_millis() as u64;
-            
+
             match &result {
                 Ok(slot) => {
                     tracing::info!("Redis lookup result for {}: {:?}", qname, slot);
-                    common::telemetry::record_redis_metrics("get", &format!("slot:{}", qname), redis_duration, true);
+                    common::telemetry::record_redis_metrics(
+                        "get",
+                        &format!("slot:{}", qname),
+                        redis_duration,
+                        true,
+                    );
                 }
                 Err(e) => {
                     tracing::error!("Redis lookup failed for {}: {}", qname, e);
-                    common::telemetry::record_redis_metrics("get", &format!("slot:{}", qname), redis_duration, false);
+                    common::telemetry::record_redis_metrics(
+                        "get",
+                        &format!("slot:{}", qname),
+                        redis_duration,
+                        false,
+                    );
                 }
             }
             result?
@@ -242,24 +252,39 @@ impl DnsHandler {
             let response_start = std::time::Instant::now();
             let result = self.build_dns_response(&message, query, &qname, slot).await;
             let response_duration = response_start.elapsed().as_millis() as u64;
-            
+
             match &result {
                 Ok(response) => {
                     tracing::info!("Built DNS response for {}: {} bytes", qname, response.len());
-                    common::telemetry::record_dns_metrics("build_response", &qname.to_string(), response_duration, true);
+                    common::telemetry::record_dns_metrics(
+                        "build_response",
+                        &qname.to_string(),
+                        response_duration,
+                        true,
+                    );
                 }
                 Err(e) => {
                     tracing::error!("Failed to build DNS response for {}: {}", qname, e);
-                    common::telemetry::record_dns_metrics("build_response", &qname.to_string(), response_duration, false);
+                    common::telemetry::record_dns_metrics(
+                        "build_response",
+                        &qname.to_string(),
+                        response_duration,
+                        false,
+                    );
                 }
             }
             result?
         };
-        
+
         // Record overall metrics
         let total_duration = start_time.elapsed().as_millis() as u64;
-        common::telemetry::record_dns_metrics("process_query", &qname.to_string(), total_duration, true);
-        
+        common::telemetry::record_dns_metrics(
+            "process_query",
+            &qname.to_string(),
+            total_duration,
+            true,
+        );
+
         Ok(response)
     }
 
@@ -281,7 +306,7 @@ impl DnsHandler {
         // Remove trailing dot if present (DNS queries often include trailing dots)
         let clean_qname = qname.trim_end_matches('.');
         let key = format!("slot:{}", clean_qname);
-        
+
         let result: Result<Option<String>, redis::RedisError> =
             redis::cmd("GET").arg(&key).query_async(&mut *conn).await;
 

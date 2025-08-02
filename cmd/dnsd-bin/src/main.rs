@@ -29,7 +29,7 @@ struct Args {
 #[tokio::main]
 async fn main() -> common::AppResult<()> {
     let args = Args::parse();
-    
+
     // Initialize comprehensive telemetry
     let telemetry_config = common::telemetry::TelemetryConfig {
         service_name: "dnsd".to_string(),
@@ -37,7 +37,7 @@ async fn main() -> common::AppResult<()> {
         environment: std::env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string()),
         ..Default::default()
     };
-    
+
     common::telemetry::init_telemetry(telemetry_config)
         .map_err(|e| common::AppError::Message(format!("Failed to initialize telemetry: {}", e)))?;
 

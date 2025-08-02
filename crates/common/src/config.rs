@@ -1,6 +1,6 @@
+use serde::{Deserialize, Serialize};
 use std::env;
 use std::net::SocketAddr;
-use serde::{Deserialize, Serialize};
 
 /// Global configuration for all FleetingDNS services
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -76,9 +76,8 @@ pub struct DatabaseConfig {
 impl Default for DatabaseConfig {
     fn default() -> Self {
         Self {
-            url: env::var("DATABASE_URL").unwrap_or_else(|_| {
-                "postgresql://fdns:fdns@localhost:5432/fdns".to_string()
-            }),
+            url: env::var("DATABASE_URL")
+                .unwrap_or_else(|_| "postgresql://fdns:fdns@localhost:5432/fdns".to_string()),
             pool_size: env::var("DATABASE_POOL_SIZE")
                 .unwrap_or_else(|_| "5".to_string())
                 .parse()
@@ -335,4 +334,4 @@ mod tests {
         let config = FleetingDnsConfig::default();
         assert!(config.dns_addr().is_ok());
     }
-} 
+}

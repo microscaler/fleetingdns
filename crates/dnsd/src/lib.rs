@@ -35,9 +35,11 @@ impl Default for Config {
     fn default() -> Self {
         let config = common::config::FleetingDnsConfig::from_env();
         let redis_url = config.redis.url.clone();
-        
+
         Self {
-            addr: config.dns_addr().unwrap_or_else(|_| "0.0.0.0:6353".parse().unwrap()),
+            addr: config
+                .dns_addr()
+                .unwrap_or_else(|_| "0.0.0.0:6353".parse().unwrap()),
             redis_pool: {
                 let manager = bb8_redis::RedisConnectionManager::new(redis_url).unwrap();
                 bb8::Pool::builder().build_unchecked(manager)
