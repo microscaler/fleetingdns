@@ -464,26 +464,43 @@ This PRD addresses the critical production readiness gaps identified in the Flee
 - [ ] Automatic scaling based on load
 - [ ] Performance monitoring and alerting
 
+**Critical Performance Insight**:
+> **DNS as High-Performance Cache System**: DNS servers are essentially glorified caches, similar to Redis. Redis is single-threaded by design because individual cache lookups are the fastest approach. Batching cache operations can actually hurt performance. DNS performance optimization should focus on individual query optimization, not batching.
+
 **Technical Tasks**:
 1. **DNS Performance** (3 days)
-   - Optimize DNS query processing and caching
-   - Implement query parallelization and batching
-   - Add DNS response compression and optimization
+   - Optimize individual DNS query processing and caching
+   - **AVOID**: Query batching (adds latency, hurts performance)
+   - **FOCUS**: Cache hit rate optimization, individual query optimization
+   - Add DNS response compression for individual responses
+   - Implement aggressive L1 caching (5K entries) with LRU eviction
 
 2. **Tunnel Performance** (3 days)
    - Optimize SSH tunnel establishment time
    - Implement connection pooling and reuse
    - Add tunnel multiplexing for better resource utilization
 
-3. **Scalability Testing** (2 days)
+3. **Background Operation Batching** (2 days)
+   - **ONLY batch background operations**: Certificate issuance, audit logging, metrics collection
+   - **NEVER batch**: Cache lookups, DNS queries, user-facing operations
+   - Implement batch certificate operations for efficiency
+   - Add batch audit logging and metrics collection
+
+4. **Scalability Testing** (2 days)
    - Implement load testing framework
    - Add performance regression testing in CI
    - Create capacity planning tools and metrics
 
-4. **Auto-scaling** (2 days)
+5. **Auto-scaling** (2 days)
    - Implement horizontal pod autoscaling
    - Add custom metrics for scaling decisions
    - Create scaling policies and thresholds
+
+**Performance Optimization Principles**:
+- **Cache-First Architecture**: Most DNS queries should be cache hits (<1ms response)
+- **Individual Operations**: Redis and DNS are optimized for individual lookups
+- **Background Batching**: Only batch non-user-facing operations (certificates, logging, metrics)
+- **Connection Optimization**: Focus on connection pooling, not query batching
 
 **Definition of Done**: System capable of handling 10x current load with maintained performance SLAs
 

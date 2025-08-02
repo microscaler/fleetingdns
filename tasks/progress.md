@@ -52,7 +52,7 @@
 
 ### **MEDIUM-2: Performance Optimization** 🎯 **IN PROGRESS**
 
-**Status**: FOUNDATION COMPLETE - READY FOR ADVANCED OPTIMIZATION
+**Status**: FOUNDATION COMPLETE - CRITICAL INSIGHT IDENTIFIED
 **Problem Statement**: Current implementations lack performance optimization and scalability features required for production loads.
 
 **User Story**: As a user, I need fast, reliable service that can handle high traffic loads without degradation.
@@ -64,6 +64,9 @@
 - [ ] Automatic scaling based on load
 - [ ] Performance monitoring and alerting
 
+**🚨 CRITICAL PERFORMANCE INSIGHT**:
+> **DNS as High-Performance Cache System**: DNS servers are essentially glorified caches, similar to Redis. Redis is single-threaded by design because individual cache lookups are the fastest approach. Batching cache operations can actually hurt performance. DNS performance optimization should focus on individual query optimization, not batching.
+
 **✅ COMPLETED FOUNDATION**:
 - **Metrics Infrastructure**: Response time tracking with p95/p99 percentiles implemented
 - **Basic Caching Framework**: TTL-based caching with LRU eviction working
@@ -72,25 +75,27 @@
 - **Redis Test Infrastructure**: Robust testcontainers implementation replacing custom Docker
 - **Code Quality**: Zero critical issues, all tests passing consistently
 
-**🚧 OUTSTANDING TASKS**:
+**🚧 REVISED OUTSTANDING TASKS**:
 
 **1. DNS Performance Optimization** (3 days - HIGH PRIORITY)
-- [ ] **Query Processing Optimization**
-  - Implement query parallelization and batching
-  - Add DNS response compression
-  - Optimize packet parsing and serialization
+- [ ] **Individual Query Optimization** (REVISED APPROACH)
+  - **AVOID**: Query batching (adds latency, hurts performance)
+  - **FOCUS**: Cache hit rate optimization, individual query optimization
+  - Add DNS response compression for individual responses
+  - Implement aggressive L1 caching (5K entries) with LRU eviction
   - Target: <50ms response time at 95th percentile (currently ~100ms)
 
-- [ ] **Advanced Caching Strategies**
+- [ ] **Advanced Caching Strategies** (REVISED APPROACH)
   - Implement multi-level caching (memory + Redis)
-  - Add intelligent cache warming
-  - Implement cache prefetching for common queries
+  - Add intelligent cache warming for common queries
+  - **FOCUS**: Individual cache lookup optimization
   - Add cache hit ratio optimization
 
-- [ ] **Query Batching and Pipelining**
-  - Batch multiple DNS queries for efficiency
-  - Implement connection pooling for upstream resolvers
-  - Add query deduplication
+- [ ] **Background Operation Batching** (NEW APPROACH)
+  - **ONLY batch background operations**: Certificate issuance, audit logging, metrics collection
+  - **NEVER batch**: Cache lookups, DNS queries, user-facing operations
+  - Implement batch certificate operations for efficiency
+  - Add batch audit logging and metrics collection
 
 **2. Tunnel Performance Optimization** (3 days - HIGH PRIORITY)
 - [ ] **SSH Tunnel Establishment Optimization**

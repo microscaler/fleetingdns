@@ -12,6 +12,7 @@ pub mod redis_cache;
 pub mod redis_cluster;
 pub mod redis_performance;
 pub mod redis_sentinel;
+pub mod response_compression;
 pub mod sign;
 
 /// Configuration for the DNS server.
@@ -240,6 +241,7 @@ mod dot {
         let listener = TcpListener::bind(addr).await?;
         info!(addr=%listener.local_addr()?, "DoT server listening with graceful shutdown support");
         let acceptor = TlsAcceptor::from(Arc::new(cfg));
+        let dns_handler = dns_handler::DnsHandler::new(dns_handler::PerformanceConfig::default());
 
         loop {
             tokio::select! {
