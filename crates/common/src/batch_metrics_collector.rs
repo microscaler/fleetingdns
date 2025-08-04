@@ -254,7 +254,7 @@ impl BatchMetricsCollector {
         let labels_str = update
             .labels
             .iter()
-            .map(|(k, v)| format!("{}={}", k, v))
+            .map(|(k, v)| format!("{k}={v}"))
             .collect::<Vec<_>>()
             .join(",");
 

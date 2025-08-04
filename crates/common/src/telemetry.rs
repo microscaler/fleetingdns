@@ -54,7 +54,7 @@ pub fn init_telemetry(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     INIT.call_once(|| {
         if let Err(e) = init_telemetry_inner(config) {
-            eprintln!("Failed to initialize telemetry: {}", e);
+            eprintln!("Failed to initialize telemetry: {e}");
         }
     });
     Ok(())

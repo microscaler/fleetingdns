@@ -13,6 +13,9 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{Mutex, mpsc};
 use tracing::{debug, error, info, warn};
 
+// Import Redis authentication functionality
+use crate::redis_auth::RedisAuthHandler;
+
 // Import certificate authority functionality
 use edf_ca::{CaConfig, CertificateAuthority, IssuanceRequest, IssuanceResponse};
 
@@ -34,6 +37,10 @@ pub struct SshConfig {
     pub certificate_pinning_enabled: bool,
     pub max_auth_attempts: u32,
     pub auth_lockout_duration: Duration,
+    // NEW: Redis-based authentication configuration
+    pub redis_url: Option<String>,
+    pub redis_auth_enabled: bool,
+    pub redis_key_prefix: String,
 }
 
 impl Default for SshConfig {
@@ -48,6 +55,10 @@ impl Default for SshConfig {
             certificate_pinning_enabled: true,
             max_auth_attempts: 3,
             auth_lockout_duration: Duration::from_secs(300), // 5 minutes
+            // NEW: Redis-based authentication defaults
+            redis_url: None,
+            redis_auth_enabled: false,
+            redis_key_prefix: "session".to_string(),
         }
     }
 }
@@ -148,6 +159,8 @@ pub struct SshServerState {
     pub certificate_authority: Option<Arc<CertificateAuthority>>, // Certificate authority for validation
     // CRITICAL-3 ENHANCEMENT: Brute force protection state
     pub brute_force_protection: Arc<Mutex<BruteForceProtection>>,
+    // NEW: Redis authentication handler
+    pub redis_auth_handler: Option<RedisAuthHandler>,
 }
 
 /// Information about an active tunnel
@@ -199,6 +212,27 @@ impl SshServer {
         };
 
         let (shutdown_tx, _) = mpsc::channel(1);
+        // Initialize Redis authentication handler if enabled
+        let redis_auth_handler = if config.redis_auth_enabled {
+            if let Some(redis_url) = &config.redis_url {
+                match RedisAuthHandler::new(redis_url, &config.redis_key_prefix).await {
+                    Ok(handler) => {
+                        info!("Redis authentication handler initialized");
+                        Some(handler)
+                    }
+                    Err(e) => {
+                        error!("Failed to initialize Redis authentication handler: {}", e);
+                        None
+                    }
+                }
+            } else {
+                error!("Redis authentication enabled but no Redis URL provided");
+                None
+            }
+        } else {
+            None
+        };
+
         let state = SshServerState {
             active_tunnels: Arc::new(Mutex::new(HashMap::new())),
             reverse_tunnels: Arc::new(Mutex::new(HashMap::new())),
@@ -206,6 +240,7 @@ impl SshServer {
             certificate_authority,
             // CRITICAL-3 ENHANCEMENT: Initialize brute force protection
             brute_force_protection: Arc::new(Mutex::new(BruteForceProtection::default())),
+            redis_auth_handler,
         };
 
         info!(
@@ -680,6 +715,29 @@ pub struct SshSession {
     client_certificate_serial: Option<String>,
 }
 
+impl SshSession {
+    /// Extract session ID from user string or connection metadata
+    fn extract_session_id(&self, user: &str) -> Result<String, anyhow::Error> {
+        // TODO: In a real implementation, this would extract the session ID
+        // from the SSH connection metadata or user string
+        // For now, we'll use a placeholder approach
+        
+        // Try to extract session ID from user string (e.g., "user-session-123")
+        if user.contains('-') {
+            let parts: Vec<&str> = user.split('-').collect();
+            if parts.len() >= 2 {
+                let session_part = parts.last().unwrap();
+                if session_part.len() > 8 { // Basic validation for session ID format
+                    return Ok(session_part.to_string());
+                }
+            }
+        }
+        
+        // Fallback: use user as session ID (for development/testing)
+        Ok(user.to_string())
+    }
+}
+
 #[async_trait::async_trait]
 impl russh::server::Handler for SshSession {
     type Error = anyhow::Error;
@@ -746,9 +804,8 @@ impl russh::server::Handler for SshSession {
     async fn auth_publickey(
         mut self,
         user: &str,
-        _public_key: &russh_keys::key::PublicKey,
+        public_key: &russh_keys::key::PublicKey,
     ) -> Result<(Self, Auth), Self::Error> {
-        // CRITICAL-3 ENHANCEMENT: Complete certificate-based authentication implementation
         let client_addr = "0.0.0.0:0".parse().unwrap(); // TODO: Extract actual client address
 
         // Check brute force protection
@@ -771,69 +828,140 @@ impl russh::server::Handler for SshSession {
             ));
         }
 
-        // Check if client certificate authentication is required
-        if let Some(_ca) = &self.state.certificate_authority {
-            // In a real implementation, we would extract the certificate from the SSH connection
-            // For now, we'll simulate certificate validation
+        // NEW: Redis-based authentication
+        if let Some(redis_auth) = &self.state.redis_auth_handler {
+            // Extract session ID from user string
+            // In a real implementation, this would come from the SSH connection metadata
+            let session_id = self.extract_session_id(user)?;
+            
+            match redis_auth.validate_public_key(user, public_key, &session_id).await {
+                Ok(true) => {
+                    info!(
+                        user = %user,
+                        session_id = %session_id,
+                        "SSH public key authentication accepted via Redis"
+                    );
+                    
+                    // Record successful attempt
+                    {
+                        let mut protection = self.state.brute_force_protection.lock().await;
+                        let successful_attempt = AuthAttempt {
+                            timestamp: Instant::now(),
+                            client_addr,
+                            success: true,
+                            certificate_serial: Some(session_id.clone()),
+                            failure_reason: None,
+                        };
+                        protection.record_attempt(
+                            successful_attempt,
+                            3,
+                            std::time::Duration::from_secs(300),
+                        );
+                    }
 
-            // TODO: Extract actual certificate from SSH connection
-            // This is a placeholder - in real implementation, the certificate would be
-            // extracted from the SSH connection metadata or TLS layer
-            let _mock_certificate_pem = "-----BEGIN CERTIFICATE-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...\n-----END CERTIFICATE-----";
-
-            // For development/testing, we'll accept the authentication
-            // In production, this would validate the actual certificate
-            info!(
-                user = %user,
-                client_addr = %client_addr,
-                "SSH public key authentication accepted (development mode)"
-            );
-
-            // Record successful attempt
-            {
-                let mut protection = self.state.brute_force_protection.lock().await;
-                let successful_attempt = AuthAttempt {
-                    timestamp: Instant::now(),
-                    client_addr,
-                    success: true,
-                    certificate_serial: Some("dev-mode-cert".to_string()),
-                    failure_reason: None,
-                };
-                protection.record_attempt(
-                    successful_attempt,
-                    3,
-                    std::time::Duration::from_secs(300),
-                );
+                    // Store session ID for later use
+                    self.client_certificate_serial = Some(session_id);
+                    
+                    Ok((self, Auth::Accept))
+                }
+                Ok(false) => {
+                    warn!(
+                        user = %user,
+                        session_id = %session_id,
+                        "SSH public key authentication rejected - invalid key or expired session"
+                    );
+                    
+                    // Record failed attempt
+                    {
+                        let mut protection = self.state.brute_force_protection.lock().await;
+                        let failed_attempt = AuthAttempt {
+                            timestamp: Instant::now(),
+                            client_addr,
+                            success: false,
+                            certificate_serial: None,
+                            failure_reason: Some("Invalid public key or expired session".to_string()),
+                        };
+                        protection.record_attempt(failed_attempt, 3, std::time::Duration::from_secs(300));
+                    }
+                    
+                    Ok((
+                        self,
+                        Auth::Reject {
+                            proceed_with_methods: None,
+                        },
+                    ))
+                }
+                Err(e) => {
+                    error!(
+                        user = %user,
+                        error = %e,
+                        "Redis authentication error"
+                    );
+                    Ok((
+                        self,
+                        Auth::Reject {
+                            proceed_with_methods: None,
+                        },
+                    ))
+                }
             }
-
-            Ok((self, Auth::Accept))
         } else {
-            // No CA configured, reject authentication in production mode
-            warn!(
-                user = %user,
-                client_addr = %client_addr,
-                "SSH authentication rejected - no certificate authority configured"
-            );
+            // Fallback to certificate-based auth if Redis is not configured
+            // CRITICAL-3 ENHANCEMENT: Complete certificate-based authentication implementation
+            if let Some(_ca) = &self.state.certificate_authority {
+                // For development/testing, we'll accept the authentication
+                info!(
+                    user = %user,
+                    client_addr = %client_addr,
+                    "SSH public key authentication accepted (development mode)"
+                );
 
-            // Record failed attempt
-            {
-                let mut protection = self.state.brute_force_protection.lock().await;
-                let failed_attempt = AuthAttempt {
-                    timestamp: Instant::now(),
-                    client_addr,
-                    success: false,
-                    certificate_serial: None,
-                    failure_reason: Some("No CA configured".to_string()),
-                };
-                protection.record_attempt(failed_attempt, 3, std::time::Duration::from_secs(300));
+                // Record successful attempt
+                {
+                    let mut protection = self.state.brute_force_protection.lock().await;
+                    let successful_attempt = AuthAttempt {
+                        timestamp: Instant::now(),
+                        client_addr,
+                        success: true,
+                        certificate_serial: Some("dev-mode-cert".to_string()),
+                        failure_reason: None,
+                    };
+                    protection.record_attempt(
+                        successful_attempt,
+                        3,
+                        std::time::Duration::from_secs(300),
+                    );
+                }
+
+                Ok((self, Auth::Accept))
+            } else {
+                // No authentication method configured
+                warn!(
+                    user = %user,
+                    client_addr = %client_addr,
+                    "SSH authentication rejected - no authentication method configured"
+                );
+
+                // Record failed attempt
+                {
+                    let mut protection = self.state.brute_force_protection.lock().await;
+                    let failed_attempt = AuthAttempt {
+                        timestamp: Instant::now(),
+                        client_addr,
+                        success: false,
+                        certificate_serial: None,
+                        failure_reason: Some("No authentication method configured".to_string()),
+                    };
+                    protection.record_attempt(failed_attempt, 3, std::time::Duration::from_secs(300));
+                }
+
+                Ok((
+                    self,
+                    Auth::Reject {
+                        proceed_with_methods: None,
+                    },
+                ))
             }
-
-            Ok((
-                self,
-                Auth::Reject {
-                    proceed_with_methods: None,
-                },
-            ))
         }
     }
 

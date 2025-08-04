@@ -20,3 +20,4 @@ tasks/
 tmp/
 .DS_Store
 Thumbs.db
+test_rust_service.long-type-*.txt

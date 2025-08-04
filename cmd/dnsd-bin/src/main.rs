@@ -6,7 +6,7 @@ use tracing::info;
 
 #[cfg(feature = "dot")]
 use common::tls;
-use common::{init_metrics, init_tracing, shutdown::GracefulShutdown};
+use common::shutdown::GracefulShutdown;
 use dnsd::redis_cache;
 
 #[derive(Parser)]
@@ -39,7 +39,7 @@ async fn main() -> common::AppResult<()> {
     };
 
     common::telemetry::init_telemetry(telemetry_config)
-        .map_err(|e| common::AppError::Message(format!("Failed to initialize telemetry: {}", e)))?;
+        .map_err(|e| common::AppError::Message(format!("Failed to initialize telemetry: {e}")))?;
 
     // Initialize graceful shutdown framework
     let mut shutdown = if let Some(socket_path) = args.control_socket {

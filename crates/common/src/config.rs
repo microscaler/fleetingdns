@@ -279,17 +279,17 @@ impl FleetingDnsConfig {
 
         // Validate DNS configuration
         if let Err(e) = self.dns_addr() {
-            errors.push(format!("Invalid DNS address: {}", e));
+            errors.push(format!("Invalid DNS address: {e}"));
         }
 
         // Validate API configuration
         if let Err(e) = self.api_addr() {
-            errors.push(format!("Invalid API address: {}", e));
+            errors.push(format!("Invalid API address: {e}"));
         }
 
         // Validate EdgeHub configuration
         if let Err(e) = self.edgehub_addr() {
-            errors.push(format!("Invalid EdgeHub address: {}", e));
+            errors.push(format!("Invalid EdgeHub address: {e}"));
         }
 
         // Validate Redis URL

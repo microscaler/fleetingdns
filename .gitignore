@@ -41,3 +41,4 @@ dump.rdb
 
 # Test reports
 test-reports/
+test_rust_service.long-type-*.txt

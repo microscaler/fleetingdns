@@ -224,7 +224,7 @@ impl DnsHandler {
                     tracing::info!("Redis lookup result for {}: {:?}", qname, slot);
                     common::telemetry::record_redis_metrics(
                         "get",
-                        &format!("slot:{}", qname),
+                        &format!("slot:{qname}"),
                         redis_duration,
                         true,
                     );
@@ -233,7 +233,7 @@ impl DnsHandler {
                     tracing::error!("Redis lookup failed for {}: {}", qname, e);
                     common::telemetry::record_redis_metrics(
                         "get",
-                        &format!("slot:{}", qname),
+                        &format!("slot:{qname}"),
                         redis_duration,
                         false,
                     );
@@ -350,7 +350,7 @@ impl DnsHandler {
 
         // Remove trailing dot if present (DNS queries often include trailing dots)
         let clean_qname = qname.trim_end_matches('.');
-        let key = format!("slot:{}", clean_qname);
+        let key = format!("slot:{clean_qname}");
 
         let result: Result<Option<String>, redis::RedisError> =
             redis::cmd("GET").arg(&key).query_async(&mut *conn).await;
