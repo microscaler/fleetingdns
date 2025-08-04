@@ -115,8 +115,8 @@ pub async fn create_tunnel(
         generate_random_subdomain().await
     };
 
-    // Allocate SSH slot
-    let slot = allocate_ssh_slot(&state).await?;
+    // Allocate a port for the tunnel
+    let allocated_port = state.storage.allocate_port(&user.id).await?;
 
     let cert_request =
         edf_ca::IssuanceRequest::new(format!("tunnel-client-{}", user.id), user.id.to_string());
@@ -128,14 +128,14 @@ pub async fn create_tunnel(
         .await
         .map_err(|e| ApiError::CertificateError(e.to_string()))?;
 
-    // Create tunnel with certificate
+    // Create tunnel with certificate using the allocated port
     let tunnel = Tunnel::new(
         user.id.to_string(),
         user.login.clone(),
         subdomain.clone(),
         "fleetingdns.run",
         request.port,
-        slot,
+        allocated_port, // Use the allocated port instead of random slot
         cert_response.metadata.serial_number.clone(),
         request.ttl.unwrap_or(3600),
     );
@@ -161,7 +161,7 @@ pub async fn create_tunnel(
     Ok(Json(CreateTunnelResponse {
         id: tunnel.id.to_string(),
         fqdn: tunnel.fqdn,
-        slot: tunnel.slot,
+        slot: allocated_port, // Return the allocated port for the client
         tls_cert: cert_response.certificate_pem,
         private_key: "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----".to_string(), // TODO: Get from edf-ca
         ssh_key,
@@ -239,10 +239,13 @@ pub async fn delete_tunnel(
         ));
     }
 
+    // Release the allocated port
+    state.storage.release_port(tunnel.slot).await?;
+
     // Delete tunnel
     state.storage.delete_tunnel(&uuid).await?;
 
-    info!("Deleted tunnel {} for user {}", tunnel_id, user.login);
+    info!("Deleted tunnel {} for user {} and released port {}", tunnel_id, user.login, tunnel.slot);
 
     Ok(Json(serde_json::json!({
         "status": "deleted",
@@ -281,6 +284,25 @@ pub async fn list_tunnels(
         .collect();
 
     Ok(Json(tunnel_infos))
+}
+
+/// Get port allocation statistics
+pub async fn get_port_stats(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+) -> ApiResult<Json<serde_json::Value>> {
+    // Authenticate user with development mode bypass support
+    let token = extract_bearer_token_with_dev_bypass(&headers, state.config.development_mode)?;
+    let _user = validate_jwt_token(&token, &state.config.jwt_secret)?;
+
+    let (allocated, available, total) = state.storage.get_port_stats().await?;
+    
+    Ok(Json(serde_json::json!({
+        "allocated_ports": allocated,
+        "available_ports": available,
+        "total_ports": total,
+        "utilization_percentage": (allocated as f64 / total as f64 * 100.0).round() as u8
+    })))
 }
 
 /// Validate subdomain format

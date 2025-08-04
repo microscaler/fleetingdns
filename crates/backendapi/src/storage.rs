@@ -256,6 +256,111 @@ impl TunnelStorage {
         let tunnel = self.get_tunnel_by_subdomain(subdomain).await?;
         Ok(tunnel.is_none())
     }
+
+    /// Allocate an available port for a tunnel
+    pub async fn allocate_port(&self, tunnel_id: &str) -> ApiResult<u16> {
+        let mut conn = self.get_connection().await?;
+        
+        // Port allocation range: 10000-65535 (55,535 available ports per host)
+        const PORT_RANGE_START: u16 = 10000;
+        const PORT_RANGE_END: u16 = 65535;
+        
+        // Use a more efficient allocation strategy - start from a random position
+        // to avoid clustering and improve distribution
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        let start_port = rng.gen_range(PORT_RANGE_START..PORT_RANGE_END);
+        
+        // Try ports starting from random position, then wrap around
+        let mut port = start_port;
+        let mut attempts = 0;
+        const MAX_ATTEMPTS: u16 = 1000; // Limit attempts to avoid infinite loops
+        
+        while attempts < MAX_ATTEMPTS {
+            let port_key = format!("port:{}", port);
+            
+            // Check if port is available (not in use)
+            let is_available: Option<String> = conn
+                .get(&port_key)
+                .await
+                .map_err(|e| ApiError::StorageError(format!("Failed to check port availability: {e}")))?;
+            
+            if is_available.is_none() {
+                // Reserve the port for this tunnel with tunnel TTL
+                let _: () = conn
+                    .set_ex(&port_key, tunnel_id, 3600) // 1 hour TTL for port reservation
+                    .await
+                    .map_err(|e| ApiError::StorageError(format!("Failed to reserve port: {e}")))?;
+                
+                info!("Allocated port {} for tunnel {}", port, tunnel_id);
+                return Ok(port);
+            }
+            
+            // Move to next port, wrap around if needed
+            port = if port >= PORT_RANGE_END {
+                PORT_RANGE_START
+            } else {
+                port + 1
+            };
+            
+            attempts += 1;
+        }
+        
+        Err(ApiError::StorageError("No available ports found after 1000 attempts".to_string()))
+    }
+
+    /// Release a port when tunnel is deleted
+    pub async fn release_port(&self, port: u16) -> ApiResult<()> {
+        let mut conn = self.get_connection().await?;
+        
+        let port_key = format!("port:{}", port);
+        let _: () = conn
+            .del(&port_key)
+            .await
+            .map_err(|e| ApiError::StorageError(format!("Failed to release port: {e}")))?;
+        
+        info!("Released port {}", port);
+        Ok(())
+    }
+
+    /// Get port allocation statistics
+    pub async fn get_port_stats(&self) -> ApiResult<(u16, u16, u16)> {
+        let mut conn = self.get_connection().await?;
+        
+        const PORT_RANGE_START: u16 = 10000;
+        const PORT_RANGE_END: u16 = 65535;
+        
+        // For efficiency, sample a subset of ports rather than checking all 55,535
+        const SAMPLE_SIZE: u16 = 1000;
+        let mut allocated = 0;
+        let mut available = 0;
+        
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        
+        for _ in 0..SAMPLE_SIZE {
+            let port = rng.gen_range(PORT_RANGE_START..PORT_RANGE_END);
+            let port_key = format!("port:{}", port);
+            let is_allocated: Option<String> = conn
+                .get(&port_key)
+                .await
+                .map_err(|e| ApiError::StorageError(format!("Failed to check port: {e}")))?;
+            
+            if is_allocated.is_some() {
+                allocated += 1;
+            } else {
+                available += 1;
+            }
+        }
+        
+        // Estimate total based on sample
+        let total_ports = PORT_RANGE_END - PORT_RANGE_START + 1;
+        let sample_ratio = SAMPLE_SIZE as f64 / total_ports as f64;
+        let estimated_allocated = (allocated as f64 / sample_ratio) as u16;
+        let estimated_available = total_ports - estimated_allocated;
+        
+        Ok((estimated_allocated, estimated_available, total_ports))
+    }
 }
 
 #[cfg(test)]
