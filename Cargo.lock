@@ -1572,6 +1572,7 @@ dependencies = [
  "migration",
  "mini-redis",
  "rand 0.8.5",
+ "rcgen 0.14.2",
  "redis",
  "ring",
  "russh",

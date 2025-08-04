@@ -15,10 +15,14 @@ use tracing::{info, instrument};
 pub mod redis;
 pub mod redis_auth;
 pub mod ssh_server;
+pub mod tls_router;
+pub mod certificate_manager;
 
 pub use redis::*;
 pub use redis_auth::*;
 pub use ssh_server::*;
+pub use tls_router::*;
+pub use certificate_manager::*;
 
 /// Configuration for the EdgeHub server.
 #[derive(Debug, Clone)]
