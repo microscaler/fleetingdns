@@ -707,7 +707,7 @@ dependencies = [
  "hyperlocal",
  "log",
  "pin-project-lite",
- "rustls 0.23.29",
+ "rustls 0.23.31",
  "rustls-native-certs",
  "rustls-pemfile 2.2.0",
  "rustls-pki-types",
@@ -988,7 +988,7 @@ dependencies = [
  "opentelemetry_sdk",
  "rcgen 0.14.2",
  "ring",
- "rustls 0.23.29",
+ "rustls 0.23.31",
  "rustls-pemfile 2.2.0",
  "serde",
  "serde_json",
@@ -1405,7 +1405,7 @@ dependencies = [
  "rand 0.8.5",
  "redis",
  "ring",
- "rustls 0.23.29",
+ "rustls 0.23.31",
  "serde",
  "serde_json",
  "serial_test",
@@ -1515,7 +1515,7 @@ dependencies = [
  "metrics",
  "rcgen 0.12.1",
  "ring",
- "rustls 0.23.29",
+ "rustls 0.23.31",
  "rustls-pemfile 1.0.4",
  "serde",
  "serde_json",
@@ -1542,7 +1542,7 @@ dependencies = [
  "reqwest 0.12.22",
  "russh",
  "russh-keys",
- "rustls 0.23.29",
+ "rustls 0.23.31",
  "rustls-pemfile 1.0.4",
  "serde",
  "serde_json",
@@ -1577,7 +1577,7 @@ dependencies = [
  "ring",
  "russh",
  "russh-keys",
- "rustls 0.23.29",
+ "rustls 0.23.31",
  "rustls-pemfile 2.2.0",
  "sea-orm",
  "sea-orm-migration",
@@ -1602,7 +1602,11 @@ dependencies = [
  "clap 4.5.41",
  "common",
  "edgehub",
+ "rustls 0.22.4",
+ "serde",
+ "serde_json",
  "tokio",
+ "tokio-rustls 0.25.0",
  "tracing",
 ]
 
@@ -2411,7 +2415,7 @@ dependencies = [
  "http 1.3.1",
  "hyper 1.6.0",
  "hyper-util",
- "rustls 0.23.29",
+ "rustls 0.23.31",
  "rustls-pki-types",
  "tokio",
  "tokio-rustls 0.26.2",
@@ -2823,7 +2827,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07033963ba89ebaf1584d767badaa2e8fcec21aedea6b8c0346d487d49c28667"
 dependencies = [
  "cfg-if",
- "windows-targets 0.53.2",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -3896,7 +3900,7 @@ dependencies = [
  "quinn-proto",
  "quinn-udp",
  "rustc-hash 2.1.1",
- "rustls 0.23.29",
+ "rustls 0.23.31",
  "socket2",
  "thiserror 2.0.12",
  "tokio",
@@ -3916,7 +3920,7 @@ dependencies = [
  "rand 0.9.1",
  "ring",
  "rustc-hash 2.1.1",
- "rustls 0.23.29",
+ "rustls 0.23.31",
  "rustls-pki-types",
  "slab",
  "thiserror 2.0.12",
@@ -3936,7 +3940,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4285,7 +4289,7 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "quinn",
- "rustls 0.23.29",
+ "rustls 0.23.31",
  "rustls-pki-types",
  "serde",
  "serde_json",
@@ -4580,9 +4584,23 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.29"
+version = "0.22.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2491382039b29b9b11ff08b76ff6c97cf287671dbb74f0be44bda389fffe9bd1"
+checksum = "bf4ef73721ac7bcd79b2b315da7779d8fc09718c6b3d2d1b2d94850eb8c18432"
+dependencies = [
+ "log",
+ "ring",
+ "rustls-pki-types",
+ "rustls-webpki 0.102.8",
+ "subtle",
+ "zeroize",
+]
+
+[[package]]
+name = "rustls"
+version = "0.23.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0ebcbd2f03de0fc1122ad9bb24b127a5a6cd51d72604a3f3c50ac459762b6cc"
 dependencies = [
  "aws-lc-rs",
  "log",
@@ -4641,6 +4659,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b6275d1ee7a1cd780b64aca7726599a1dbc893b1e64144529e55c3c2f745765"
 dependencies = [
  "ring",
+ "untrusted",
+]
+
+[[package]]
+name = "rustls-webpki"
+version = "0.102.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64ca1bc8749bd4cf37b5ce386cc146580777b4e8572c7b97baf22c83f444bee9"
+dependencies = [
+ "ring",
+ "rustls-pki-types",
  "untrusted",
 ]
 
@@ -5874,11 +5903,22 @@ dependencies = [
 
 [[package]]
 name = "tokio-rustls"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "775e0c0f0adb3a2f22a00c4745d728b479985fc15ee7ca6a2608388c5569860f"
+dependencies = [
+ "rustls 0.22.4",
+ "rustls-pki-types",
+ "tokio",
+]
+
+[[package]]
+name = "tokio-rustls"
 version = "0.26.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8e727b36a1a0e8b74c376ac2211e40c2c8af09fb4013c60d910495810f008e9b"
 dependencies = [
- "rustls 0.23.29",
+ "rustls 0.23.31",
  "tokio",
 ]
 

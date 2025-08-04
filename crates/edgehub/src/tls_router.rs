@@ -5,16 +5,15 @@
 //! This is the core USP that differentiates FleetingDNS from competitors.
 
 use anyhow::{Context, Result};
-use rustls::{ServerConfig, ServerConnection};
+use rustls::ServerConfig;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Mutex;
 use tracing::{debug, error, info, warn};
 
-use crate::redis_auth::SessionData;
 use crate::ssh_server::{ReverseTunnelInfo, SshServerState};
 
 /// Configuration for the TLS router
@@ -34,12 +33,16 @@ pub struct TlsRouterConfig {
 
 impl Default for TlsRouterConfig {
     fn default() -> Self {
+        // Create a basic TLS config - this will be replaced with dynamic certificates
+        let cert = rustls::Certificate(vec![1, 2, 3]); // Placeholder
+        let key = rustls::PrivateKey(vec![1, 2, 3]); // Placeholder
+        
         Self {
             bind_addr: "0.0.0.0:443".parse().unwrap(),
             tls_config: ServerConfig::builder()
-                .with_safe_defaults()
-                .with_no_client_auth()
-                .build(),
+                .with_client_cert_verifier(rustls::server::danger::NoClientAuth::new())
+                .with_single_cert(vec![cert], key)
+                .unwrap(),
             public_domain: "fleetingdns.run".to_string(),
             redis_url: "redis://localhost:6379".to_string(),
             max_connections: 1000,

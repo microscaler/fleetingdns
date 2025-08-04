@@ -72,6 +72,13 @@ impl TunnelStorage {
             .await
             .map_err(|e| ApiError::StorageError(format!("Failed to set user list expiry: {e}")))?;
 
+        // Create DNS slot mapping for tunnel FQDN
+        let slot_key = format!("slot:{}", tunnel.fqdn);
+        let _: () = conn
+            .set_ex(&slot_key, "127.0.0.1", ttl)
+            .await
+            .map_err(|e| ApiError::StorageError(format!("Failed to create DNS slot mapping: {e}")))?;
+
         debug!("Stored tunnel {} with TTL {} seconds", tunnel.id, ttl);
         Ok(())
     }

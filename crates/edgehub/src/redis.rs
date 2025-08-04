@@ -10,6 +10,7 @@ use std::net::Ipv4Addr;
 use dnsd::redis_cache as dnsd_cache;
 pub use dnsd::redis_cache::{CacheError, RedisPool, get_slot};
 use redis::AsyncCommands;
+use serde::{Deserialize, Serialize};
 
 /// Default TTL applied to slot mappings in seconds.
 pub const DEFAULT_TTL: u64 = 1800;
@@ -40,4 +41,40 @@ pub async fn del_slot(pool: &RedisPool, slot: &str) -> Result<(), CacheError> {
     let mut conn = pool.get().await.map_err(CacheError::Pool)?;
     let _: () = conn.del(slot).await.map_err(CacheError::Redis)?;
     Ok(())
+}
+
+/// Tunnel information for HTTPS routing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TunnelInfo {
+    pub id: String,
+    pub fqdn: String,
+    pub local_port: u16,
+    pub slot: u16,
+    pub user_id: String,
+    pub expires_at: String,
+}
+
+/// Get tunnel information by subdomain
+#[tracing::instrument(skip_all, fields(subdomain))]
+pub async fn get_tunnel_by_subdomain(
+    pool: &RedisPool,
+    subdomain: &str,
+) -> Result<Option<TunnelInfo>, CacheError> {
+    let mut conn = pool.get().await.map_err(CacheError::Pool)?;
+    
+    // Look up tunnel by subdomain in Redis
+    let key = format!("tunnel:subdomain:{}", subdomain);
+    let tunnel_data: Option<String> = conn.get(&key).await.map_err(CacheError::Redis)?;
+    
+    if let Some(data) = tunnel_data {
+        match serde_json::from_str::<TunnelInfo>(&data) {
+            Ok(tunnel) => Ok(Some(tunnel)),
+            Err(_) => {
+                tracing::warn!(subdomain, "Failed to deserialize tunnel data");
+                Ok(None)
+            }
+        }
+    } else {
+        Ok(None)
+    }
 }
