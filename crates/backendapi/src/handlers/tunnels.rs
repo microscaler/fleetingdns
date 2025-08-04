@@ -115,18 +115,21 @@ pub async fn create_tunnel(
         generate_random_subdomain().await
     };
 
-    // Allocate a port for the tunnel using dynamic port allocation
-    let allocated_port = state.storage.allocate_port(&user.id).await?;
-
     let cert_request =
         edf_ca::IssuanceRequest::new(format!("tunnel-client-{}", user.id), user.id.to_string());
 
-    // Issue certificate
+    // Issue certificate first
     let cert_response = state
         .ca
         .issue_certificate(cert_request)
         .await
         .map_err(|e| ApiError::CertificateError(e.to_string()))?;
+
+    // Calculate certificate TTL in seconds
+    let certificate_ttl = (cert_response.metadata.expires_at - chrono::Utc::now()).num_seconds() as u64;
+    
+    // Allocate a port for the tunnel using certificate TTL
+    let allocated_port = state.storage.allocate_port(&user.id, certificate_ttl).await?;
 
     // Create tunnel with certificate using the allocated port
     let tunnel = Tunnel::new(

@@ -257,8 +257,8 @@ impl TunnelStorage {
         Ok(tunnel.is_none())
     }
 
-    /// Allocate an available port for a tunnel
-    pub async fn allocate_port(&self, tunnel_id: &str) -> ApiResult<u16> {
+    /// Allocate an available port for a tunnel with certificate TTL
+    pub async fn allocate_port(&self, tunnel_id: &str, certificate_ttl: u64) -> ApiResult<u16> {
         let mut conn = self.get_connection().await?;
         
         // Port allocation range: 10000-65535 (55,535 available ports per host)
@@ -286,9 +286,9 @@ impl TunnelStorage {
                 .map_err(|e| ApiError::StorageError(format!("Failed to check port availability: {e}")))?;
             
             if is_available.is_none() {
-                // Reserve the port for this tunnel with tunnel TTL
+                // Reserve the port for this tunnel with certificate TTL
                 let _: () = conn
-                    .set_ex(&port_key, tunnel_id, 3600) // 1 hour TTL for port reservation
+                    .set_ex(&port_key, tunnel_id, certificate_ttl)
                     .await
                     .map_err(|e| ApiError::StorageError(format!("Failed to reserve port: {e}")))?;
                 
