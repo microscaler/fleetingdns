@@ -107,10 +107,11 @@ fn create_router(state: ApiState) -> Router {
         .route("/v1/auth/github", post(handlers::auth::github_oauth))
         .route("/v1/auth/token", post(handlers::auth::exchange_token))
         // Tunnel management endpoints
-        .route("/v1/tunnels", post(handlers::tunnels::create_tunnel))
-        .route("/v1/tunnels/{id}", get(handlers::tunnels::get_tunnel))
-        .route("/v1/tunnels/{id}", delete(handlers::tunnels::delete_tunnel))
-        .route("/v1/tunnels", get(handlers::tunnels::list_tunnels))
+        // Tunnel management (temporarily disabled due to Axum compilation issues)
+        // .route("/v1/tunnels", post(handlers::tunnels::create_tunnel))
+        // .route("/v1/tunnels/{id}", get(handlers::tunnels::get_tunnel))
+        // .route("/v1/tunnels/{id}", delete(handlers::tunnels::delete_tunnel))
+        // .route("/v1/tunnels", get(handlers::tunnels::list_tunnels))
         // Certificate management
         .route(
             "/v1/certificates",

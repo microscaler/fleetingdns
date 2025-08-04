@@ -115,7 +115,7 @@ pub async fn create_tunnel(
         generate_random_subdomain().await
     };
 
-    // Allocate a port for the tunnel
+    // Allocate a port for the tunnel using dynamic port allocation
     let allocated_port = state.storage.allocate_port(&user.id).await?;
 
     let cert_request =
@@ -352,13 +352,14 @@ async fn generate_random_subdomain() -> String {
 }
 
 /// Allocate an SSH server slot
-async fn allocate_ssh_slot(_state: &ApiState) -> ApiResult<u16> {
-    // For now, return a random port in the ephemeral range
-    // In production, this should coordinate with EdgeHub to allocate actual slots
-    use rand::Rng;
-    let mut rng = rand::thread_rng();
-    Ok(rng.gen_range(10000..20000))
-}
+/// Allocate a random SSH slot for tunnel - REMOVED OLD SYSTEM
+// async fn allocate_ssh_slot(_state: &ApiState) -> ApiResult<u16> {
+//     // For now, return a random port in the ephemeral range
+//     // In production, this should coordinate with EdgeHub to allocate actual slots
+//     use rand::Rng;
+//     let mut rng = rand::thread_rng();
+//     Ok(rng.gen_range(10000..20000))
+// }
 
 /// Generate SSH key pair
 fn generate_ssh_key_pair() -> ApiResult<SshKeyPair> {
