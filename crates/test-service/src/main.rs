@@ -107,6 +107,7 @@ async fn main() {
         .route("/", get(health_check))
         .route("/public", get(public_endpoint))
         .route("/status", get(status_endpoint))
+        .route("/api/test", get(api_test))
         .route("/login", post(login))
         .route("/logout", post(logout))
         .route("/hello", get(hello_authenticated))
@@ -114,12 +115,12 @@ async fn main() {
         .with_state(state);
 
     // Get port from environment or default
-    let port = std::env::var("TEST_SERVICE_PORT")
-        .unwrap_or_else(|_| "8000".to_string())
-        .parse::<u16>()
-        .unwrap_or(8000);
-
-    let host = std::env::var("TEST_SERVICE_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
+    let bind_address = std::env::var("SERVICE_BIND_ADDRESS")
+        .unwrap_or_else(|_| "0.0.0.0:8001".to_string());
+    
+    let parts: Vec<&str> = bind_address.split(':').collect();
+    let host = parts.first().unwrap_or(&"0.0.0.0");
+    let port = parts.get(1).unwrap_or(&"8001").parse::<u16>().unwrap_or(8001);
 
     info!("Starting FleetingDNS Test Service on {}:{}", host, port);
 
@@ -145,6 +146,17 @@ async fn public_endpoint() -> Json<PublicResponse> {
     Json(PublicResponse {
         message: "This is a public endpoint".to_string(),
         authenticated: false,
+        timestamp: Utc::now(),
+        service: "fleetingdns-test-service".to_string(),
+    })
+}
+
+async fn api_test() -> Json<HelloResponse> {
+    info!("API test endpoint accessed");
+    Json(HelloResponse {
+        message: "Hello from FleetingDNS Test Service!".to_string(),
+        authenticated: false,
+        session_id: None,
         timestamp: Utc::now(),
         service: "fleetingdns-test-service".to_string(),
     })

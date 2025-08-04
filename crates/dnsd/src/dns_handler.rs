@@ -382,16 +382,41 @@ impl DnsHandler {
 
         // Add answer if slot is provided
         if let Some(slot_ip) = slot {
-            let ip: Ipv4Addr = slot_ip
-                .parse()
-                .map_err(|_| AppError::Message(format!("Invalid IP address: {slot_ip}")))?;
+            match query.query_type() {
+                hickory_proto::rr::RecordType::A => {
+                    // Handle IPv4 addresses
+                    let ip: Ipv4Addr = slot_ip
+                        .parse()
+                        .map_err(|_| AppError::Message(format!("Invalid IPv4 address: {slot_ip}")))?;
 
-            let record = Record::from_rdata(
-                qname.clone(),
-                300, // TTL
-                hickory_proto::rr::RData::A(A::from(ip)),
-            );
-            response.add_answer(record);
+                    let record = Record::from_rdata(
+                        qname.clone(),
+                        300, // TTL
+                        hickory_proto::rr::RData::A(A::from(ip)),
+                    );
+                    response.add_answer(record);
+                }
+                hickory_proto::rr::RecordType::AAAA => {
+                    // Handle IPv6 addresses
+                    let ip: std::net::Ipv6Addr = slot_ip
+                        .parse()
+                        .map_err(|_| AppError::Message(format!("Invalid IPv6 address: {slot_ip}")))?;
+
+                    let record = Record::from_rdata(
+                        qname.clone(),
+                        300, // TTL
+                        hickory_proto::rr::RData::AAAA(hickory_proto::rr::rdata::AAAA::from(ip)),
+                    );
+                    response.add_answer(record);
+                }
+                _ => {
+                    // For other record types, return NXDOMAIN
+                    response.set_response_code(ResponseCode::NXDomain);
+                }
+            }
+        } else {
+            // No slot found, return NXDOMAIN
+            response.set_response_code(ResponseCode::NXDomain);
         }
 
         response

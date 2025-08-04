@@ -1,0 +1,29 @@
+FROM rust:1.77-slim AS builder
+
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /usr/src/app
+COPY . .
+
+# Build the test-service binary
+RUN cargo build --release -p test-service
+
+# Use minimal debian image with just libc
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the binary
+COPY --from=builder /usr/src/app/target/release/test-service /test-service
+
+# Expose port
+EXPOSE 8001
+
+# Set the entrypoint
+ENTRYPOINT ["/test-service"] 
