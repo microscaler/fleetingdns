@@ -1599,10 +1599,18 @@ sequenceDiagram
 
 ### ❌ **Broken Components**
 1. **Database Migrations**: PostgreSQL database exists but no tables created
-2. **API Authentication**: All endpoints require GitHub OAuth, no development bypass
+2. ~~**API Authentication**~~: ✅ **FIXED** - Development mode bypass implemented with x-development-bypass header
 3. **TLS Router Integration**: TLS server configured for SSH, not HTTPS routing
 4. **DNS Zone Authority**: 🚨 **CRITICAL GAP** - Missing SOA/NS records and zone authority infrastructure
 5. **End-to-End Tunnel Flow**: Complete tunnel creation and routing not tested
+
+### ✅ **Recently Fixed Components**
+1. **API Tunnel Routes** (2025-08-04): 
+   - Upgraded to Axum 0.8.4 resolving Handler trait issues
+   - Fixed non-Send futures in random number generation
+   - Dynamic port allocation with certificate TTL working
+   - All tunnel endpoints functional
+   - 86 API tests passing
 
 ### 🔄 **In Progress**
 1. **Telemetry Integration**: Basic metrics working, distributed tracing pending

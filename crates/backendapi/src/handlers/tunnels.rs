@@ -1,9 +1,5 @@
 use crate::{ApiError, ApiResult, ApiState, auth::*, models::*};
-use axum::{
-    Json,
-    extract::{Path, State},
-    http::HeaderMap,
-};
+use axum::{Json, extract::{Path, State}, http::HeaderMap};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 use uuid::Uuid;
@@ -176,8 +172,8 @@ pub async fn create_tunnel(
 /// Get tunnel information
 pub async fn get_tunnel(
     State(state): State<ApiState>,
-    headers: HeaderMap,
     Path(tunnel_id): Path<String>,
+    headers: HeaderMap,
 ) -> ApiResult<Json<TunnelInfo>> {
     // Authenticate user with development mode bypass support
     let token = extract_bearer_token_with_dev_bypass(&headers, state.config.development_mode)?;
@@ -219,8 +215,8 @@ pub async fn get_tunnel(
 /// Delete a tunnel
 pub async fn delete_tunnel(
     State(state): State<ApiState>,
-    headers: HeaderMap,
     Path(tunnel_id): Path<String>,
+    headers: HeaderMap,
 ) -> ApiResult<Json<serde_json::Value>> {
     // Authenticate user with development mode bypass support
     let token = extract_bearer_token_with_dev_bypass(&headers, state.config.development_mode)?;
@@ -337,12 +333,11 @@ fn validate_subdomain(subdomain: &str) -> ApiResult<()> {
 /// Generate a random subdomain
 async fn generate_random_subdomain() -> String {
     use rand::Rng;
-    let mut rng = rand::thread_rng();
 
     // Generate a random 8-character alphanumeric string
     let chars: String = (0..8)
         .map(|_| {
-            let idx = rng.gen_range(0..36);
+            let idx = rand::thread_rng().gen_range(0..36);
             if idx < 10 {
                 (b'0' + idx) as char
             } else {
@@ -380,11 +375,10 @@ fn generate_ssh_key_pair() -> ApiResult<SshKeyPair> {
 fn generate_random_string(length: usize) -> String {
     use rand::Rng;
     const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let mut rng = rand::thread_rng();
 
     (0..length)
         .map(|_| {
-            let idx = rng.gen_range(0..CHARSET.len());
+            let idx = rand::thread_rng().gen_range(0..CHARSET.len());
             CHARSET[idx] as char
         })
         .collect()

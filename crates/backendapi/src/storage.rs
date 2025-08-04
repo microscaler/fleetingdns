@@ -268,8 +268,7 @@ impl TunnelStorage {
         // Use a more efficient allocation strategy - start from a random position
         // to avoid clustering and improve distribution
         use rand::Rng;
-        let mut rng = rand::thread_rng();
-        let start_port = rng.gen_range(PORT_RANGE_START..PORT_RANGE_END);
+        let start_port = rand::thread_rng().gen_range(PORT_RANGE_START..PORT_RANGE_END);
         
         // Try ports starting from random position, then wrap around
         let mut port = start_port;
@@ -336,10 +335,9 @@ impl TunnelStorage {
         let mut available = 0;
         
         use rand::Rng;
-        let mut rng = rand::thread_rng();
         
         for _ in 0..SAMPLE_SIZE {
-            let port = rng.gen_range(PORT_RANGE_START..PORT_RANGE_END);
+            let port = rand::thread_rng().gen_range(PORT_RANGE_START..PORT_RANGE_END);
             let port_key = format!("port:{}", port);
             let is_allocated: Option<String> = conn
                 .get(&port_key)
