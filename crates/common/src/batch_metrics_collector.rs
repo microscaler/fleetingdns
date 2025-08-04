@@ -1,8 +1,7 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use tokio::sync::{RwLock, mpsc, oneshot};
-use tokio::time::timeout;
 use tracing::{debug, error, info, warn};
 
 use crate::AppResult;
@@ -179,7 +178,7 @@ impl BatchMetricsCollector {
     async fn start_background_processor(
         mut processor_rx: mpsc::Receiver<MetricsBatch>,
         stats: Arc<RwLock<MetricsBatchStats>>,
-        config: MetricsBatchConfig,
+        #[allow(unused)] config: MetricsBatchConfig,
     ) {
         info!("Starting metrics batch processor");
 

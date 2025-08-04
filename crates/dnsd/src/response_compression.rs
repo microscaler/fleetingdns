@@ -21,9 +21,9 @@ pub struct CompressionConfig {
 impl Default for CompressionConfig {
     fn default() -> Self {
         Self {
-            enable_compression: true,
-            min_compress_size: 512, // Only compress responses > 512 bytes
-            compression_level: 6,   // Balanced compression level
+            enable_compression: false, // Disabled due to DNS client compatibility issues
+            min_compress_size: 512,    // Only compress responses > 512 bytes
+            compression_level: 6,      // Balanced compression level
             enable_stats: true,
         }
     }
@@ -247,7 +247,7 @@ mod tests {
     #[test]
     fn test_compression_config_default() {
         let config = CompressionConfig::default();
-        assert_eq!(config.enable_compression, true);
+        assert_eq!(config.enable_compression, false);
         assert_eq!(config.min_compress_size, 512);
         assert_eq!(config.compression_level, 6);
         assert_eq!(config.enable_stats, true);
@@ -296,7 +296,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_compression_stats() {
-        let config = CompressionConfig::default();
+        let mut config = CompressionConfig::default();
+        config.enable_compression = true; // Enable compression for this test
         let compressor = ResponseCompressor::new(config);
 
         // Compress some data

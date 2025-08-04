@@ -1,135 +1,135 @@
-# GitHub Actions Workflows
+# FleetingDNS CI/CD Workflows
 
-This directory contains the CI/CD workflows for FleetingDNS.
+This directory contains the GitHub Actions workflows for FleetingDNS CI/CD pipeline.
 
 ## Workflows
 
-### 1. `rust_ci.yml` - Main Rust CI Pipeline
+### `fleetingdns-ci.yml` - Main CI Pipeline
 
-**Triggers:** Push to main, Pull Requests
+The main consolidated CI workflow that runs all tests and validations:
 
-**Purpose:** Fast feedback loop for code quality and basic functionality.
+#### Jobs:
 
-**Jobs:**
-- **build**: Runs formatting, linting, unit tests, and basic smoke tests
-  - Code formatting check (`cargo fmt`)
-  - Linting with Clippy (`cargo clippy`)
-  - Unit tests (libraries and binaries)
-  - DoT (DNS-over-TLS) feature tests
-  - Basic dnsd smoke test
+1. **Rust Unit Tests & Code Quality** (`rust-tests`)
+   - Format checking with `cargo fmt`
+   - Linting with `cargo clippy`
+   - Unit tests with `cargo test`
+   - DoT (DNS-over-TLS) feature tests
+   - Binary smoke tests
 
-**Duration:** ~5-10 minutes
+2. **Integration Tests** (`integration-tests`)
+   - Testcontainers-based integration tests
+   - Redis cache integration tests
+   - Slot-setter tests
+   - Docker container management
 
-### 2. `testcontainers.yml` - Integration Tests
+3. **DNS Integration Testing** (`dns-integration`)
+   - Full Docker Compose stack testing
+   - Custom DNS client testing
+   - DNS integration script execution
+   - Grafana and Prometheus health checks
+   - Metrics validation
+   - Test report artifact upload
 
-**Triggers:** Push to main, Pull Requests, Manual dispatch, Nightly schedule (2 AM UTC)
+4. **Docker Compose Smoke Tests** (`compose-smoke`)
+   - Docker Compose CI overlay testing
+   - Service health verification
+   - Round-trip demo execution
 
-**Purpose:** Comprehensive integration testing with real Redis containers.
+#### Triggers:
+- Push to `main` branch
+- Pull requests
+- Manual workflow dispatch
+- Daily scheduled run at 2 AM UTC
 
-**Features:**
-- Uses testcontainers-rs for Redis integration testing
-- Ephemeral port allocation to prevent conflicts
-- Proper Docker container lifecycle management
-- Comprehensive Redis cache and slot-setter testing
+#### Dependencies:
+- Jobs 3 and 4 depend on Jobs 1 and 2 completing successfully
+- Ensures unit tests pass before running integration tests
 
-**Environment Variables:**
-- `TESTCONTAINERS_RYUK_DISABLED=true` - Disables Ryuk container cleanup (not needed in CI)
-- `TESTCONTAINERS_COMMAND_TIMEOUT=180` - 3-minute timeout for container operations
-- `RUST_TEST_THREADS=1` - Serial test execution to avoid Docker conflicts
-- `RUST_TEST_TIME_UNIT=180s` - Extended test timeouts for container startup
-
-**Duration:** ~15-20 minutes
-
-### 3. `compose-ci.yml` - Full Stack Integration
-
-**Triggers:** Pull Requests, Manual dispatch
-
-**Purpose:** End-to-end testing with complete Docker Compose stack.
-
-**Features:**
-- Full service stack with DNS, Grafana, observability
-- Health checks for all services
-- Round-trip demo testing
-
-## Testcontainers Configuration
-
-The testcontainers workflow is specifically configured for CI environments:
-
-### Docker Setup
-- Uses `docker/setup-buildx-action@v3` for reliable Docker environment
-- Pre-pulls Redis 7 Alpine image to reduce test startup time
-- Verifies Docker availability before running tests
-
-### Resource Management
-- Serial test execution (`RUST_TEST_THREADS=1`) prevents resource conflicts
-- Extended timeouts account for container startup in CI environments
-- Automatic cleanup of Docker containers and system pruning
-
-### Test Organization
-- Full workspace test run for comprehensive coverage
-- Specific Redis cache tests (`cargo test -p dnsd redis_cache::tests`)
-- Specific slot-setter tests (`cargo test -p slot-setter`)
+#### Artifacts:
+- DNS test reports uploaded as artifacts
+- JUnit XML and JSON test reports available for download
 
 ## Local Testing
 
-To test the workflows locally using [act](https://github.com/nektos/act):
+To run the same tests locally:
 
 ```bash
-# Test the main Rust CI workflow
-act pull_request -W .github/workflows/rust_ci.yml
+# Unit tests
+cargo test --workspace
 
-# Test the testcontainers workflow (requires Docker)
-act pull_request -W .github/workflows/testcontainers.yml
+# Integration tests with testcontainers
+cargo test --workspace
+env TESTCONTAINERS_RYUK_DISABLED=true RUST_TEST_THREADS=1
 
-# List available jobs
-act pull_request --list
+# DNS integration tests
+./scripts/test_dns_ci.sh
+
+# Custom DNS client tests
+python3 scripts/dns_test_client.py test
+
+# Docker Compose smoke tests
+docker compose up -d --build
+# ... run tests ...
+docker compose down
 ```
 
-## Caching Strategy
+## Environment Variables
 
-Both workflows use GitHub Actions caching to speed up builds:
+### Testcontainers Configuration
+- `TESTCONTAINERS_RYUK_DISABLED=true` - Disable Ryuk container for CI
+- `TESTCONTAINERS_COMMAND_TIMEOUT=180` - Increase timeout for container operations
+- `RUST_TEST_THREADS=1` - Run tests serially to avoid Docker conflicts
+- `RUST_TEST_TIME_UNIT=180s` - Increase test timeout for container startup
 
-- **Cargo registry cache**: `~/.cargo/registry`
-- **Cargo git index cache**: `~/.cargo/git`
-- **Build target cache**: `target/`
-
-Cache keys are based on `Cargo.lock` hash for optimal invalidation.
-
-## Environment Requirements
-
-### Rust CI
-- Ubuntu latest runner
-- Rust nightly toolchain
-- Basic system tools (kdig for DNS testing)
-
-### Testcontainers
-- Ubuntu latest runner with Docker support
-- Docker Buildx for advanced Docker features
-- Sufficient resources for multiple Redis containers
-- Network access for Docker image pulls
+### Docker Configuration
+- `DOCKER_HOST=unix:///var/run/docker.sock` - Use local Docker socket
+- `TESTCONTAINERS_LOG_LEVEL=OFF` - Reduce log noise in CI
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Testcontainer timeouts**: Increase `TESTCONTAINERS_COMMAND_TIMEOUT` if containers take longer to start
-2. **Docker resource conflicts**: Ensure `RUST_TEST_THREADS=1` is set for serial execution
-3. **Image pull failures**: Check network connectivity and Docker Hub availability
-4. **Container cleanup issues**: The workflow includes robust cleanup steps that run even on failure
+1. **Docker Resource Conflicts**
+   - Tests run serially (`RUST_TEST_THREADS=1`)
+   - Container cleanup happens after each job
+   - Use `docker container prune -f` for cleanup
 
-### Debug Options
+2. **DNS Service Not Ready**
+   - Wait loops with health checks
+   - Service startup delays built in
+   - Check service logs for startup issues
 
-Enable debug logging by adding to the testcontainers workflow:
+3. **Test Timeouts**
+   - Increased timeouts for container operations
+   - Graceful degradation for non-critical tests
+   - Artifact upload even on failure
 
-```yaml
-env:
-  RUST_LOG: testcontainers=debug
-  TESTCONTAINERS_LOG_LEVEL: DEBUG
-```
+### Debugging
 
-## Security Considerations
+To debug workflow issues:
 
-- All workflows run in isolated GitHub-hosted runners
-- Docker containers are ephemeral and cleaned up after each run
-- No persistent data or secrets are stored in containers
-- Ryuk container cleanup is disabled in CI for better resource management 
+1. Check job dependencies and execution order
+2. Review service logs in Docker Compose
+3. Download test report artifacts
+4. Run failing tests locally with same environment
+
+## Workflow Optimization
+
+The consolidated workflow provides:
+
+- **Single Source of Truth**: All CI logic in one place
+- **Efficient Resource Usage**: Parallel jobs where possible, dependencies where needed
+- **Comprehensive Coverage**: Unit, integration, and end-to-end testing
+- **Artifact Management**: Test reports and logs preserved
+- **Graceful Degradation**: Non-blocking tests for non-critical components
+
+## Migration from Old Workflows
+
+This workflow consolidates the functionality from:
+- `rust_ci.yml` - Rust unit tests and code quality
+- `testcontainers.yml` - Integration tests with containers
+- `compose-ci.yml` - Docker Compose smoke tests
+- `dns-integration.yml` - DNS-specific integration testing
+
+All functionality is now available in the single `fleetingdns-ci.yml` workflow. 

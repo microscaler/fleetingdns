@@ -7,7 +7,7 @@
 
 use crate::metrics_manager::{PerformanceMetrics, get_metrics, update_metrics};
 use crate::redis_cache::RedisPool;
-use crate::response_compression::{CompressionConfig, ResponseCompressor};
+
 use common::{AppError, AppResult};
 use hickory_proto::op::{Message, MessageType, ResponseCode};
 use hickory_proto::rr::rdata::A;
@@ -105,7 +105,6 @@ pub struct DnsHandler {
     #[allow(dead_code)]
     time_provider: Arc<dyn TimeProvider + Send + Sync>,
     max_cache_size: usize,
-    response_compressor: Arc<ResponseCompressor>,
 }
 
 impl DnsHandler {
@@ -113,10 +112,6 @@ impl DnsHandler {
     pub fn new(config: PerformanceConfig) -> Self {
         let cache = Arc::new(RwLock::new(TtlCache::new()));
         let max_cache_size = config.max_cache_size; // Use configurable cache size
-
-        // Create response compressor
-        let compression_config = CompressionConfig::default();
-        let response_compressor = Arc::new(ResponseCompressor::new(compression_config));
 
         // Start background purging every 30 seconds (smaller saw effect)
         // Note: This requires a tokio runtime to be running
@@ -133,7 +128,6 @@ impl DnsHandler {
             cache,
             time_provider: Arc::new(RealTimeProvider),
             max_cache_size,
-            response_compressor,
         }
     }
 
@@ -145,16 +139,11 @@ impl DnsHandler {
         let cache = Arc::new(RwLock::new(TtlCache::new()));
         let max_cache_size = 10_000;
 
-        // Create response compressor
-        let compression_config = CompressionConfig::default();
-        let response_compressor = Arc::new(ResponseCompressor::new(compression_config));
-
         Self {
             config,
             cache,
             time_provider,
             max_cache_size,
-            response_compressor,
         }
     }
 
@@ -162,9 +151,8 @@ impl DnsHandler {
     pub async fn handle_packet(&self, packet: &[u8], pool: &RedisPool) -> AppResult<Vec<u8>> {
         let start_time = Instant::now();
 
-        if self.config.enable_compression
-            && let Some(cached_response) = self.get_cached_response(packet).await
-        {
+        // Check cache first (compression disabled due to DNS client compatibility issues)
+        if let Some(cached_response) = self.get_cached_response(packet).await {
             if self.config.enable_metrics {
                 update_metrics(true, start_time.elapsed()).await;
             }
@@ -174,29 +162,14 @@ impl DnsHandler {
         let result = self.process_dns_query(packet, pool).await;
 
         if let Ok(ref response) = result {
-            // TEMPORARILY DISABLE COMPRESSION TO DEBUG
-            let final_response = if self.config.enable_compression {
-                match self.response_compressor.compress_response(response.clone()).await {
-                    Ok(compressed) => compressed,
-                    Err(e) => {
-                        warn!("Compression failed, using uncompressed response: {}", e);
-                        response.clone()
-                    }
-                }
-            } else {
-                response.clone()
-            };
-
-            if self.config.enable_compression {
-                self.cache_response(packet, final_response.clone())
-                    .await;
-            }
+            // Cache the uncompressed response
+            self.cache_response(packet, response.clone()).await;
 
             if self.config.enable_metrics {
                 update_metrics(false, start_time.elapsed()).await;
             }
 
-            Ok(final_response)
+            Ok(response.clone())
         } else {
             if self.config.enable_metrics {
                 update_metrics(false, start_time.elapsed()).await;
@@ -214,20 +187,26 @@ impl DnsHandler {
             Ok(msg) => msg,
             Err(e) => {
                 tracing::error!("Failed to parse DNS message: {}", e);
-                return self.build_error_response(packet, ResponseCode::FormErr).await;
+                return self
+                    .build_error_response(packet, ResponseCode::FormErr)
+                    .await;
             }
         };
 
         if message.header().message_type() == MessageType::Response {
             tracing::warn!("Received response packet, ignoring");
-            return self.build_error_response(packet, ResponseCode::FormErr).await;
+            return self
+                .build_error_response(packet, ResponseCode::FormErr)
+                .await;
         }
 
         let query = match message.queries().first() {
             Some(q) => q,
             None => {
                 tracing::error!("No query found in DNS message");
-                return self.build_error_response(packet, ResponseCode::FormErr).await;
+                return self
+                    .build_error_response(packet, ResponseCode::FormErr)
+                    .await;
             }
         };
 
@@ -260,7 +239,7 @@ impl DnsHandler {
                     );
                 }
             }
-            
+
             // Return None on Redis errors instead of failing
             match result {
                 Ok(slot) => slot,
@@ -297,13 +276,15 @@ impl DnsHandler {
                     );
                 }
             }
-            
+
             // Return error response on build failure
             match result {
                 Ok(response) => response,
                 Err(e) => {
                     tracing::warn!("Using fallback response due to build error: {}", e);
-                    return self.build_error_response(packet, ResponseCode::ServFail).await;
+                    return self
+                        .build_error_response(packet, ResponseCode::ServFail)
+                        .await;
                 }
             }
         };
@@ -321,7 +302,11 @@ impl DnsHandler {
     }
 
     /// Build an error response for DNS queries
-    async fn build_error_response(&self, packet: &[u8], response_code: ResponseCode) -> AppResult<Vec<u8>> {
+    async fn build_error_response(
+        &self,
+        packet: &[u8],
+        response_code: ResponseCode,
+    ) -> AppResult<Vec<u8>> {
         // Try to parse the original packet to extract the query
         let message = match Message::from_vec(packet) {
             Ok(msg) => msg,
@@ -475,7 +460,7 @@ mod tests {
     #[test]
     fn test_performance_config_default() {
         let config = PerformanceConfig::default();
-        assert_eq!(config.enable_compression, true);
+        assert_eq!(config.enable_compression, false);
         assert_eq!(config.cache_ttl, 300);
         assert_eq!(config.enable_metrics, true);
         assert_eq!(config.max_response_time_ms, 50);
@@ -489,7 +474,7 @@ mod tests {
         let config = PerformanceConfig::default();
         let handler = DnsHandler::new(config);
 
-        assert_eq!(handler.config.enable_compression, true);
+        assert_eq!(handler.config.enable_compression, false);
         assert_eq!(handler.config.cache_ttl, 300);
         assert_eq!(handler.config.enable_metrics, true);
         assert_eq!(handler.config.max_cache_size, 5_000);

@@ -3,7 +3,7 @@ use std::env;
 use std::net::SocketAddr;
 
 /// Global configuration for all FleetingDNS services
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FleetingDnsConfig {
     /// Redis configuration
     pub redis: RedisConfig,
@@ -21,19 +21,19 @@ pub struct FleetingDnsConfig {
     pub metrics: MetricsConfig,
 }
 
-impl Default for FleetingDnsConfig {
-    fn default() -> Self {
-        Self {
-            redis: RedisConfig::default(),
-            database: DatabaseConfig::default(),
-            dns: DnsConfig::default(),
-            api: ApiConfig::default(),
-            edgehub: EdgeHubConfig::default(),
-            logging: LoggingConfig::default(),
-            metrics: MetricsConfig::default(),
-        }
-    }
-}
+// impl Default for FleetingDnsConfig {
+//     fn default() -> Self {
+//         Self {
+//             redis: RedisConfig::default(),
+//             database: DatabaseConfig::default(),
+//             dns: DnsConfig::default(),
+//             api: ApiConfig::default(),
+//             edgehub: EdgeHubConfig::default(),
+//             logging: LoggingConfig::default(),
+//             metrics: MetricsConfig::default(),
+//         }
+//     }
+// }
 
 /// Redis configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
