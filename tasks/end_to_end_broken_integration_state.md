@@ -550,6 +550,74 @@ sequenceDiagram
 
 ## 🎯 **PRIORITIZED TASKS TO COMPLETE END-TO-END INTEGRATION**
 
+### **TASK 0: DNS Zone Authority Implementation** 🚨 **CRITICAL**
+**Priority**: CRITICAL  
+**Status**: ❌ NOT STARTED  
+**Estimated Time**: 8 hours
+
+**Problem**: DNS server lacks proper zone authority infrastructure - no SOA/NS records, no subdomain delegation support.
+
+**Solution**:
+1. Create `crates/dnsd/src/zone_manager.rs` with zone configuration
+2. Update `DnsHandler` to support SOA/NS record responses
+3. Add subdomain delegation logic (`casibbald.fleetingdns.run` → `127.0.0.1`)
+4. Create API endpoints for subdomain management
+5. Update Redis schema for zone/subdomain storage
+6. Add comprehensive DNS zone authority tests
+
+**Acceptance Criteria**:
+- [ ] DNS server responds with SOA records for zone queries (`fleetingdns.run`)
+- [ ] DNS server responds with NS records for zone queries
+- [ ] Support user subdomain delegation (`casibbald.fleetingdns.run` → `127.0.0.1`)
+- [ ] API endpoints for subdomain management
+- [ ] Redis schema for zone/subdomain storage
+- [ ] Automatic cleanup of expired subdomains
+
+**Detailed Implementation Tasks**:
+
+#### **Subtask 0.1: Zone Manager Implementation** (2 hours)
+- [ ] Create `crates/dnsd/src/zone_manager.rs`
+- [ ] Implement `ZoneManager` struct with zone configuration
+- [ ] Add `ZoneConfig` struct with SOA/NS record definitions
+- [ ] Implement serial number management for zone updates
+- [ ] Add zone transfer support (AXFR/IXFR)
+
+#### **Subtask 0.2: DNS Handler Zone Authority** (2 hours)
+- [ ] Update `DnsHandler` to check zone authority for queries
+- [ ] Add SOA record response generation
+- [ ] Add NS record response generation
+- [ ] Implement proper zone delegation handling
+- [ ] Add support for multiple zones (fleetingdns.run, edf.run)
+
+#### **Subtask 0.3: Subdomain Delegation Logic** (2 hours)
+- [ ] Add subdomain record generation in DNS handler
+- [ ] Implement wildcard subdomain support (`*.fleetingdns.run`)
+- [ ] Add proper TTL management for subdomain records
+- [ ] Implement subdomain validation and security checks
+- [ ] Add rate limiting for subdomain creation
+
+#### **Subtask 0.4: API Endpoints for Subdomain Management** (1 hour)
+- [ ] Create `crates/backendapi/src/handlers/subdomains.rs`
+- [ ] Implement POST `/v1/subdomains` - Create subdomain
+- [ ] Implement GET `/v1/subdomains/{username}` - Get user subdomains
+- [ ] Implement DELETE `/v1/subdomains/{id}` - Delete subdomain
+- [ ] Add authentication and authorization for subdomain operations
+
+#### **Subtask 0.5: Redis Schema Updates** (30 minutes)
+- [ ] Update Redis schema for zone configuration storage
+- [ ] Add subdomain mapping storage in Redis
+- [ ] Implement automatic cleanup of expired subdomains
+- [ ] Add zone transfer data storage
+- [ ] Add monitoring and metrics for zone operations
+
+#### **Subtask 0.6: Comprehensive Testing** (30 minutes)
+- [ ] Add DNS zone authority tests
+- [ ] Test SOA record responses: `dig @localhost -p 6353 fleetingdns.run SOA`
+- [ ] Test NS record responses: `dig @localhost -p 6353 fleetingdns.run NS`
+- [ ] Test subdomain delegation: `dig @localhost -p 6353 casibbald.fleetingdns.run A`
+- [ ] Test API subdomain management endpoints
+- [ ] Test automatic cleanup of expired subdomains
+
 ### **TASK 1: Database Migration Execution** 🔧
 **Priority**: HIGH  
 **Status**: ❌ NOT STARTED  
@@ -1523,16 +1591,18 @@ sequenceDiagram
 1. **DNS Service**: Successfully processing queries and finding slots in Redis
 2. **Redis**: Operational with slot data (`slot:test.fdns.run` → `127.0.0.1`)
 3. **EdgeHub**: Running with SSH server on port 2222
-4. **API Service**: ✅ **FIXED** - Now running successfully with health endpoint responding
-5. **Infrastructure**: Docker Compose environment operational
-6. **Test Harness**: Comprehensive integration testing infrastructure created
-7. **Grafana Dashboards**: All 5 dashboards operational with monitoring
+4. **API Service**: ✅ **WORKING** - Health endpoint responding successfully
+5. **Test Service**: ✅ **WORKING** - Rust Axum service responding on port 8001
+6. **Infrastructure**: Docker Compose environment operational
+7. **Test Harness**: Comprehensive integration testing infrastructure created
+8. **Grafana Dashboards**: All 5 dashboards operational with monitoring
 
 ### ❌ **Broken Components**
-1. **API Service**: Failed to start due to `libssl.so.3` missing
-2. **DNS Response Delivery**: DNS service processes queries but responses don't reach clients
-3. **End-to-End Integration**: No working API endpoints for slot management
-4. **Tunnel Functionality**: Not yet tested end-to-end
+1. **Database Migrations**: PostgreSQL database exists but no tables created
+2. **API Authentication**: All endpoints require GitHub OAuth, no development bypass
+3. **TLS Router Integration**: TLS server configured for SSH, not HTTPS routing
+4. **DNS Zone Authority**: 🚨 **CRITICAL GAP** - Missing SOA/NS records and zone authority infrastructure
+5. **End-to-End Tunnel Flow**: Complete tunnel creation and routing not tested
 
 ### 🔄 **In Progress**
 1. **Telemetry Integration**: Basic metrics working, distributed tracing pending

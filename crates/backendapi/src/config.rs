@@ -33,6 +33,9 @@ pub struct ApiConfig {
 
     /// Database URL for PostgreSQL
     pub database_url: String,
+
+    /// Development mode flag - bypasses authentication for testing
+    pub development_mode: bool,
 }
 
 impl Default for ApiConfig {
@@ -48,6 +51,7 @@ impl Default for ApiConfig {
             edgehub_address: "edgehub.fleetingdns.com:443".to_string(),
             jwt_secret: "your-jwt-secret-key".to_string(),
             database_url: "postgres://postgres:postgres@localhost:5432/fleetingdns".to_string(),
+            development_mode: false,
         }
     }
 }
@@ -78,6 +82,10 @@ impl ApiConfig {
             database_url: env::var("DATABASE_URL").unwrap_or_else(|_| {
                 "postgres://postgres:postgres@localhost:5432/fleetingdns".to_string()
             }),
+            development_mode: env::var("DEVELOPMENT_MODE")
+                .unwrap_or_else(|_| "false".to_string())
+                .parse()
+                .unwrap_or(false),
         })
     }
 

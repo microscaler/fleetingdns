@@ -80,8 +80,8 @@ pub async fn create_tunnel(
     headers: HeaderMap,
     Json(request): Json<CreateTunnelRequest>,
 ) -> ApiResult<Json<CreateTunnelResponse>> {
-    // Authenticate user
-    let token = extract_bearer_token(&headers)?;
+    // Authenticate user with development mode bypass support
+    let token = extract_bearer_token_with_dev_bypass(&headers, state.config.development_mode)?;
     let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
 
     info!(
@@ -176,8 +176,8 @@ pub async fn get_tunnel(
     headers: HeaderMap,
     Path(tunnel_id): Path<String>,
 ) -> ApiResult<Json<TunnelInfo>> {
-    // Authenticate user
-    let token = extract_bearer_token(&headers)?;
+    // Authenticate user with development mode bypass support
+    let token = extract_bearer_token_with_dev_bypass(&headers, state.config.development_mode)?;
     let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
 
     let uuid = Uuid::parse_str(&tunnel_id)
@@ -219,8 +219,8 @@ pub async fn delete_tunnel(
     headers: HeaderMap,
     Path(tunnel_id): Path<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    // Authenticate user
-    let token = extract_bearer_token(&headers)?;
+    // Authenticate user with development mode bypass support
+    let token = extract_bearer_token_with_dev_bypass(&headers, state.config.development_mode)?;
     let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
 
     let uuid = Uuid::parse_str(&tunnel_id)
@@ -255,8 +255,8 @@ pub async fn list_tunnels(
     State(state): State<ApiState>,
     headers: HeaderMap,
 ) -> ApiResult<Json<Vec<TunnelInfo>>> {
-    // Authenticate user
-    let token = extract_bearer_token(&headers)?;
+    // Authenticate user with development mode bypass support
+    let token = extract_bearer_token_with_dev_bypass(&headers, state.config.development_mode)?;
     let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
 
     let tunnels = state

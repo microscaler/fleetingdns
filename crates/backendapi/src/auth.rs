@@ -68,6 +68,27 @@ struct GitHubUserResponse {
 
 /// Extract Bearer token from Authorization header
 pub fn extract_bearer_token(headers: &HeaderMap) -> ApiResult<String> {
+    extract_bearer_token_with_dev_bypass(headers, false)
+}
+
+/// Extract Bearer token from Authorization header with optional development bypass
+pub fn extract_bearer_token_with_dev_bypass(
+    headers: &HeaderMap,
+    development_mode: bool,
+) -> ApiResult<String> {
+    // Check for development bypass header when in development mode
+    if development_mode {
+        if let Some(bypass_header) = headers.get("x-development-bypass") {
+            if let Ok(bypass_value) = bypass_header.to_str() {
+                if bypass_value == "true" {
+                    // Return a dummy token for development bypass
+                    return Ok("dev-bypass-token".to_string());
+                }
+            }
+        }
+    }
+
+    // Fall back to normal authentication
     let auth_header = headers.get("authorization").ok_or_else(|| {
         ApiError::AuthenticationFailed("Missing Authorization header".to_string())
     })?;
@@ -184,6 +205,17 @@ pub fn generate_jwt_token(user: &crate::models::GitHubUser, secret: &str) -> Api
 
 /// Validate JWT token
 pub fn validate_jwt_token(token: &str, secret: &str) -> ApiResult<crate::models::GitHubUser> {
+    // Handle development bypass token
+    if token == "dev-bypass-token" {
+        return Ok(crate::models::GitHubUser {
+            id: "0".to_string(),
+            login: "dev-user".to_string(),
+            name: Some("Development User".to_string()),
+            email: Some("dev@fleetingdns.run".to_string()),
+            avatar_url: "https://github.com/github.png".to_string(),
+        });
+    }
+
     let parts: Vec<&str> = token.split('.').collect();
     if parts.len() != 2 {
         return Err(ApiError::AuthenticationFailed(
@@ -230,6 +262,8 @@ pub fn validate_jwt_token(token: &str, secret: &str) -> ApiResult<crate::models:
         avatar_url: String::new(),
     })
 }
+
+
 
 /// Authenticated user with resolved service plan
 #[derive(Debug, Clone)]
