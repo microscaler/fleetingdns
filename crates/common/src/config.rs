@@ -75,20 +75,6 @@ pub struct FleetingDnsConfig {
     pub metrics: MetricsConfig,
 }
 
-// impl Default for FleetingDnsConfig {
-//     fn default() -> Self {
-//         Self {
-//             redis: RedisConfig::default(),
-//             database: DatabaseConfig::default(),
-//             dns: DnsConfig::default(),
-//             api: ApiConfig::default(),
-//             edgehub: EdgeHubConfig::default(),
-//             logging: LoggingConfig::default(),
-//             metrics: MetricsConfig::default(),
-//         }
-//     }
-// }
-
 /// Redis configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RedisConfig {

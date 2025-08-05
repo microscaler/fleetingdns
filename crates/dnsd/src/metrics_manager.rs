@@ -139,7 +139,7 @@ pub async fn reset_singleton() {
 }
 
 /// Performance metrics structure
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PerformanceMetrics {
     pub total_queries: u64,
     pub cache_hits: u64,
@@ -148,20 +148,6 @@ pub struct PerformanceMetrics {
     pub p95_response_time_ms: f64,
     pub p99_response_time_ms: f64,
     pub total_errors: u64,
-}
-
-impl Default for PerformanceMetrics {
-    fn default() -> Self {
-        Self {
-            total_queries: 0,
-            cache_hits: 0,
-            cache_misses: 0,
-            avg_response_time_ms: 0.0,
-            p95_response_time_ms: 0.0,
-            p99_response_time_ms: 0.0,
-            total_errors: 0,
-        }
-    }
 }
 
 #[cfg(test)]
