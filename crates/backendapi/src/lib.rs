@@ -196,6 +196,10 @@ fn create_router(state: ApiState) -> Router {
         .layer(axum::middleware::from_fn(timeout_middleware))
         .layer(axum::middleware::from_fn(request_size_middleware))
         .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            middleware::telemetry_middleware,
+        ))
+        .layer(axum::middleware::from_fn_with_state(
             state.rate_limiter.clone(),
             rate_limiting::rate_limit_middleware,
         ))

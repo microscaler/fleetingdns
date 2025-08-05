@@ -88,12 +88,22 @@ pub async fn serve(cfg: Config) -> AppResult<()> {
                         match dns_handler.handle_packet(&buf[..len], &cfg.redis_pool).await {
                             Ok(resp) => {
                                 info!("Sending DNS response to {}: {} bytes", peer, resp.len());
-                                if let Err(e) = socket.send_to(&resp, peer).await {
-                                    error!("Failed to send response to {}: {}", peer, e);
+                                match socket.send_to(&resp, peer).await {
+                                    Ok(_) => {
+                                        // Record successful DNS response delivery
+                                        common::telemetry::record_dns_delivery_metrics("udp", resp.len(), true);
+                                    }
+                                    Err(e) => {
+                                        error!("Failed to send response to {}: {}", peer, e);
+                                        // Record failed DNS response delivery
+                                        common::telemetry::record_dns_delivery_metrics("udp", resp.len(), false);
+                                    }
                                 }
                             }
                             Err(e) => {
                                 error!("Failed to handle DNS packet: {}", e);
+                                // Record failed DNS response delivery
+                                common::telemetry::record_dns_delivery_metrics("udp", 0, false);
                             }
                         }
                     }
@@ -245,7 +255,11 @@ mod dot {
                             if tls.write_all(&resp).await.is_err() {
                                 break;
                             }
+                            // Record successful DNS response delivery for DoT
+                            common::telemetry::record_dns_delivery_metrics("dot", resp.len(), true);
                         } else {
+                            // Record failed DNS response delivery for DoT
+                            common::telemetry::record_dns_delivery_metrics("dot", 0, false);
                             break;
                         }
                     }
@@ -300,7 +314,11 @@ mod dot {
                                             if tls.write_all(&resp).await.is_err() {
                                                 break;
                                             }
+                                            // Record successful DNS response delivery for DoT
+                                            common::telemetry::record_dns_delivery_metrics("dot", resp.len(), true);
                                         } else {
+                                            // Record failed DNS response delivery for DoT
+                                            common::telemetry::record_dns_delivery_metrics("dot", 0, false);
                                             break;
                                         }
                                     }
