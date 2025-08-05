@@ -2,6 +2,60 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use std::net::SocketAddr;
 
+/// Utility functions for environment variable parsing
+mod env_utils {
+    use std::env;
+    use std::net::SocketAddr;
+    use std::fmt::Display;
+
+    /// Parse an environment variable with a default value
+    pub fn parse_env<T>(key: &str, default: T) -> T
+    where
+        T: std::str::FromStr + Clone + Display,
+    {
+        env::var(key)
+            .unwrap_or_else(|_| default.to_string())
+            .parse()
+            .unwrap_or(default)
+    }
+
+    /// Parse an environment variable as a string with a default value
+    pub fn parse_env_str(key: &str, default: &str) -> String {
+        env::var(key).unwrap_or_else(|_| default.to_string())
+    }
+
+    /// Parse an environment variable as an optional string
+    pub fn parse_env_opt(key: &str) -> Option<String> {
+        env::var(key).ok()
+    }
+
+    /// Parse an environment variable as a boolean with a default value
+    pub fn parse_env_bool(key: &str, default: bool) -> bool {
+        match env::var(key) {
+            Ok(value) => {
+                match value.to_lowercase().as_str() {
+                    "true" | "1" | "yes" | "on" => true,
+                    "false" | "0" | "no" | "off" => false,
+                    _ => default,
+                }
+            }
+            Err(_) => default,
+        }
+    }
+
+    /// Parse an environment variable as a SocketAddr with a default value
+    pub fn parse_env_socket_addr(key: &str, port_key: &str, default_addr: &str, default_port: u16) -> SocketAddr {
+        let bind_addr_str = parse_env_str(key, default_addr);
+        let port = parse_env(port_key, default_port);
+        
+        format!("{}:{}", bind_addr_str, port)
+            .parse()
+            .unwrap_or_else(|_| format!("{}:{}", default_addr, default_port).parse().unwrap())
+    }
+}
+
+use env_utils::{parse_env, parse_env_bool, parse_env_str, parse_env_opt, parse_env_socket_addr};
+
 /// Global configuration for all FleetingDNS services
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FleetingDnsConfig {
@@ -49,15 +103,9 @@ pub struct RedisConfig {
 impl Default for RedisConfig {
     fn default() -> Self {
         Self {
-            url: env::var("REDIS_URL").unwrap_or_else(|_| "redis://localhost:6379".to_string()),
-            pool_size: env::var("REDIS_POOL_SIZE")
-                .unwrap_or_else(|_| "10".to_string())
-                .parse()
-                .unwrap_or(10),
-            timeout_secs: env::var("REDIS_TIMEOUT_SECS")
-                .unwrap_or_else(|_| "5".to_string())
-                .parse()
-                .unwrap_or(5),
+            url: parse_env_str("REDIS_URL", "redis://localhost:6379"),
+            pool_size: parse_env("REDIS_POOL_SIZE", 10u32),
+            timeout_secs: parse_env("REDIS_TIMEOUT_SECS", 5u64),
         }
     }
 }
@@ -76,16 +124,9 @@ pub struct DatabaseConfig {
 impl Default for DatabaseConfig {
     fn default() -> Self {
         Self {
-            url: env::var("DATABASE_URL")
-                .unwrap_or_else(|_| "postgresql://fdns:fdns@localhost:5432/fdns".to_string()),
-            pool_size: env::var("DATABASE_POOL_SIZE")
-                .unwrap_or_else(|_| "5".to_string())
-                .parse()
-                .unwrap_or(5),
-            timeout_secs: env::var("DATABASE_TIMEOUT_SECS")
-                .unwrap_or_else(|_| "10".to_string())
-                .parse()
-                .unwrap_or(10),
+            url: parse_env_str("DATABASE_URL", "postgresql://fdns:fdns@localhost:5432/fdns"),
+            pool_size: parse_env("DATABASE_POOL_SIZE", 5u32),
+            timeout_secs: parse_env("DATABASE_TIMEOUT_SECS", 10u64),
         }
     }
 }
@@ -107,34 +148,12 @@ pub struct DnsConfig {
 
 impl Default for DnsConfig {
     fn default() -> Self {
-        let bind_addr_str = env::var("DNS_BIND_ADDR").unwrap_or_else(|_| "0.0.0.0".to_string());
-        let port = env::var("DNS_PORT")
-            .unwrap_or_else(|_| "6353".to_string())
-            .parse()
-            .unwrap_or(6353);
-        
-        let bind_addr = format!("{}:{}", bind_addr_str, port)
-            .parse()
-            .unwrap_or_else(|_| "0.0.0.0:6353".parse().unwrap());
-
         Self {
-            bind_addr,
-            enable_dnssec: env::var("DNS_ENABLE_DNSSEC")
-                .unwrap_or_else(|_| "true".to_string())
-                .parse()
-                .unwrap_or(true),
-            enable_ddos_protection: env::var("DNS_ENABLE_DDOS_PROTECTION")
-                .unwrap_or_else(|_| "true".to_string())
-                .parse()
-                .unwrap_or(true),
-            cache_ttl: env::var("DNS_CACHE_TTL")
-                .unwrap_or_else(|_| "300".to_string())
-                .parse()
-                .unwrap_or(300),
-            max_cache_size: env::var("DNS_MAX_CACHE_SIZE")
-                .unwrap_or_else(|_| "5000".to_string())
-                .parse()
-                .unwrap_or(5000),
+            bind_addr: parse_env_socket_addr("DNS_BIND_ADDR", "DNS_PORT", "0.0.0.0", 6353),
+            enable_dnssec: parse_env_bool("DNS_ENABLE_DNSSEC", true),
+            enable_ddos_protection: parse_env_bool("DNS_ENABLE_DDOS_PROTECTION", true),
+            cache_ttl: parse_env("DNS_CACHE_TTL", 300u64),
+            max_cache_size: parse_env("DNS_MAX_CACHE_SIZE", 5000usize),
         }
     }
 }
@@ -152,26 +171,10 @@ pub struct ApiConfig {
 
 impl Default for ApiConfig {
     fn default() -> Self {
-        let bind_addr_str = env::var("API_BIND_ADDR").unwrap_or_else(|_| "0.0.0.0".to_string());
-        let port = env::var("API_PORT")
-            .unwrap_or_else(|_| "8080".to_string())
-            .parse()
-            .unwrap_or(8080);
-        
-        let bind_addr = format!("{}:{}", bind_addr_str, port)
-            .parse()
-            .unwrap_or_else(|_| "0.0.0.0:8080".parse().unwrap());
-
         Self {
-            bind_addr,
-            enable_cors: env::var("API_ENABLE_CORS")
-                .unwrap_or_else(|_| "true".to_string())
-                .parse()
-                .unwrap_or(true),
-            rate_limit_per_minute: env::var("API_RATE_LIMIT_PER_MINUTE")
-                .unwrap_or_else(|_| "100".to_string())
-                .parse()
-                .unwrap_or(100),
+            bind_addr: parse_env_socket_addr("API_BIND_ADDR", "API_PORT", "0.0.0.0", 8080),
+            enable_cors: parse_env_bool("API_ENABLE_CORS", true),
+            rate_limit_per_minute: parse_env("API_RATE_LIMIT_PER_MINUTE", 100u32),
         }
     }
 }
@@ -189,23 +192,10 @@ pub struct EdgeHubConfig {
 
 impl Default for EdgeHubConfig {
     fn default() -> Self {
-        let bind_addr_str = env::var("EDGEHUB_BIND_ADDR").unwrap_or_else(|_| "0.0.0.0".to_string());
-        let port = env::var("EDGEHUB_PORT")
-            .unwrap_or_else(|_| "2222".to_string())
-            .parse()
-            .unwrap_or(2222);
-        
-        let bind_addr = format!("{}:{}", bind_addr_str, port)
-            .parse()
-            .unwrap_or_else(|_| "0.0.0.0:2222".parse().unwrap());
-
         Self {
-            bind_addr,
-            ssh_key_path: env::var("EDGEHUB_SSH_KEY_PATH").ok(),
-            enable_cert_validation: env::var("EDGEHUB_ENABLE_CERT_VALIDATION")
-                .unwrap_or_else(|_| "true".to_string())
-                .parse()
-                .unwrap_or(true),
+            bind_addr: parse_env_socket_addr("EDGEHUB_BIND_ADDR", "EDGEHUB_PORT", "0.0.0.0", 2222),
+            ssh_key_path: parse_env_opt("EDGEHUB_SSH_KEY_PATH"),
+            enable_cert_validation: parse_env_bool("EDGEHUB_ENABLE_CERT_VALIDATION", true),
         }
     }
 }
@@ -224,12 +214,9 @@ pub struct LoggingConfig {
 impl Default for LoggingConfig {
     fn default() -> Self {
         Self {
-            level: env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string()),
-            structured: env::var("LOG_STRUCTURED")
-                .unwrap_or_else(|_| "true".to_string())
-                .parse()
-                .unwrap_or(true),
-            format: env::var("LOG_FORMAT").unwrap_or_else(|_| "json".to_string()),
+            level: parse_env_str("RUST_LOG", "info"),
+            structured: parse_env_bool("LOG_STRUCTURED", true),
+            format: parse_env_str("LOG_FORMAT", "json"),
         }
     }
 }
@@ -248,15 +235,9 @@ pub struct MetricsConfig {
 impl Default for MetricsConfig {
     fn default() -> Self {
         Self {
-            enabled: env::var("METRICS_ENABLED")
-                .unwrap_or_else(|_| "true".to_string())
-                .parse()
-                .unwrap_or(true),
-            endpoint: env::var("METRICS_ENDPOINT").ok(),
-            port: env::var("METRICS_PORT")
-                .unwrap_or_else(|_| "9090".to_string())
-                .parse()
-                .unwrap_or(9090),
+            enabled: parse_env_bool("METRICS_ENABLED", true),
+            endpoint: parse_env_opt("METRICS_ENDPOINT"),
+            port: parse_env("METRICS_PORT", 9090u16),
         }
     }
 }
@@ -343,5 +324,131 @@ mod tests {
         let config = FleetingDnsConfig::default();
         let edgehub_addr = config.edgehub_addr();
         assert_eq!(edgehub_addr.port(), 2222);
+    }
+}
+
+#[cfg(test)]
+mod env_utils_tests {
+    use super::*;
+    use std::env;
+
+    #[test]
+    fn test_parse_env_with_default() {
+        // Test with existing environment variable
+        unsafe { env::set_var("TEST_U32", "42"); }
+        assert_eq!(parse_env("TEST_U32", 10u32), 42);
+        
+        // Test with non-existent environment variable
+        unsafe { env::remove_var("TEST_NONEXISTENT"); }
+        assert_eq!(parse_env("TEST_NONEXISTENT", 100u32), 100);
+        
+        // Test with invalid value (should fall back to default)
+        unsafe { env::set_var("TEST_INVALID", "not_a_number"); }
+        assert_eq!(parse_env("TEST_INVALID", 50u32), 50);
+        
+        // Cleanup
+        unsafe {
+            env::remove_var("TEST_U32");
+            env::remove_var("TEST_INVALID");
+        }
+    }
+
+    #[test]
+    fn test_parse_env_str() {
+        // Test with existing environment variable
+        unsafe { env::set_var("TEST_STR", "custom_value"); }
+        assert_eq!(parse_env_str("TEST_STR", "default"), "custom_value");
+        
+        // Test with non-existent environment variable
+        unsafe { env::remove_var("TEST_STR_NONEXISTENT"); }
+        assert_eq!(parse_env_str("TEST_STR_NONEXISTENT", "default"), "default");
+        
+        // Cleanup
+        unsafe { env::remove_var("TEST_STR"); }
+    }
+
+    #[test]
+    fn test_parse_env_opt() {
+        // Test with existing environment variable
+        unsafe { env::set_var("TEST_OPT", "some_value"); }
+        assert_eq!(parse_env_opt("TEST_OPT"), Some("some_value".to_string()));
+        
+        // Test with non-existent environment variable
+        unsafe { env::remove_var("TEST_OPT_NONEXISTENT"); }
+        assert_eq!(parse_env_opt("TEST_OPT_NONEXISTENT"), None);
+        
+        // Cleanup
+        unsafe { env::remove_var("TEST_OPT"); }
+    }
+
+    #[test]
+    fn test_parse_env_bool() {
+        // Test with true values
+        unsafe { env::set_var("TEST_BOOL_TRUE", "true"); }
+        assert_eq!(parse_env_bool("TEST_BOOL_TRUE", false), true);
+        
+        unsafe { env::set_var("TEST_BOOL_1", "1"); }
+        assert_eq!(parse_env_bool("TEST_BOOL_1", false), true);
+        
+        // Test with false values
+        unsafe { env::set_var("TEST_BOOL_FALSE", "false"); }
+        assert_eq!(parse_env_bool("TEST_BOOL_FALSE", true), false);
+        
+        unsafe { env::set_var("TEST_BOOL_0", "0"); }
+        assert_eq!(parse_env_bool("TEST_BOOL_0", true), false);
+        
+        // Test with non-existent environment variable
+        unsafe { env::remove_var("TEST_BOOL_NONEXISTENT"); }
+        assert_eq!(parse_env_bool("TEST_BOOL_NONEXISTENT", true), true);
+        
+        // Test with invalid value (should fall back to default)
+        unsafe { env::set_var("TEST_BOOL_INVALID", "not_a_bool"); }
+        assert_eq!(parse_env_bool("TEST_BOOL_INVALID", false), false);
+        
+        // Cleanup
+        unsafe {
+            env::remove_var("TEST_BOOL_TRUE");
+            env::remove_var("TEST_BOOL_1");
+            env::remove_var("TEST_BOOL_FALSE");
+            env::remove_var("TEST_BOOL_0");
+            env::remove_var("TEST_BOOL_INVALID");
+        }
+    }
+
+    #[test]
+    fn test_parse_env_socket_addr() {
+        // Test with existing environment variables
+        unsafe {
+            env::set_var("TEST_ADDR", "127.0.0.1");
+            env::set_var("TEST_PORT", "8080");
+        }
+        let addr = parse_env_socket_addr("TEST_ADDR", "TEST_PORT", "0.0.0.0", 3000);
+        assert_eq!(addr.port(), 8080);
+        assert_eq!(addr.ip().to_string(), "127.0.0.1");
+        
+        // Test with non-existent environment variables
+        unsafe {
+            env::remove_var("TEST_ADDR_NONEXISTENT");
+            env::remove_var("TEST_PORT_NONEXISTENT");
+        }
+        let addr = parse_env_socket_addr("TEST_ADDR_NONEXISTENT", "TEST_PORT_NONEXISTENT", "0.0.0.0", 3000);
+        assert_eq!(addr.port(), 3000);
+        assert_eq!(addr.ip().to_string(), "0.0.0.0");
+        
+        // Test with invalid port (should fall back to default)
+        unsafe {
+            env::set_var("TEST_ADDR_VALID", "127.0.0.1");
+            env::set_var("TEST_PORT_INVALID", "not_a_port");
+        }
+        let addr = parse_env_socket_addr("TEST_ADDR_VALID", "TEST_PORT_INVALID", "0.0.0.0", 3000);
+        assert_eq!(addr.port(), 3000);
+        
+        // Cleanup
+        unsafe {
+            env::remove_var("TEST_ADDR");
+            env::remove_var("TEST_PORT");
+            env::remove_var("TEST_ADDR_VALID");
+            env::remove_var("TEST_PORT_INVALID");
+        }
     }
 }
