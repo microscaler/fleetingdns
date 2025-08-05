@@ -90,7 +90,7 @@ pub async fn run_with_config(config: ApiConfig) -> ApiResult<()> {
     let app = create_router(state);
 
     // Start the server
-    let listener = TcpListener::bind(&config.bind_address).await?;
+    let listener = TcpListener::bind(config.bind_address).await?;
     info!("API server listening on {}", config.bind_address);
 
     axum::serve(listener, app).await?;
@@ -233,7 +233,7 @@ mod tests {
         }
 
         let config = ApiConfig::from_env().unwrap();
-        assert_eq!(config.bind_address, "127.0.0.1:8080");
+        assert_eq!(config.bind_address, "127.0.0.1:8080".parse().unwrap());
         assert_eq!(config.redis_url, "redis://localhost:6379");
         assert_eq!(config.github_client_id, "test_client_id");
         assert_eq!(config.github_client_secret, "test_client_secret");
@@ -275,7 +275,7 @@ mod tests {
     #[test]
     fn test_api_config_default_values() {
         let config = ApiConfig::default();
-        assert_eq!(config.bind_address, "0.0.0.0:8080");
+        assert_eq!(config.bind_address, "0.0.0.0:8080".parse().unwrap());
         assert_eq!(config.redis_url, "redis://localhost:6379");
         assert_eq!(config.base_domain, "fleetingdns.run");
         assert_eq!(config.edgehub_address, "edgehub.fleetingdns.com:443");

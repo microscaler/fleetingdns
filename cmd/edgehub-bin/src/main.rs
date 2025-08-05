@@ -9,6 +9,7 @@ use edgehub::{self, Config, SshConfig, SshServer};
 use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
 use tokio_rustls::server::TlsStream;
+use tokio::io::AsyncWriteExt;
 
 /// Simple HTTPS router that handles SNI-based routing
 async fn serve_https_router(

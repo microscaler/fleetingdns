@@ -1,11 +1,12 @@
 use serde::{Deserialize, Serialize};
 use std::env;
+use std::net::SocketAddr;
 
 /// Configuration for the FleetingDNS API server
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiConfig {
     /// Address to bind the API server
-    pub bind_address: String,
+    pub bind_address: SocketAddr,
 
     /// GitHub OAuth client ID
     pub github_client_id: String,
@@ -41,7 +42,7 @@ pub struct ApiConfig {
 impl Default for ApiConfig {
     fn default() -> Self {
         Self {
-            bind_address: "0.0.0.0:8080".to_string(),
+            bind_address: "0.0.0.0:8080".parse().unwrap(),
             github_client_id: "your-github-client-id".to_string(),
             github_client_secret: "your-github-client-secret".to_string(),
             redis_url: "redis://localhost:6379".to_string(),
@@ -59,9 +60,14 @@ impl Default for ApiConfig {
 impl ApiConfig {
     /// Load configuration from environment variables
     pub fn from_env() -> Result<Self, Box<dyn std::error::Error>> {
+        let bind_addr_str = env::var("API_BIND_ADDRESS")
+            .unwrap_or_else(|_| "0.0.0.0:8080".to_string());
+        
+        let bind_address = bind_addr_str.parse()
+            .map_err(|e| format!("Invalid API bind address '{}': {}", bind_addr_str, e))?;
+
         Ok(Self {
-            bind_address: env::var("API_BIND_ADDRESS")
-                .unwrap_or_else(|_| "0.0.0.0:8080".to_string()),
+            bind_address,
             github_client_id: env::var("GITHUB_CLIENT_ID")
                 .unwrap_or_else(|_| "your-github-client-id".to_string()),
             github_client_secret: env::var("GITHUB_CLIENT_SECRET")

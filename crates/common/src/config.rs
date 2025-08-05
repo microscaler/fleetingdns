@@ -94,9 +94,7 @@ impl Default for DatabaseConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DnsConfig {
     /// DNS server bind address
-    pub bind_addr: String,
-    /// DNS server port
-    pub port: u16,
+    pub bind_addr: SocketAddr,
     /// Enable DNSSEC signing
     pub enable_dnssec: bool,
     /// Enable DDoS protection
@@ -109,12 +107,18 @@ pub struct DnsConfig {
 
 impl Default for DnsConfig {
     fn default() -> Self {
+        let bind_addr_str = env::var("DNS_BIND_ADDR").unwrap_or_else(|_| "0.0.0.0".to_string());
+        let port = env::var("DNS_PORT")
+            .unwrap_or_else(|_| "6353".to_string())
+            .parse()
+            .unwrap_or(6353);
+        
+        let bind_addr = format!("{}:{}", bind_addr_str, port)
+            .parse()
+            .unwrap_or_else(|_| "0.0.0.0:6353".parse().unwrap());
+
         Self {
-            bind_addr: env::var("DNS_BIND_ADDR").unwrap_or_else(|_| "0.0.0.0".to_string()),
-            port: env::var("DNS_PORT")
-                .unwrap_or_else(|_| "6353".to_string())
-                .parse()
-                .unwrap_or(6353),
+            bind_addr,
             enable_dnssec: env::var("DNS_ENABLE_DNSSEC")
                 .unwrap_or_else(|_| "true".to_string())
                 .parse()
@@ -139,9 +143,7 @@ impl Default for DnsConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiConfig {
     /// API server bind address
-    pub bind_addr: String,
-    /// API server port
-    pub port: u16,
+    pub bind_addr: SocketAddr,
     /// Enable CORS
     pub enable_cors: bool,
     /// Rate limiting requests per minute
@@ -150,12 +152,18 @@ pub struct ApiConfig {
 
 impl Default for ApiConfig {
     fn default() -> Self {
+        let bind_addr_str = env::var("API_BIND_ADDR").unwrap_or_else(|_| "0.0.0.0".to_string());
+        let port = env::var("API_PORT")
+            .unwrap_or_else(|_| "8080".to_string())
+            .parse()
+            .unwrap_or(8080);
+        
+        let bind_addr = format!("{}:{}", bind_addr_str, port)
+            .parse()
+            .unwrap_or_else(|_| "0.0.0.0:8080".parse().unwrap());
+
         Self {
-            bind_addr: env::var("API_BIND_ADDR").unwrap_or_else(|_| "0.0.0.0".to_string()),
-            port: env::var("API_PORT")
-                .unwrap_or_else(|_| "8080".to_string())
-                .parse()
-                .unwrap_or(8080),
+            bind_addr,
             enable_cors: env::var("API_ENABLE_CORS")
                 .unwrap_or_else(|_| "true".to_string())
                 .parse()
@@ -172,9 +180,7 @@ impl Default for ApiConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EdgeHubConfig {
     /// EdgeHub bind address
-    pub bind_addr: String,
-    /// EdgeHub port
-    pub port: u16,
+    pub bind_addr: SocketAddr,
     /// SSH key path
     pub ssh_key_path: Option<String>,
     /// Enable certificate validation
@@ -183,12 +189,18 @@ pub struct EdgeHubConfig {
 
 impl Default for EdgeHubConfig {
     fn default() -> Self {
+        let bind_addr_str = env::var("EDGEHUB_BIND_ADDR").unwrap_or_else(|_| "0.0.0.0".to_string());
+        let port = env::var("EDGEHUB_PORT")
+            .unwrap_or_else(|_| "2222".to_string())
+            .parse()
+            .unwrap_or(2222);
+        
+        let bind_addr = format!("{}:{}", bind_addr_str, port)
+            .parse()
+            .unwrap_or_else(|_| "0.0.0.0:2222".parse().unwrap());
+
         Self {
-            bind_addr: env::var("EDGEHUB_BIND_ADDR").unwrap_or_else(|_| "0.0.0.0".to_string()),
-            port: env::var("EDGEHUB_PORT")
-                .unwrap_or_else(|_| "2222".to_string())
-                .parse()
-                .unwrap_or(2222),
+            bind_addr,
             ssh_key_path: env::var("EDGEHUB_SSH_KEY_PATH").ok(),
             enable_cert_validation: env::var("EDGEHUB_ENABLE_CERT_VALIDATION")
                 .unwrap_or_else(|_| "true".to_string())
@@ -256,41 +268,23 @@ impl FleetingDnsConfig {
     }
 
     /// Get DNS server address as SocketAddr
-    pub fn dns_addr(&self) -> Result<SocketAddr, Box<dyn std::error::Error>> {
-        let addr = format!("{}:{}", self.dns.bind_addr, self.dns.port);
-        Ok(addr.parse()?)
+    pub fn dns_addr(&self) -> SocketAddr {
+        self.dns.bind_addr
     }
 
     /// Get API server address as SocketAddr
-    pub fn api_addr(&self) -> Result<SocketAddr, Box<dyn std::error::Error>> {
-        let addr = format!("{}:{}", self.api.bind_addr, self.api.port);
-        Ok(addr.parse()?)
+    pub fn api_addr(&self) -> SocketAddr {
+        self.api.bind_addr
     }
 
     /// Get EdgeHub address as SocketAddr
-    pub fn edgehub_addr(&self) -> Result<SocketAddr, Box<dyn std::error::Error>> {
-        let addr = format!("{}:{}", self.edgehub.bind_addr, self.edgehub.port);
-        Ok(addr.parse()?)
+    pub fn edgehub_addr(&self) -> SocketAddr {
+        self.edgehub.bind_addr
     }
 
     /// Validate configuration
     pub fn validate(&self) -> Result<(), Vec<String>> {
         let mut errors = Vec::new();
-
-        // Validate DNS configuration
-        if let Err(e) = self.dns_addr() {
-            errors.push(format!("Invalid DNS address: {e}"));
-        }
-
-        // Validate API configuration
-        if let Err(e) = self.api_addr() {
-            errors.push(format!("Invalid API address: {e}"));
-        }
-
-        // Validate EdgeHub configuration
-        if let Err(e) = self.edgehub_addr() {
-            errors.push(format!("Invalid EdgeHub address: {e}"));
-        }
 
         // Validate Redis URL
         if !self.redis.url.starts_with("redis://") {
@@ -319,8 +313,9 @@ mod tests {
         let config = FleetingDnsConfig::default();
         assert!(!config.redis.url.is_empty());
         assert!(!config.database.url.is_empty());
-        assert!(!config.dns.bind_addr.is_empty());
-        assert!(config.dns.port > 0);
+        assert_eq!(config.dns.bind_addr.port(), 6353);
+        assert_eq!(config.api.bind_addr.port(), 8080);
+        assert_eq!(config.edgehub.bind_addr.port(), 2222);
     }
 
     #[test]
@@ -332,6 +327,21 @@ mod tests {
     #[test]
     fn test_dns_addr_parsing() {
         let config = FleetingDnsConfig::default();
-        assert!(config.dns_addr().is_ok());
+        let dns_addr = config.dns_addr();
+        assert_eq!(dns_addr.port(), 6353);
+    }
+
+    #[test]
+    fn test_api_addr_parsing() {
+        let config = FleetingDnsConfig::default();
+        let api_addr = config.api_addr();
+        assert_eq!(api_addr.port(), 8080);
+    }
+
+    #[test]
+    fn test_edgehub_addr_parsing() {
+        let config = FleetingDnsConfig::default();
+        let edgehub_addr = config.edgehub_addr();
+        assert_eq!(edgehub_addr.port(), 2222);
     }
 }
