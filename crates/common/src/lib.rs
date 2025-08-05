@@ -9,6 +9,7 @@ use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberI
 
 pub mod config;
 pub mod ddos_protection;
+pub mod error;
 pub mod metrics;
 pub mod shutdown;
 pub mod telemetry;
