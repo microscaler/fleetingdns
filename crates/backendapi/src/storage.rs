@@ -3,6 +3,15 @@ use bb8::{Pool, PooledConnection};
 use bb8_redis::{RedisConnectionManager, redis::AsyncCommands};
 use tracing::{debug, info};
 use uuid::Uuid;
+use chrono;
+
+/// User tunnel lookup data structure
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UserTunnelLookup {
+    pub github_user_id: String,
+    pub github_username: String,
+    pub tunnels: Vec<String>, // List of tunnel IDs
+}
 
 /// Redis storage for tunnel metadata
 pub struct TunnelStorage {
@@ -38,39 +47,65 @@ impl TunnelStorage {
     pub async fn store_tunnel(&self, tunnel: &Tunnel) -> ApiResult<()> {
         let mut conn = self.get_connection().await?;
 
-        let tunnel_json = serde_json::to_string(tunnel)
-            .map_err(|e| ApiError::StorageError(format!("Failed to serialize tunnel: {e}")))?;
-
+        // Store tunnel data in Redis with TTL
         let tunnel_key = format!("tunnel:{}", tunnel.id);
-        let subdomain_key = format!("subdomain:{}", tunnel.subdomain);
-        let user_key = format!("user:{}:tunnels", tunnel.github_user_id);
-
-        // Calculate TTL in seconds - fix type conversion
-        let ttl = tunnel.remaining_ttl().max(0) as u64;
-
-        // Store tunnel data with expiration
-        let _: () = conn
-            .set_ex(&tunnel_key, &tunnel_json, ttl)
-            .await
-            .map_err(|e| ApiError::StorageError(format!("Failed to store tunnel: {e}")))?;
-
-        // Map subdomain to tunnel ID with expiration
-        let _: () = conn
-            .set_ex(&subdomain_key, tunnel.id.to_string(), ttl)
-            .await
-            .map_err(|e| ApiError::StorageError(format!("Failed to map subdomain: {e}")))?;
-
-        // Add tunnel to user's list
-        let _: () = conn
-            .sadd(&user_key, tunnel.id.to_string())
-            .await
-            .map_err(|e| ApiError::StorageError(format!("Failed to add to user tunnels: {e}")))?;
-
-        // Set expiration on user list (longer than tunnel to allow cleanup)
-        let _: () = conn
-            .expire(&user_key, (ttl + 300) as i64)
-            .await
-            .map_err(|e| ApiError::StorageError(format!("Failed to set user list expiry: {e}")))?;
+        let tunnel_data = serde_json::to_string(&tunnel).map_err(|e| {
+            tracing::error!(error = %e, "Failed to serialize tunnel data");
+            ApiError::StorageError(format!("Failed to serialize tunnel data: {e}"))
+        })?;
+        
+        // Calculate TTL from expires_at
+        let ttl = {
+            let now = chrono::Utc::now();
+            let duration = tunnel.expires_at - now;
+            duration.num_seconds() as u64
+        };
+        
+        let _: () = conn.set_ex(&tunnel_key, &tunnel_data, ttl).await.map_err(|e| {
+            tracing::error!(error = %e, "Failed to store tunnel data in Redis");
+            ApiError::StorageError(format!("Failed to store tunnel data in Redis: {e}"))
+        })?;
+        
+        // Store user tunnel lookup (no TTL - persistent)
+        let user_key = format!("tunnel_lookup:{}", tunnel.github_user_id);
+        
+        // Get existing user data or create new
+        let existing_data: Option<String> = conn.get(&user_key).await.map_err(|e| {
+            tracing::error!(error = %e, "Failed to get existing user tunnel lookup");
+            ApiError::StorageError(format!("Failed to get existing user tunnel lookup: {e}"))
+        })?;
+        
+        let mut user_lookup = if let Some(data) = existing_data {
+            serde_json::from_str::<UserTunnelLookup>(&data).unwrap_or_else(|_| UserTunnelLookup {
+                github_user_id: tunnel.github_user_id.clone(),
+                github_username: tunnel.github_username.clone(),
+                tunnels: Vec::new(),
+            })
+        } else {
+            UserTunnelLookup {
+                github_user_id: tunnel.github_user_id.clone(),
+                github_username: tunnel.github_username.clone(),
+                tunnels: Vec::new(),
+            }
+        };
+        
+        // Add tunnel ID if not already present
+        if !user_lookup.tunnels.contains(&tunnel.id.to_string()) {
+            user_lookup.tunnels.push(tunnel.id.to_string());
+        }
+        
+        // Store back to Redis (no TTL for user lookup)
+        let user_data = serde_json::to_string(&user_lookup).map_err(|e| {
+            tracing::error!(error = %e, "Failed to serialize user tunnel lookup");
+            ApiError::StorageError(format!("Failed to serialize user tunnel lookup: {e}"))
+        })?;
+        
+        let _: () = conn.set(&user_key, user_data).await.map_err(|e| {
+            tracing::error!(error = %e, "Failed to store user tunnel lookup in Redis");
+            ApiError::StorageError(format!("Failed to store user tunnel lookup in Redis: {e}"))
+        })?;
+        
+        tracing::info!(tunnel_id = %tunnel.id, github_user_id = %tunnel.github_user_id, "Stored tunnel in Redis with new structure");
 
         // Create DNS slot mapping for tunnel FQDN
         let slot_key = format!("slot:{}", tunnel.fqdn);
@@ -116,8 +151,9 @@ impl TunnelStorage {
 
         match tunnel_id {
             Some(id) => {
-                let uuid = Uuid::parse_str(&id)
-                    .map_err(|e| ApiError::StorageError(format!("Invalid tunnel ID: {e}")))?;
+                let uuid = Uuid::parse_str(&id).map_err(|e| {
+                    ApiError::StorageError(format!("Failed to parse tunnel ID: {e}"))
+                })?;
                 self.get_tunnel(&uuid).await
             }
             None => Ok(None),
@@ -128,18 +164,25 @@ impl TunnelStorage {
     pub async fn list_user_tunnels(&self, github_user_id: &str) -> ApiResult<Vec<Tunnel>> {
         let mut conn = self.get_connection().await?;
 
-        let user_key = format!("user:{github_user_id}:tunnels");
-        let tunnel_ids: Vec<String> = conn
-            .smembers(&user_key)
+        let user_key = format!("tunnel_lookup:{}", github_user_id);
+        let user_data: Option<String> = conn
+            .get(&user_key)
             .await
-            .map_err(|e| ApiError::StorageError(format!("Failed to get user tunnels: {e}")))?;
+            .map_err(|e| ApiError::StorageError(format!("Failed to get user tunnel lookup: {e}")))?;
 
         let mut tunnels = Vec::new();
-        for id_str in tunnel_ids {
-            if let Ok(uuid) = Uuid::parse_str(&id_str)
-                && let Ok(Some(tunnel)) = self.get_tunnel(&uuid).await
-            {
-                tunnels.push(tunnel);
+
+        if let Some(data) = user_data {
+            let user_lookup: UserTunnelLookup = serde_json::from_str(&data).map_err(|e| {
+                ApiError::StorageError(format!("Failed to deserialize user tunnel lookup: {e}"))
+            })?;
+
+            for tunnel_id in user_lookup.tunnels {
+                if let Ok(uuid) = Uuid::parse_str(&tunnel_id) {
+                    if let Ok(Some(tunnel)) = self.get_tunnel(&uuid).await {
+                        tunnels.push(tunnel);
+                    }
+                }
             }
         }
 
@@ -185,7 +228,7 @@ impl TunnelStorage {
 
         let tunnel_key = format!("tunnel:{tunnel_id}");
         let subdomain_key = format!("subdomain:{}", tunnel.subdomain);
-        let user_key = format!("user:{}:tunnels", tunnel.github_user_id);
+        let user_key = format!("tunnel_lookup:{}", tunnel.github_user_id);
 
         // Delete tunnel data
         let _: () = conn

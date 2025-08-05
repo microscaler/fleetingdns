@@ -3,13 +3,13 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::info;
+use tokio::io::{AsyncRead, AsyncWriteExt};
 
 use common::{AppResult, init_metrics, init_tracing, shutdown::GracefulShutdown};
 use edgehub::{self, Config, SshConfig, SshServer};
 use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
 use tokio_rustls::server::TlsStream;
-use tokio::io::AsyncWriteExt;
 
 /// Simple HTTPS router that handles SNI-based routing
 async fn serve_https_router(
@@ -37,46 +37,104 @@ async fn serve_https_router(
                         tokio::spawn(async move {
                             match acceptor.accept(stream).await {
                                 Ok(mut tls_stream) => {
-                                    // Extract SNI from TLS connection
-                                    if let Some(sni) = extract_sni_from_tls(&tls_stream) {
+                                    // Read the HTTP request to extract the Host header
+                                    let mut buffer = [0u8; 1024];
+                                    let mut sni = None;
+                                    
+                                    // Read the first line of the HTTP request
+                                    if let Ok(n) = tokio::io::AsyncReadExt::read(&mut tls_stream, &mut buffer).await {
+                                        if n > 0 {
+                                            let request = String::from_utf8_lossy(&buffer[..n]);
+                                            info!(request = %request.lines().next().unwrap_or(""), "HTTP request received");
+                                            
+                                            // Extract Host header
+                                            for line in request.lines() {
+                                                if line.to_lowercase().starts_with("host:") {
+                                                    let host = line[6..].trim();
+                                                    sni = Some(host.to_string());
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    if let Some(sni) = sni {
                                         info!(sni = %sni, "HTTPS request for SNI");
                                         
-                                        // Look up tunnel in Redis
-                                        if let Ok(Some(tunnel_info)) = edgehub::redis::get_tunnel_by_subdomain(&pool, &sni).await {
-                                            info!(sni = %sni, tunnel_id = %tunnel_info.id, "Routing to tunnel");
-                                            
-                                            // TODO: Implement actual HTTP forwarding to tunnel
-                                            // For now, just send a placeholder response
-                                            let response = format!(
-                                                "HTTP/1.1 200 OK\r\n\
-                                                Content-Type: text/plain\r\n\
-                                                Content-Length: {}\r\n\
-                                                \r\n\
-                                                Tunnel {} is active for {}\n",
-                                                25 + tunnel_info.id.len() + sni.len(),
-                                                tunnel_info.id,
-                                                sni
-                                            );
-                                            
-                                            if let Err(e) = tls_stream.write_all(response.as_bytes()).await {
-                                                info!(error = %e, "Failed to write response");
-                                            }
+                                        // Extract subdomain from FQDN (e.g., "test-tunnel" from "test-tunnel.fleetingdns.run")
+                                        let subdomain = if sni.contains('.') {
+                                            sni.split('.').next().unwrap_or(&sni)
                                         } else {
-                                            info!(sni = %sni, "No tunnel found for SNI");
-                                            
-                                            // Send 404 response
-                                            let response = "HTTP/1.1 404 Not Found\r\n\
-                                                Content-Type: text/plain\r\n\
-                                                Content-Length: 13\r\n\
-                                                \r\n\
-                                                404 Not Found\n";
-                                            
-                                            if let Err(e) = tls_stream.write_all(response.as_bytes()).await {
-                                                info!(error = %e, "Failed to write 404 response");
+                                            &sni
+                                        };
+                                        
+                                        info!(sni = %sni, subdomain = %subdomain, "Extracted subdomain from SNI");
+                                        
+                                        // Look up tunnel in Redis
+                                        info!(subdomain = %subdomain, "About to call get_tunnel_by_subdomain");
+                                        match edgehub::redis::get_tunnel_by_subdomain(&pool, subdomain).await {
+                                            Ok(Some(tunnel_info)) => {
+                                                info!(sni = %sni, tunnel_id = %tunnel_info.id, "Routing to tunnel");
+                                                
+                                                // TODO: Implement actual HTTP forwarding to tunnel
+                                                // For now, just send a placeholder response
+                                                let response = format!(
+                                                    "HTTP/1.1 200 OK\r\n\
+                                                    Content-Type: text/plain\r\n\
+                                                    Content-Length: {}\r\n\
+                                                    \r\n\
+                                                    Tunnel {} is active for {}\n",
+                                                    25 + tunnel_info.id.len() + sni.len(),
+                                                    tunnel_info.id,
+                                                    sni
+                                                );
+                                                
+                                                if let Err(e) = tls_stream.write_all(response.as_bytes()).await {
+                                                    info!(error = %e, "Failed to write response");
+                                                }
+                                            }
+                                            Ok(None) => {
+                                                info!(sni = %sni, "No tunnel found for SNI");
+                                                
+                                                // Send 404 response
+                                                let response = "HTTP/1.1 404 Not Found\r\n\
+                                                    Content-Type: text/plain\r\n\
+                                                    Content-Length: 13\r\n\
+                                                    \r\n\
+                                                    404 Not Found\n";
+                                                
+                                                if let Err(e) = tls_stream.write_all(response.as_bytes()).await {
+                                                    info!(error = %e, "Failed to write 404 response");
+                                                }
+                                            }
+                                            Err(e) => {
+                                                info!(sni = %sni, error = %e, "Error looking up tunnel");
+                                                
+                                                // Send 500 response
+                                                let response = "HTTP/1.1 500 Internal Server Error\r\n\
+                                                    Content-Type: text/plain\r\n\
+                                                    Content-Length: 25\r\n\
+                                                    \r\n\
+                                                    500 Internal Server Error\n";
+                                                
+                                                if let Err(e) = tls_stream.write_all(response.as_bytes()).await {
+                                                    info!(error = %e, "Failed to write 500 response");
+                                                }
                                             }
                                         }
                                     } else {
-                                        info!("No SNI found in TLS connection");
+                                        info!("No Host header found in HTTP request");
+                                        
+                                        // Send 400 response
+                                        let response = "HTTP/1.1 400 Bad Request\r\n\
+                                            Content-Type: text/plain\r\n\
+                                            Content-Length: 15\r\n\
+                                            \r\n\
+                                            400 Bad Request\n";
+                                        
+                                        if let Err(e) = tls_stream.write_all(response.as_bytes()).await {
+                                            info!(error = %e, "Failed to write 400 response");
+                                        }
                                     }
                                     
                                     if let Err(e) = tls_stream.shutdown().await {
@@ -107,10 +165,11 @@ async fn serve_https_router(
 }
 
 /// Extract SNI from TLS connection
-fn extract_sni_from_tls(_tls_stream: &tokio_rustls::server::TlsStream<tokio::net::TcpStream>) -> Option<String> {
-    // This is a simplified SNI extraction - in production we'd use proper SNI parsing
-    // For now, we'll just return a placeholder
-    Some("test-tunnel.fleetingdns.run".to_string())
+fn extract_sni_from_tls(tls_stream: &tokio_rustls::server::TlsStream<tokio::net::TcpStream>) -> Option<String> {
+    // For now, we'll extract the SNI from the Host header in the HTTP request
+    // This is a simplified approach - in production we'd use proper TLS SNI extraction
+    // The SNI will be passed via the Host header in the HTTP request
+    None // We'll extract it from the HTTP request instead
 }
 
 /// EdgeHub command line arguments.
@@ -132,7 +191,7 @@ struct Args {
     #[arg(long, default_value = "fleetingdns.run")]
     public_domain: String,
     /// Redis connection URL.
-    #[arg(long, default_value = "redis://127.0.0.1:6379")]
+    #[arg(long, env = "REDIS_URL", default_value = "redis://127.0.0.1:6379")]
     redis: String,
     /// Path to control socket for graceful shutdown
     #[arg(long)]

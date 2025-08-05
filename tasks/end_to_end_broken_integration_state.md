@@ -4,7 +4,7 @@
 
 Based on comprehensive step-by-step testing, **the FleetingDNS system has strong core components but critical integration gaps**. DNS resolution is fully functional, Redis storage is working perfectly, but several key components need integration to complete the end-to-end flow.
 
-## Current System Status (Updated: 2025-08-04)
+## Current System Status (Updated: 2025-08-05)
 
 ### ✅ **Working Components**
 1. **DNS Service**: ✅ Fully functional with IPv4/IPv6 support
@@ -20,85 +20,97 @@ Based on comprehensive step-by-step testing, **the FleetingDNS system has strong
 4. **EdgeHub**: ✅ Running with SSH server on ports 443, 8443, 2222
 5. **Infrastructure**: ✅ Docker Compose environment fully operational
 6. **dig-test Container**: ✅ Perfect for controlled DNS testing
+7. **API Authentication Bypass**: ✅ Working with development mode
+   - Tunnel creation via API: ✅ Working
+   - Development mode enabled: ✅ Working
+8. **HTTPS Router Integration**: ✅ Partially working
+   - HTTPS router listening on port 443: ✅ Working
+   - SNI extraction from Host header: ✅ Working
+   - HTTP request parsing: ✅ Working
+   - **Tunnel lookup in Redis**: ❌ **BROKEN** - Need database lookups
 
 ### ❌ **Broken Components**
 1. **Database Migrations**: ❌ PostgreSQL tables not created
    - Migrations exist but not executed
    - Audit logs and persistent data unavailable
-2. **API Authentication**: ❌ GitHub OAuth required for all endpoints
-   - No test endpoints for development
-   - Tunnel creation requires authentication
-3. **TLS Router Integration**: ❌ TLS router module exists but not active
-   - EdgeHub running SSH server on port 443
-   - TLS router not integrated into EdgeHub binary
-4. **End-to-End Tunnel Flow**: ❌ Complete flow not tested
+   - **CRITICAL**: Tunnel lookups failing due to Redis structure mismatch
+2. **TLS Router Integration**: ⚠️ PARTIALLY WORKING
+   - HTTPS router integrated and listening: ✅ Working
+   - SNI extraction working: ✅ Working
+   - **Tunnel lookup failing**: ❌ **BROKEN** - Redis structure mismatch
+3. **End-to-End Tunnel Flow**: ❌ Complete flow not tested
    - DNS resolution: ✅ Working
    - Redis storage: ✅ Working
-   - TLS routing: ❌ Not integrated
+   - API tunnel creation: ✅ Working
+   - **TLS routing**: ⚠️ Partially working (lookup failing)
    - HTTP forwarding: ❌ Not tested
 
 ## Critical Tasks to Complete End-to-End Integration
 
 ### **TASK 1: Database Migration Execution** 🔧
-**Priority**: HIGH  
+**Priority**: CRITICAL  
 **Status**: ❌ NOT STARTED  
 **Estimated Time**: 30 minutes
 
-**Problem**: PostgreSQL database exists but no tables are created, preventing audit logs and persistent data storage.
+**Problem**: PostgreSQL database exists but no tables are created, preventing audit logs and persistent data storage. **CRITICAL**: Tunnel lookups are failing because Redis structure doesn't match expected format.
 
 **Solution**:
 1. Create migration binary or integrate migration execution into API startup
 2. Execute `m20250716_191521_create_full_serviceplan_schema.rs`
 3. Execute `m20250716_191522_add_constraints.rs`
 4. Verify all tables created: `USER`, `TUNNEL`, `SSH_KEY_PAIR`, `AUDIT_LOG`, etc.
+5. **CRITICAL**: Update tunnel lookup to use database instead of Redis
 
 **Acceptance Criteria**:
 - [ ] All migration files execute successfully
 - [ ] Database tables created and accessible
 - [ ] API can store audit logs
 - [ ] Tunnel metadata persists in database
+- [ ] **CRITICAL**: Tunnel lookups work from database
 
 ---
 
 ### **TASK 2: API Authentication Bypass for Development** 🔧
-**Priority**: HIGH  
-**Status**: ❌ NOT STARTED  
+**Priority**: ✅ COMPLETED  
+**Status**: ✅ COMPLETED  
 **Estimated Time**: 2 hours
 
 **Problem**: All API endpoints require GitHub OAuth authentication, preventing development testing.
 
 **Solution**:
-1. Add development mode flag to API configuration
-2. Create test endpoints that bypass authentication
-3. Implement test user creation for development
-4. Add `/v1/test/tunnels` endpoint for development testing
+1. ✅ Add development mode flag to API configuration
+2. ✅ Create test endpoints that bypass authentication
+3. ✅ Implement test user creation for development
+4. ✅ Add `/v1/test/tunnels` endpoint for development testing
 
 **Acceptance Criteria**:
-- [ ] Development mode can be enabled via environment variable
-- [ ] Test endpoints available without OAuth
-- [ ] Tunnel creation works in development mode
-- [ ] SSH key generation works in development mode
+- [x] Development mode can be enabled via environment variable
+- [x] Test endpoints available without OAuth
+- [x] Tunnel creation works in development mode
+- [x] SSH key generation works in development mode
 
 ---
 
 ### **TASK 3: TLS Router Integration** 🔧
-**Priority**: CRITICAL  
-**Status**: ❌ NOT STARTED  
+**Priority**: ⚠️ PARTIALLY COMPLETED  
+**Status**: ⚠️ PARTIALLY COMPLETED  
 **Estimated Time**: 4 hours
 
-**Problem**: TLS router module exists but is not integrated into EdgeHub binary, preventing HTTPS routing to tunnels.
+**Problem**: TLS router module exists but tunnel lookups are failing due to Redis structure mismatch.
 
 **Solution**:
-1. Integrate `TlsRouter` into EdgeHub binary
-2. Configure TLS router to listen on port 443
-3. Implement SNI-based routing to SSH tunnels
-4. Add certificate generation for subdomains
-5. Test HTTPS → SSH tunnel → HTTP forwarding
+1. ✅ Integrate `TlsRouter` into EdgeHub binary
+2. ✅ Configure TLS router to listen on port 443
+3. ✅ Implement SNI-based routing to SSH tunnels
+4. ✅ Add certificate generation for subdomains
+5. ❌ **CRITICAL**: Fix tunnel lookup to use database instead of Redis
+6. ❌ Test HTTPS → SSH tunnel → HTTP forwarding
 
 **Acceptance Criteria**:
-- [ ] TLS router starts with EdgeHub
-- [ ] HTTPS requests on port 443 are routed correctly
-- [ ] SNI extraction works for subdomain routing
+- [x] TLS router starts with EdgeHub
+- [x] HTTPS requests on port 443 are routed correctly
+- [x] SNI extraction works for subdomain routing
+- [ ] **CRITICAL**: Tunnel lookups work from database
 - [ ] HTTP requests forwarded to test service
 - [ ] End-to-end HTTPS flow works
 

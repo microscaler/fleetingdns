@@ -36,6 +36,16 @@ services:
     image: fleetingdns/edgehub:dev
     command: []
     ports: ["2222:2222", "8443:8443", "443:443"]
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - RUST_LOG=info
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - SERVICE_NAME=edgehub
+      - SERVICE_VERSION=0.1.0
+      - ENVIRONMENT=development
+      - TELEMETRY_TRACING_ENABLED=true
+      - TELEMETRY_METRICS_ENABLED=true
+      - TELEMETRY_LOGGING_ENABLED=true
     depends_on: [dnsd, otel-collector]
 
   intake_collector:

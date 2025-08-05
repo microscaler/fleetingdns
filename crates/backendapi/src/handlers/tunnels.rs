@@ -3,6 +3,7 @@ use axum::{Json, extract::{Path, State}, http::HeaderMap};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 use uuid::Uuid;
+use chrono::Utc;
 
 /// Request to create a new tunnel
 #[derive(Debug, Deserialize)]
@@ -76,6 +77,12 @@ pub async fn create_tunnel(
     headers: HeaderMap,
     Json(request): Json<CreateTunnelRequest>,
 ) -> ApiResult<Json<CreateTunnelResponse>> {
+    let start_time = std::time::Instant::now();
+    
+    // Create tunnel span for tracing
+    let span = common::telemetry::tunnel_span("create", "new");
+    let _enter = span.enter();
+    
     // Authenticate user with development mode bypass support
     let token = extract_bearer_token_with_dev_bypass(&headers, state.config.development_mode)?;
     let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
@@ -157,6 +164,12 @@ pub async fn create_tunnel(
         None
     };
 
+    // Record tunnel creation metrics
+    let response_time = start_time.elapsed();
+    let response_time_ms = response_time.as_millis() as u64;
+    common::telemetry::record_tunnel_metrics("create", &tunnel.id.to_string(), response_time_ms, true);
+    common::telemetry::record_slot_metrics("create", true);
+
     Ok(Json(CreateTunnelResponse {
         id: tunnel.id.to_string(),
         fqdn: tunnel.fqdn,
@@ -175,39 +188,54 @@ pub async fn get_tunnel(
     Path(tunnel_id): Path<String>,
     headers: HeaderMap,
 ) -> ApiResult<Json<TunnelInfo>> {
-    // Authenticate user with development mode bypass support
+    let start_time = std::time::Instant::now();
+    
+    // Create tunnel span for tracing
+    let span = common::telemetry::tunnel_span("get", &tunnel_id);
+    let _enter = span.enter();
+    
+    // Authenticate user
     let token = extract_bearer_token_with_dev_bypass(&headers, state.config.development_mode)?;
     let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
 
-    let uuid = Uuid::parse_str(&tunnel_id)
-        .map_err(|_| ApiError::BadRequest("Invalid tunnel ID".to_string()))?;
+    // Parse tunnel ID
+    let tunnel_uuid = Uuid::parse_str(&tunnel_id)
+        .map_err(|_| ApiError::BadRequest("Invalid tunnel ID format".to_string()))?;
 
+    // Get tunnel from storage
     let tunnel = state
         .storage
-        .get_tunnel(&uuid)
+        .get_tunnel(&tunnel_uuid)
         .await?
-        .ok_or_else(|| ApiError::TunnelNotFound(tunnel_id.clone()))?;
+        .ok_or_else(|| ApiError::NotFound("Tunnel not found".to_string()))?;
 
-    // Verify tunnel ownership
-    if tunnel.github_user_id != user.id {
-        return Err(ApiError::Forbidden(
-            "Not authorized to access this tunnel".to_string(),
-        ));
+    // Check if user owns this tunnel
+    if tunnel.github_user_id != user.id.to_string() {
+        return Err(ApiError::Forbidden("Access denied".to_string()));
     }
 
-    // Clone values to avoid borrowing issues
+    // Calculate remaining TTL
+    let now = Utc::now();
+    let remaining_ttl = (tunnel.expires_at - now).num_seconds();
+
     let tunnel_info = TunnelInfo {
         id: tunnel.id.to_string(),
-        fqdn: tunnel.fqdn.clone(),
+        fqdn: tunnel.fqdn,
         local_port: tunnel.local_port,
         slot: tunnel.slot,
-        status: tunnel.status.clone(),
+        status: tunnel.status,
         created_at: tunnel.created_at.to_rfc3339(),
         expires_at: tunnel.expires_at.to_rfc3339(),
         bytes_transferred: tunnel.bytes_transferred,
         request_count: tunnel.request_count,
-        remaining_ttl: tunnel.remaining_ttl(),
+        remaining_ttl,
     };
+
+    // Record tunnel retrieval metrics
+    let response_time = start_time.elapsed();
+    let response_time_ms = response_time.as_millis() as u64;
+    common::telemetry::record_tunnel_metrics("get", &tunnel_id, response_time_ms, true);
+    common::telemetry::record_slot_metrics("retrieve", true);
 
     Ok(Json(tunnel_info))
 }
@@ -218,37 +246,48 @@ pub async fn delete_tunnel(
     Path(tunnel_id): Path<String>,
     headers: HeaderMap,
 ) -> ApiResult<Json<serde_json::Value>> {
-    // Authenticate user with development mode bypass support
+    let start_time = std::time::Instant::now();
+    
+    // Create tunnel span for tracing
+    let span = common::telemetry::tunnel_span("delete", &tunnel_id);
+    let _enter = span.enter();
+    
+    // Authenticate user
     let token = extract_bearer_token_with_dev_bypass(&headers, state.config.development_mode)?;
     let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
 
-    let uuid = Uuid::parse_str(&tunnel_id)
-        .map_err(|_| ApiError::BadRequest("Invalid tunnel ID".to_string()))?;
+    // Parse tunnel ID
+    let tunnel_uuid = Uuid::parse_str(&tunnel_id)
+        .map_err(|_| ApiError::BadRequest("Invalid tunnel ID format".to_string()))?;
 
+    // Get tunnel from storage
     let tunnel = state
         .storage
-        .get_tunnel(&uuid)
+        .get_tunnel(&tunnel_uuid)
         .await?
-        .ok_or_else(|| ApiError::TunnelNotFound(tunnel_id.clone()))?;
+        .ok_or_else(|| ApiError::NotFound("Tunnel not found".to_string()))?;
 
-    // Check ownership
-    if tunnel.github_user_id != user.id {
-        return Err(ApiError::AuthorizationFailed(
-            "Not authorized to delete this tunnel".to_string(),
-        ));
+    // Check if user owns this tunnel
+    if tunnel.github_user_id != user.id.to_string() {
+        return Err(ApiError::Forbidden("Access denied".to_string()));
     }
 
-    // Release the allocated port
-    state.storage.release_port(tunnel.slot).await?;
+    // Delete tunnel from storage
+    let deleted = state.storage.delete_tunnel(&tunnel_uuid).await?;
 
-    // Delete tunnel
-    state.storage.delete_tunnel(&uuid).await?;
+    if deleted {
+        info!("Deleted tunnel {} for user {}", tunnel_id, user.login);
+    }
 
-    info!("Deleted tunnel {} for user {} and released port {}", tunnel_id, user.login, tunnel.slot);
+    // Record tunnel deletion metrics
+    let response_time = start_time.elapsed();
+    let response_time_ms = response_time.as_millis() as u64;
+    common::telemetry::record_tunnel_metrics("delete", &tunnel_id, response_time_ms, deleted);
+    common::telemetry::record_slot_metrics("delete", deleted);
 
     Ok(Json(serde_json::json!({
-        "status": "deleted",
-        "tunnel_id": tunnel_id
+        "deleted": deleted,
+        "message": if deleted { "Tunnel deleted successfully" } else { "Tunnel not found" }
     })))
 }
 
@@ -257,30 +296,48 @@ pub async fn list_tunnels(
     State(state): State<ApiState>,
     headers: HeaderMap,
 ) -> ApiResult<Json<Vec<TunnelInfo>>> {
-    // Authenticate user with development mode bypass support
+    let start_time = std::time::Instant::now();
+    
+    // Create tunnel span for tracing
+    let span = common::telemetry::tunnel_span("list", "user_tunnels");
+    let _enter = span.enter();
+    
+    // Authenticate user
     let token = extract_bearer_token_with_dev_bypass(&headers, state.config.development_mode)?;
     let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
 
+    // Get user's tunnels from storage
     let tunnels = state
         .storage
         .list_user_tunnels(&user.id.to_string())
         .await?;
 
+    // Convert to TunnelInfo
+    let now = Utc::now();
     let tunnel_infos: Vec<TunnelInfo> = tunnels
         .into_iter()
-        .map(|tunnel| TunnelInfo {
-            id: tunnel.id.to_string(),
-            fqdn: tunnel.fqdn.clone(),
-            local_port: tunnel.local_port,
-            slot: tunnel.slot,
-            status: tunnel.status.clone(),
-            created_at: tunnel.created_at.to_rfc3339(),
-            expires_at: tunnel.expires_at.to_rfc3339(),
-            bytes_transferred: tunnel.bytes_transferred,
-            request_count: tunnel.request_count,
-            remaining_ttl: tunnel.remaining_ttl(),
+        .map(|tunnel| {
+            let remaining_ttl = (tunnel.expires_at - now).num_seconds();
+            TunnelInfo {
+                id: tunnel.id.to_string(),
+                fqdn: tunnel.fqdn,
+                local_port: tunnel.local_port,
+                slot: tunnel.slot,
+                status: tunnel.status,
+                created_at: tunnel.created_at.to_rfc3339(),
+                expires_at: tunnel.expires_at.to_rfc3339(),
+                bytes_transferred: tunnel.bytes_transferred,
+                request_count: tunnel.request_count,
+                remaining_ttl,
+            }
         })
         .collect();
+
+    // Record tunnel listing metrics
+    let response_time = start_time.elapsed();
+    let response_time_ms = response_time.as_millis() as u64;
+    common::telemetry::record_tunnel_metrics("list", "user_tunnels", response_time_ms, true);
+    common::telemetry::record_slot_metrics("list", true);
 
     Ok(Json(tunnel_infos))
 }

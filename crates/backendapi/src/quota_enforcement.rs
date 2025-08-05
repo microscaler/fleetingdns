@@ -69,10 +69,20 @@ impl UsageTracker {
 
     /// Get current usage for a user
     pub async fn get_user_usage(&self, user_id: &str) -> ApiResult<UserUsage> {
+        let start_time = std::time::Instant::now();
+        
+        // Create DB span for tracing
+        let span = common::telemetry::db_span("select", "user_usage");
+        let _enter = span.enter();
+        
         // Check cache first
         {
             let cache = self.cache.read().await;
             if let Some(usage) = cache.get(user_id) {
+                // Record cache hit metrics
+                let response_time = start_time.elapsed();
+                let response_time_ms = response_time.as_millis() as u64;
+                common::telemetry::record_db_metrics("select_cache", "user_usage", response_time_ms, true);
                 return Ok(usage.clone());
             }
         }
@@ -97,6 +107,11 @@ impl UsageTracker {
             let mut cache = self.cache.write().await;
             cache.insert(user_id.to_string(), usage.clone());
         }
+
+        // Record database operation metrics
+        let response_time = start_time.elapsed();
+        let response_time_ms = response_time.as_millis() as u64;
+        common::telemetry::record_db_metrics("select", "user_usage", response_time_ms, true);
 
         Ok(usage)
     }
@@ -178,32 +193,23 @@ impl UsageTracker {
         })
     }
 
-    /// Record usage for an operation
+    /// Record usage for a user
     pub async fn record_usage(
         &self,
         user_id: &str,
         quota_type: QuotaType,
         amount: i64,
     ) -> ApiResult<()> {
-        // TODO: Implement actual usage recording to database
-        // For now, just update the cache
+        let start_time = std::time::Instant::now();
+        
+        // Create DB span for tracing
+        let span = common::telemetry::db_span("update", "user_usage");
+        let _enter = span.enter();
+        
+        // Get current usage
+        let mut usage = self.get_user_usage(user_id).await?;
 
-        let mut cache = self.cache.write().await;
-        let usage = cache
-            .entry(user_id.to_string())
-            .or_insert_with(|| UserUsage {
-                user_id: user_id.to_string(),
-                service_plan_id: "default".to_string(),
-                api_calls_count: 0,
-                tunnels_created_count: 0,
-                dns_operations_count: 0,
-                active_tunnels_count: 0,
-                data_transferred_mb: 0,
-                certificates_issued_count: 0,
-                last_updated: Utc::now(),
-                period_start: Utc::now(),
-            });
-
+        // Update usage based on quota type
         match quota_type {
             QuotaType::ApiCalls => usage.api_calls_count += amount,
             QuotaType::TunnelCreation => usage.tunnels_created_count += amount,
@@ -212,7 +218,21 @@ impl UsageTracker {
             QuotaType::DataTransfer => usage.data_transferred_mb += amount,
             QuotaType::CertificateIssuance => usage.certificates_issued_count += amount,
         }
+
         usage.last_updated = Utc::now();
+
+        // Update cache
+        {
+            let mut cache = self.cache.write().await;
+            cache.insert(user_id.to_string(), usage);
+        }
+
+        // TODO: Update database - simplified for now
+
+        // Record database operation metrics
+        let response_time = start_time.elapsed();
+        let response_time_ms = response_time.as_millis() as u64;
+        common::telemetry::record_db_metrics("update", "user_usage", response_time_ms, true);
 
         Ok(())
     }
