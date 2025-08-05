@@ -80,6 +80,10 @@ pub async fn serve(cfg: Config) -> AppResult<()> {
                 match result {
                     Ok((len, peer)) => {
                         info!("Received DNS packet from {}: {} bytes", peer, len);
+                        
+                        // Increment DNS query counter for UDP protocol
+                        metrics::counter!("dns_queries_total", "protocol" => "udp").increment(1);
+                        
                         // Use unified DNS handler
                         match dns_handler.handle_packet(&buf[..len], &cfg.redis_pool).await {
                             Ok(resp) => {
@@ -229,6 +233,10 @@ mod dot {
                         if tls.read_exact(&mut buf).await.is_err() {
                             break;
                         }
+                        
+                        // Increment DNS query counter for DoT protocol
+                        metrics::counter!("dns_queries_total", "protocol" => "dot").increment(1);
+                        
                         if let Ok(resp) = dns_handler.handle_packet(&buf, &pool).await {
                             let resp_len = (resp.len() as u16).to_be_bytes();
                             if tls.write_all(&resp_len).await.is_err() {
@@ -280,6 +288,10 @@ mod dot {
                                         if tls.read_exact(&mut buf).await.is_err() {
                                             break;
                                         }
+                                        
+                                        // Increment DNS query counter for DoT protocol
+                                        metrics::counter!("dns_queries_total", "protocol" => "dot").increment(1);
+                                        
                                         if let Ok(resp) = dns_handler.handle_packet(&buf, &pool).await {
                                             let resp_len = (resp.len() as u16).to_be_bytes();
                                             if tls.write_all(&resp_len).await.is_err() {
@@ -298,20 +310,17 @@ mod dot {
                             });
                         }
                         Err(e) => {
-                            tracing::error!("DoT accept error: {}", e);
-                            break;
+                            tracing::error!("Failed to accept DoT connection: {}", e);
                         }
                     }
                 }
                 // Handle shutdown signal
                 _ = shutdown_rx.recv() => {
-                    info!("DoT server received shutdown signal, stopping");
+                    info!("Received shutdown signal, stopping DoT server");
                     break;
                 }
             }
         }
-
-        info!("DoT server shutdown complete");
         Ok(())
     }
 }
