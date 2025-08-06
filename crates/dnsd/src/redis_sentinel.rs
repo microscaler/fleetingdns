@@ -48,33 +48,13 @@ use tokio::sync::RwLock;
 use tokio::time::{Instant, interval, timeout};
 use tracing::{debug, error, info, warn};
 
-/// Errors that can occur when working with Redis Sentinel
-#[derive(Error, Debug)]
-pub enum SentinelError {
-    #[error("Failed to connect to sentinel at {0}: {1}")]
-    SentinelConnectionFailed(String, RedisError),
+use common::error::{FleetingDnsError, CommonResult};
 
-    #[error("No sentinels available")]
-    NoSentinelsAvailable,
+/// Type alias for sentinel errors using the common error system
+pub type SentinelError = FleetingDnsError;
 
-    #[error("Master {0} not found")]
-    MasterNotFound(String),
-
-    #[error("All sentinels failed to respond")]
-    AllSentinelsFailed,
-
-    #[error("Failover timeout after {0:?}")]
-    FailoverTimeout(Duration),
-
-    #[error("Invalid sentinel response: {0}")]
-    InvalidResponse(String),
-
-    #[error("Redis error: {0}")]
-    RedisError(#[from] RedisError),
-
-    #[error("Pool error: {0}")]
-    PoolError(String),
-}
+/// Type alias for sentinel results
+pub type SentinelResult<T> = CommonResult<T>;
 
 /// Configuration for Redis Sentinel client
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -189,14 +169,17 @@ impl RedisSentinelClient {
         let mut sentinel_pools = Vec::new();
         for sentinel_url in &config.sentinels {
             let manager = RedisConnectionManager::new(sentinel_url.as_str())
-                .map_err(|e| SentinelError::SentinelConnectionFailed(sentinel_url.clone(), e))?;
+                .map_err(|e| SentinelError::ConnectionError(format!(
+                    "Failed to connect to sentinel at {}: {}",
+                    sentinel_url, e
+                )))?;
 
             let pool = Pool::builder()
                 .max_size(5) // Small pool for sentinel connections
                 .connection_timeout(config.connection_timeout)
                 .build(manager)
                 .await
-                .map_err(|e| SentinelError::PoolError(e.to_string()))?;
+                .map_err(|e| SentinelError::ConnectionError(format!("Pool error: {}", e)))?;
 
             sentinel_pools.push(pool);
         }
@@ -263,7 +246,7 @@ impl RedisSentinelClient {
             }
         }
 
-        Err(SentinelError::AllSentinelsFailed)
+        Err(SentinelError::ConnectionError("All sentinels failed to respond".to_string()))
     }
 
     /// Query a specific sentinel for master information
@@ -275,12 +258,12 @@ impl RedisSentinelClient {
         let mut conn = timeout(self.config.connection_timeout, pool.get())
             .await
             .map_err(|_| {
-                SentinelError::SentinelConnectionFailed(
-                    format!("sentinel-{sentinel_index}"),
-                    RedisError::from((redis::ErrorKind::IoError, "Connection timeout")),
-                )
+                SentinelError::ConnectionError(format!(
+                    "Failed to connect to sentinel-{}: Connection timeout",
+                    sentinel_index
+                ))
             })?
-            .map_err(|e| SentinelError::PoolError(e.to_string()))?;
+            .map_err(|e| SentinelError::ConnectionError(format!("Pool error: {}", e)))?;
 
         // Query sentinel for master info
         let result: Vec<String> = timeout(
@@ -291,19 +274,20 @@ impl RedisSentinelClient {
                 .query_async(&mut *conn),
         )
         .await
-        .map_err(|_| SentinelError::InvalidResponse("Timeout querying sentinel".to_string()))?
-        .map_err(SentinelError::RedisError)?;
+        .map_err(|_| SentinelError::RequestTimeout("Timeout querying sentinel".to_string()))?
+        .map_err(|e| SentinelError::RedisError(e.to_string()))?;
 
         if result.len() < 2 {
-            return Err(SentinelError::MasterNotFound(
-                self.config.master_name.clone(),
-            ));
+            return Err(SentinelError::NotFound(format!(
+                "Master {} not found",
+                self.config.master_name
+            )));
         }
 
         let host = result[0].clone();
         let port: u16 = result[1]
             .parse()
-            .map_err(|_| SentinelError::InvalidResponse("Invalid port number".to_string()))?;
+            .map_err(|_| SentinelError::ValidationError("Invalid port number".to_string()))?;
 
         // Get additional master info
         let master_info: HashMap<String, String> = timeout(
@@ -314,8 +298,8 @@ impl RedisSentinelClient {
                 .query_async(&mut *conn),
         )
         .await
-        .map_err(|_| SentinelError::InvalidResponse("Timeout querying master info".to_string()))?
-        .map_err(SentinelError::RedisError)?;
+        .map_err(|_| SentinelError::RequestTimeout("Timeout querying master info".to_string()))?
+        .map_err(|e| SentinelError::RedisError(e.to_string()))?;
 
         Ok(MasterInfo {
             name: self.config.master_name.clone(),

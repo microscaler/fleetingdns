@@ -6,8 +6,8 @@ use axum::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use thiserror::Error;
 use uuid::Uuid;
+use thiserror::Error;
 
 /// Enhanced API error types with detailed error information
 #[derive(Error, Debug, Clone)]

@@ -11,29 +11,16 @@ use bb8::Pool;
 use bb8_redis::RedisConnectionManager;
 use redis::{AsyncCommands, RedisError};
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
+use common::error::{FleetingDnsError, CommonResult};
 use tokio::sync::RwLock;
 use tokio::time::timeout;
 use tracing::error;
 
-/// Performance-related errors
-#[derive(Error, Debug)]
-pub enum PerformanceError {
-    #[error("Redis error: {0}")]
-    Redis(#[from] RedisError),
-    #[error("Connection pool error: {0}")]
-    PoolError(String),
-    #[error("Bulk operation failed: {0}")]
-    BulkOperationFailed(String),
-    #[error("Pipeline execution failed: {0}")]
-    PipelineError(String),
-    #[error("Timeout error: {0}")]
-    TimeoutError(String),
-    #[error("Configuration error: {0}")]
-    ConfigError(String),
-    #[error("Config error: {0}")]
-    Config(String),
-}
+/// Type alias for performance errors using the common error system
+pub type PerformanceError = FleetingDnsError;
+
+/// Type alias for performance results
+pub type PerformanceResult<T> = CommonResult<T>;
 
 /// Connection pool configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -218,7 +205,7 @@ impl RedisPerformanceClient {
     /// Create a new performance client
     pub async fn new(config: PerformanceConfig) -> Result<Self, PerformanceError> {
         let manager = RedisConnectionManager::new(config.redis_url.as_str())
-            .map_err(|e| PerformanceError::Config(format!("Failed to create manager: {e}")))?;
+            .map_err(|e| PerformanceError::ConfigurationError(format!("Failed to create manager: {e}")))?;
 
         let pool = Pool::builder()
             .max_size(config.pool_config.max_size)
@@ -226,7 +213,7 @@ impl RedisPerformanceClient {
             .connection_timeout(config.pool_config.connection_timeout)
             .build(manager)
             .await
-            .map_err(|e| PerformanceError::Config(format!("Failed to build pool: {e}")))?;
+            .map_err(|e| PerformanceError::ConfigurationError(format!("Failed to build pool: {e}")))?;
 
         let stats = Arc::new(RwLock::new(PerformanceStats::default()));
 
