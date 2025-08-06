@@ -225,6 +225,36 @@ This document outlines the critical struct duplication issues identified in the 
 **Effort:** 2-3 days  
 **Status:** ✅ **COMPLETED** - 2025-08-05
 
+#### TASK 2.2: Migrate Error Systems ✅ **IN PROGRESS**
+**Priority:** 🟡 HIGH  
+**Effort:** 3-4 days  
+**Status:** 🔄 **IN PROGRESS** - 2025-08-05
+
+**Completed Migrations:**
+- ✅ **cmd/edf-cli** - Migrated from SshKeyError to FleetingDnsError
+- ✅ **crates/dnsd** - Migrated from CacheError to FleetingDnsError  
+- ✅ **crates/edf-ca** - Migrated from CaError to FleetingDnsError
+- ✅ **crates/dnsd** - Migrated from PerformanceError to FleetingDnsError
+- 🔄 **crates/dnsd** - Migrated from SentinelError to FleetingDnsError (IN PROGRESS - Error usages need updating)
+
+**Remaining Migrations:**
+- 🔄 **crates/backendapi** - ApiError (DEFERRED - Complex custom error handling)
+- 🔄 **crates/dnsd** - SentinelError (IN PROGRESS - Error usages need updating)
+- 🔄 **crates/dnsd** - Remaining error types (ClusterError, DnssecError)
+- 🔄 **crates/edgehub** - Various error types (if any custom errors exist)
+
+**Migration Pattern Established:**
+1. Replace error enum with type alias: `pub type CrateError = FleetingDnsError;`
+2. Update error usages to use appropriate FleetingDnsError variants
+3. Fix compilation issues and test failures
+4. Update dependent crates that import the error types
+
+**Key Insights:**
+- Simple crates (edf-cli, dnsd, edf-ca) migrated successfully
+- Complex crates with custom error handling (backendapi) require different approach
+- All 411 tests passing after successful migrations
+- Redis version compatibility issues resolved
+
 **Actions:**
 1. ✅ Create `FleetingDnsError` enum in `crates/common/src/error.rs`
 2. ✅ Implement error conversion traits
