@@ -132,7 +132,7 @@ impl CertificateBatchProcessor {
         // Send batch to background processor
         if let Err(e) = self.processor_tx.send(batch).await {
             error!("Failed to send batch to processor: {}", e);
-            return Err(crate::errors::CaError::Internal(
+            return Err(crate::errors::CaError::InternalError(
                 "Batch processing failed".to_string(),
             ));
         }

@@ -588,7 +588,7 @@ mod tests {
 
     #[test]
     fn test_api_error_from_edf_ca_error() {
-        let ca_error = edf_ca::CaError::InvalidRequest("Invalid cert request".to_string());
+        let ca_error = edf_ca::CaError::BadRequest("Invalid cert request".to_string());
         let api_error: ApiError = ca_error.into();
 
         match api_error {
