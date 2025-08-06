@@ -114,7 +114,7 @@ async fn main() -> anyhow::Result<()> {
                             println!("   Created: {}", key_pair.created_at);
                             println!("   Expires: {}", key_pair.expires_at);
                         }
-                        Err(ssh_keys::SshKeyError::KeyFileNotFound(_)) => {
+                        Err(ssh_keys::SshKeyError::NotFound(_)) => {
                             println!("❌ No SSH keys found");
                         }
                         Err(e) => {

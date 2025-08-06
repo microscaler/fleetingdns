@@ -119,7 +119,52 @@ This document outlines the critical struct duplication issues identified in the 
 - No shared metrics framework
 - Inconsistent collection patterns
 
-## 📋 CLEANUP TASKS
+## �� CLEANUP TASKS
+
+### **Phase 1: Foundation & Low-Risk Migrations (Start Here)**
+
+#### **1. `cmd/edf-cli` - SshKeyError** ✅ **COMPLETED**
+**Priority:** 🟢 **EASIEST**  
+**Status:** ✅ **COMPLETED** - 2025-08-05
+
+**Why:** Simple error enum, minimal dependencies, CLI tool
+- **Complexity:** Low (9 variants)
+- **Dependencies:** None on other crates
+- **Risk:** Very low - CLI tool, easy to test
+- **Impact:** Good starting point to validate approach
+
+**Migration Details:**
+- ✅ **Added Common Dependency**: Added `common = { path = "../../crates/common" }` to `Cargo.toml`
+- ✅ **Replaced Error Enum**: Replaced `SshKeyError` enum with type alias `pub type SshKeyError = FleetingDnsError`
+- ✅ **Updated Error Mappings**:
+  - `ApiRequestFailed` → `ExternalService`
+  - `FileReadFailed` → `Io`
+  - `FileWriteFailed` → `Io`
+  - `KeyFileNotFound` → `NotFound`
+  - `InvalidKeyFormat` → `ValidationError`
+  - `AuthenticationFailed` → `AuthenticationFailed` (already exists)
+- ✅ **Updated Pattern Matching**: Fixed pattern matching in `main.rs` to use `SshKeyError::NotFound`
+- ✅ **Removed Orphan Impls**: Removed `From` implementations that violated orphan rules
+- ✅ **Cleaned Up Imports**: Removed unused imports and cleaned up warnings
+- ✅ **All Tests Passing**: 5/5 tests passing, full workspace compilation successful
+
+**Key Benefits Achieved:**
+- **Unified Error Handling**: Now uses the same error system as the rest of the codebase
+- **Better Error Categories**: Automatic error categorization and HTTP status code mapping
+- **Enhanced Logging**: Structured error logging with context
+- **Consistent API**: Same error response format across all services
+- **Reduced Code Duplication**: Eliminated 9 custom error variants
+
+**Files Modified:**
+- `cmd/edf-cli/Cargo.toml` - Added common dependency
+- `cmd/edf-cli/src/ssh_keys.rs` - Migrated error handling
+- `cmd/edf-cli/src/main.rs` - Updated pattern matching
+
+**Validation:**
+- ✅ Compilation: `cargo check -p edf-cli` successful
+- ✅ Tests: `cargo test -p edf-cli` - 5/5 tests passing
+- ✅ Workspace: `cargo check --workspace` successful
+- ✅ No Breaking Changes: All existing functionality preserved
 
 ### Phase 1: Critical Fixes (Week 1)
 

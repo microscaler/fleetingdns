@@ -59,8 +59,8 @@ pub async fn set_slot(
 /// Delete the mapping associated with `slot`.
 #[tracing::instrument(skip_all, fields(slot))]
 pub async fn del_slot(pool: &RedisPool, slot: &str) -> Result<(), CacheError> {
-    let mut conn = pool.get().await.map_err(CacheError::Pool)?;
-    let _: () = conn.del(slot).await.map_err(CacheError::Redis)?;
+    let mut conn = pool.get().await.map_err(|e| CacheError::ConnectionError(e.to_string()))?;
+    let _: () = conn.del(slot).await.map_err(|e| CacheError::RedisError(e.to_string()))?;
     Ok(())
 }
 
@@ -70,14 +70,11 @@ pub async fn store_tunnel_data(
     pool: &RedisPool,
     tunnel_info: &TunnelInfo,
 ) -> Result<(), CacheError> {
-    let mut conn = pool.get().await.map_err(CacheError::Pool)?;
+    let mut conn = pool.get().await.map_err(|e| CacheError::ConnectionError(e.to_string()))?;
     
     let tunnel_key = format!("tunnel:{}", tunnel_info.id);
-    let data = serde_json::to_string(tunnel_info).map_err(|_| {
-        CacheError::Redis(redis::RedisError::from(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "JSON serialization failed",
-        )))
+    let data = serde_json::to_string(tunnel_info).map_err(|e| {
+        CacheError::SerializationError(format!("Failed to serialize tunnel info: {}", e))
     })?;
     
     // Calculate TTL from expires_at
@@ -89,7 +86,7 @@ pub async fn store_tunnel_data(
         3600u64 // Default 1 hour
     };
     
-    let _: () = conn.set_ex(&tunnel_key, data, ttl).await.map_err(CacheError::Redis)?;
+    let _: () = conn.set_ex(&tunnel_key, data, ttl).await.map_err(|e| CacheError::RedisError(e.to_string()))?;
     
     tracing::info!(tunnel_id = %tunnel_info.id, ttl = %ttl, "Stored tunnel data in Redis");
     Ok(())
@@ -103,12 +100,12 @@ pub async fn store_user_tunnel_lookup(
     github_username: &str,
     tunnel_id: &str,
 ) -> Result<(), CacheError> {
-    let mut conn = pool.get().await.map_err(CacheError::Pool)?;
+    let mut conn = pool.get().await.map_err(|e| CacheError::ConnectionError(e.to_string()))?;
     
     let key = format!("tunnel_lookup:{}", github_user_id);
     
     // Get existing user data or create new
-    let existing_data: Option<String> = conn.get(&key).await.map_err(CacheError::Redis)?;
+    let existing_data: Option<String> = conn.get(&key).await.map_err(|e| CacheError::RedisError(e.to_string()))?;
     
     let mut user_lookup = if let Some(data) = existing_data {
         serde_json::from_str::<UserTunnelLookup>(&data).unwrap_or_else(|_| UserTunnelLookup {
@@ -130,14 +127,11 @@ pub async fn store_user_tunnel_lookup(
     }
     
     // Store back to Redis (no TTL for user lookup)
-    let data = serde_json::to_string(&user_lookup).map_err(|_| {
-        CacheError::Redis(redis::RedisError::from(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "JSON serialization failed",
-        )))
+    let data = serde_json::to_string(&user_lookup).map_err(|e| {
+        CacheError::SerializationError(format!("Failed to serialize user lookup: {}", e))
     })?;
     
-    let _: () = conn.set(&key, data).await.map_err(CacheError::Redis)?;
+    let _: () = conn.set(&key, data).await.map_err(|e| CacheError::RedisError(e.to_string()))?;
     
     tracing::info!(github_user_id, tunnel_id, "Updated user tunnel lookup in Redis");
     Ok(())
@@ -149,17 +143,17 @@ pub async fn get_tunnel_by_subdomain(
     pool: &RedisPool,
     subdomain: &str,
 ) -> Result<Option<TunnelInfo>, CacheError> {
-    let mut conn = pool.get().await.map_err(CacheError::Pool)?;
+    let mut conn = pool.get().await.map_err(|e| CacheError::ConnectionError(e.to_string()))?;
     
     // Get all user tunnel lookups
     let pattern = "tunnel_lookup:*";
-    let keys: Vec<String> = conn.keys(pattern).await.map_err(CacheError::Redis)?;
+    let keys: Vec<String> = conn.keys(pattern).await.map_err(|e| CacheError::RedisError(e.to_string()))?;
     
     tracing::info!(subdomain, user_count = keys.len(), "Scanning user tunnel lookups");
     
     for key in keys {
         tracing::info!(subdomain, key = %key, "Checking user lookup key");
-        let user_data: Option<String> = conn.get(&key).await.map_err(CacheError::Redis)?;
+        let user_data: Option<String> = conn.get(&key).await.map_err(|e| CacheError::RedisError(e.to_string()))?;
         
         if let Some(data) = user_data {
             tracing::info!(subdomain, key = %key, "Found user data, parsing...");
@@ -170,7 +164,7 @@ pub async fn get_tunnel_by_subdomain(
                     for tunnel_id in &user_lookup.tunnels {
                         let tunnel_key = format!("tunnel:{}", tunnel_id);
                         tracing::info!(subdomain, tunnel_id = %tunnel_id, tunnel_key = %tunnel_key, "Checking tunnel");
-                        let tunnel_data: Option<String> = conn.get(&tunnel_key).await.map_err(CacheError::Redis)?;
+                        let tunnel_data: Option<String> = conn.get(&tunnel_key).await.map_err(|e| CacheError::RedisError(e.to_string()))?;
                         
                         if let Some(data) = tunnel_data {
                             tracing::info!(subdomain, tunnel_id = %tunnel_id, "Found tunnel data, parsing...");

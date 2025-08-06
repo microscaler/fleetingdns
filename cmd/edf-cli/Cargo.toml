@@ -11,6 +11,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1.0"
 thiserror = "2.0"
 
+# Common utilities
+common = { path = "../../crates/common" }
+
 # CLI and configuration
 clap = { version = "4", features = ["derive"] }
 config = "0.14"

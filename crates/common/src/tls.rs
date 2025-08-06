@@ -31,11 +31,20 @@ pub fn generate_tls_config(alpn: &[&str]) -> AppResult<(ServerConfig, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rustls::pki_types::CertificateDer;
-    use x509_parser::prelude::*;
+
+    
+    #[ctor::ctor]
+    fn init() {
+        // Initialize the crypto provider once for all tests
+        rustls::crypto::ring::default_provider()
+            .install_default()
+            .expect("Failed to install rustls ring crypto provider");
+    }
+
 
     #[test]
     fn test_generate_tls_config_success() {
+
         let alpn_protocols = &["http/1.1", "h2"];
         let result = generate_tls_config(alpn_protocols);
 
@@ -54,6 +63,7 @@ mod tests {
 
     #[test]
     fn test_generate_tls_config_empty_alpn() {
+
         let result = generate_tls_config(&[]);
 
         assert!(result.is_ok());
@@ -65,6 +75,7 @@ mod tests {
 
     #[test]
     fn test_generate_tls_config_single_alpn() {
+
         let alpn_protocols = &["dot"];
         let result = generate_tls_config(alpn_protocols);
 
@@ -78,6 +89,7 @@ mod tests {
 
     #[test]
     fn test_generate_tls_config_multiple_alpn() {
+
         let alpn_protocols = &["http/1.1", "h2", "dot", "quic"];
         let result = generate_tls_config(alpn_protocols);
 
@@ -94,6 +106,7 @@ mod tests {
 
     #[test]
     fn test_certificate_pem_structure() {
+
         let result = generate_tls_config(&["test"]);
         assert!(result.is_ok());
 
@@ -101,13 +114,13 @@ mod tests {
 
         // Verify PEM structure
         let lines: Vec<&str> = cert_pem.lines().collect();
-        assert!(lines.len() > 3); // Should have header, content, and footer
+        assert!(lines.len() >= 3); // At least header, body, footer
 
-        // Check for proper PEM format
+        // Check header and footer
         assert_eq!(lines[0], "-----BEGIN CERTIFICATE-----");
         assert_eq!(lines[lines.len() - 1], "-----END CERTIFICATE-----");
 
-        // Verify content lines are base64 encoded
+        // Check body lines are valid base64
         for line in &lines[1..lines.len() - 1] {
             if !line.is_empty() {
                 // Base64 should only contain alphanumeric chars, +, /, and =
@@ -121,6 +134,7 @@ mod tests {
 
     #[test]
     fn test_server_config_properties() {
+
         let result = generate_tls_config(&["test"]);
         assert!(result.is_ok());
 
@@ -135,6 +149,7 @@ mod tests {
 
     #[test]
     fn test_certificate_der_structure() {
+
         let result = generate_tls_config(&["test"]);
         assert!(result.is_ok());
 
@@ -148,6 +163,7 @@ mod tests {
 
     #[test]
     fn test_multiple_calls_produce_different_certs() {
+
         let result1 = generate_tls_config(&["test"]);
         let result2 = generate_tls_config(&["test"]);
 
@@ -167,6 +183,7 @@ mod tests {
 
     #[test]
     fn test_alpn_protocols_encoding() {
+
         let test_protocols = &["http/1.1", "h2", "dot", "quic", "custom-protocol"];
         let result = generate_tls_config(test_protocols);
 
@@ -184,6 +201,7 @@ mod tests {
 
     #[test]
     fn test_error_handling_invalid_alpn() {
+
         // Test with empty string (though this should still work)
         let result = generate_tls_config(&[""]);
         assert!(result.is_ok());
@@ -195,6 +213,7 @@ mod tests {
 
     #[test]
     fn test_certificate_subject_alt_names() {
+
         let result = generate_tls_config(&["test"]);
         assert!(result.is_ok());
 

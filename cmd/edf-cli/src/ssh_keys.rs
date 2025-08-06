@@ -1,37 +1,14 @@
 use std::path::PathBuf;
 use std::fs;
 use chrono::{DateTime, Utc};
-use thiserror::Error;
-use tracing::{info, warn, error};
+use tracing::info;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use common::error::{FleetingDnsError, CommonResult};
 
-#[derive(Debug, Error)]
-pub enum SshKeyError {
-    #[error("API request failed: {0}")]
-    ApiRequestFailed(String),
-    
-    #[error("Failed to read key file: {0}")]
-    FileReadFailed(String),
-    
-    #[error("Failed to write key file: {0}")]
-    FileWriteFailed(String),
-    
-    #[error("Key file not found: {0}")]
-    KeyFileNotFound(String),
-    
-    #[error("Invalid key format: {0}")]
-    InvalidKeyFormat(String),
-    
-    #[error("Authentication failed: {0}")]
-    AuthenticationFailed(String),
-}
-
-impl From<std::io::Error> for SshKeyError {
-    fn from(err: std::io::Error) -> Self {
-        SshKeyError::FileReadFailed(err.to_string())
-    }
-}
+// Remove the old SshKeyError enum and replace with type alias
+pub type SshKeyError = FleetingDnsError;
+pub type SshKeyResult<T> = CommonResult<T>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SshKeyPair {
@@ -73,7 +50,7 @@ impl SshKeyManager {
     pub fn new() -> Result<Self, SshKeyError> {
         let key_dir = Self::get_key_directory()?;
         fs::create_dir_all(&key_dir)
-            .map_err(|e| SshKeyError::FileWriteFailed(format!("Failed to create key directory: {}", e)))?;
+            .map_err(|e| FleetingDnsError::Io(format!("Failed to create key directory: {}", e)))?;
         
         Ok(Self {
             key_directory: key_dir,
@@ -106,16 +83,16 @@ impl SshKeyManager {
         }
         
         let response = req.send().await
-            .map_err(|e| SshKeyError::ApiRequestFailed(format!("Failed to send request: {}", e)))?;
+            .map_err(|e| FleetingDnsError::ExternalService(format!("Failed to send request: {}", e)))?;
         
         if !response.status().is_success() {
             let error_text = response.text().await
                 .unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(SshKeyError::ApiRequestFailed(format!("API error: {}", error_text)));
+            return Err(FleetingDnsError::ExternalService(format!("API error: {}", error_text)));
         }
         
         let key_response: KeyResponse = response.json().await
-            .map_err(|e| SshKeyError::ApiRequestFailed(format!("Failed to parse response: {}", e)))?;
+            .map_err(|e| FleetingDnsError::ExternalService(format!("Failed to parse response: {}", e)))?;
         
         let key_pair = SshKeyPair {
             public_key: key_response.public_key,
@@ -140,24 +117,24 @@ impl SshKeyManager {
         let session_info_path = self.key_directory.join("session_info.json");
         
         if !session_info_path.exists() {
-            return Err(SshKeyError::KeyFileNotFound(format!("No active session found in {}", self.key_directory.display())));
+            return Err(FleetingDnsError::NotFound(format!("No active session found in {}", self.key_directory.display())));
         }
         
         let session_info = fs::read_to_string(&session_info_path)
-            .map_err(|e| SshKeyError::FileReadFailed(format!("Failed to read session info: {}", e)))?;
+            .map_err(|e| FleetingDnsError::Io(format!("Failed to read session info: {}", e)))?;
         
         let session_data: SshKeyPair = serde_json::from_str(&session_info)
-            .map_err(|e| SshKeyError::InvalidKeyFormat(format!("Failed to parse session info: {}", e)))?;
+            .map_err(|e| FleetingDnsError::ValidationError(format!("Failed to parse session info: {}", e)))?;
         
         // Check if session is expired
         if session_data.expires_at < Utc::now() {
             self.cleanup_session()?;
-            return Err(SshKeyError::KeyFileNotFound("Session has expired".to_string()));
+            return Err(FleetingDnsError::NotFound("Session has expired".to_string()));
         }
         
         // Find the private key file in ~/.ssh
         let ssh_dir = dirs::home_dir()
-            .ok_or_else(|| SshKeyError::FileWriteFailed("Could not determine home directory".to_string()))?
+            .ok_or_else(|| FleetingDnsError::Io("Could not determine home directory".to_string()))?
             .join(".ssh");
         
         let expiry_str = session_data.expires_at.format("%Y%m%d-%H%M%S").to_string();
@@ -165,11 +142,11 @@ impl SshKeyManager {
         let private_key_path = ssh_dir.join(&filename);
         
         if !private_key_path.exists() {
-            return Err(SshKeyError::KeyFileNotFound(format!("Private key file not found: {}", private_key_path.display())));
+            return Err(FleetingDnsError::NotFound(format!("Private key file not found: {}", private_key_path.display())));
         }
         
         let private_key = fs::read_to_string(&private_key_path)
-            .map_err(|e| SshKeyError::FileReadFailed(format!("Failed to read private key: {}", e)))?;
+            .map_err(|e| FleetingDnsError::Io(format!("Failed to read private key: {}", e)))?;
         
         Ok(SshKeyPair {
             private_key,
@@ -183,7 +160,7 @@ impl SshKeyManager {
                 info!("Using existing SSH key pair with fingerprint: {}", key_pair.fingerprint);
                 Ok(key_pair)
             }
-            Err(SshKeyError::KeyFileNotFound(_)) => {
+            Err(FleetingDnsError::NotFound(_)) => {
                 info!("No existing SSH keys found, requesting from API");
                 self.request_key_pair(session_ttl).await
             }
@@ -198,14 +175,14 @@ impl SshKeyManager {
         if session_info_path.exists() {
             // Read session info to get the private key path
             let session_info = fs::read_to_string(&session_info_path)
-                .map_err(|e| SshKeyError::FileReadFailed(format!("Failed to read session info: {}", e)))?;
+                .map_err(|e| FleetingDnsError::Io(format!("Failed to read session info: {}", e)))?;
             
             let session_data: SshKeyPair = serde_json::from_str(&session_info)
-                .map_err(|e| SshKeyError::InvalidKeyFormat(format!("Failed to parse session info: {}", e)))?;
+                .map_err(|e| FleetingDnsError::ValidationError(format!("Failed to parse session info: {}", e)))?;
             
             // Clean up private key in ~/.ssh
             let ssh_dir = dirs::home_dir()
-                .ok_or_else(|| SshKeyError::FileWriteFailed("Could not determine home directory".to_string()))?
+                .ok_or_else(|| FleetingDnsError::Io("Could not determine home directory".to_string()))?
                 .join(".ssh");
             
             let expiry_str = session_data.expires_at.format("%Y%m%d-%H%M%S").to_string();
@@ -214,13 +191,13 @@ impl SshKeyManager {
             
             if private_key_path.exists() {
                 fs::remove_file(&private_key_path)
-                    .map_err(|e| SshKeyError::FileWriteFailed(format!("Failed to remove private key: {}", e)))?;
+                    .map_err(|e| FleetingDnsError::Io(format!("Failed to remove private key: {}", e)))?;
                 info!("Removed private key: {}", private_key_path.display());
             }
             
             // Remove session info
             fs::remove_file(&session_info_path)
-                .map_err(|e| SshKeyError::FileWriteFailed(format!("Failed to remove session info: {}", e)))?;
+                .map_err(|e| FleetingDnsError::Io(format!("Failed to remove session info: {}", e)))?;
             info!("Removed session info: {}", session_info_path.display());
         }
         
@@ -230,11 +207,11 @@ impl SshKeyManager {
     fn store_private_key(&self, key_pair: &SshKeyPair) -> Result<PathBuf, SshKeyError> {
         // Create SSH directory if it doesn't exist
         let ssh_dir = dirs::home_dir()
-            .ok_or_else(|| SshKeyError::FileWriteFailed("Could not determine home directory".to_string()))?
+            .ok_or_else(|| FleetingDnsError::Io("Could not determine home directory".to_string()))?
             .join(".ssh");
         
         fs::create_dir_all(&ssh_dir)
-            .map_err(|e| SshKeyError::FileWriteFailed(format!("Failed to create SSH directory: {}", e)))?;
+            .map_err(|e| FleetingDnsError::Io(format!("Failed to create SSH directory: {}", e)))?;
         
         // Generate filename with expiry time and UUID
         let expiry_str = key_pair.expires_at.format("%Y%m%d-%H%M%S").to_string();
@@ -243,7 +220,7 @@ impl SshKeyManager {
         
         // Store private key
         fs::write(&private_key_path, &key_pair.private_key)
-            .map_err(|e| SshKeyError::FileWriteFailed(format!("Failed to write private key: {}", e)))?;
+            .map_err(|e| FleetingDnsError::Io(format!("Failed to write private key: {}", e)))?;
         
         // Set proper permissions on private key (600)
         #[cfg(unix)]
@@ -252,7 +229,7 @@ impl SshKeyManager {
             let mut perms = fs::metadata(&private_key_path)?.permissions();
             perms.set_mode(0o600);
             fs::set_permissions(&private_key_path, perms)
-                .map_err(|e| SshKeyError::FileWriteFailed(format!("Failed to set key permissions: {}", e)))?;
+                .map_err(|e| FleetingDnsError::Io(format!("Failed to set key permissions: {}", e)))?;
         }
         
         // Store session info in .edf directory
@@ -268,17 +245,17 @@ impl SshKeyManager {
         };
         
         let session_json = serde_json::to_string_pretty(&session_info)
-            .map_err(|e| SshKeyError::FileWriteFailed(format!("Failed to serialize session info: {}", e)))?;
+            .map_err(|e| FleetingDnsError::Io(format!("Failed to serialize session info: {}", e)))?;
         
         fs::write(&session_info_path, session_json)
-            .map_err(|e| SshKeyError::FileWriteFailed(format!("Failed to write session info: {}", e)))?;
+            .map_err(|e| FleetingDnsError::Io(format!("Failed to write session info: {}", e)))?;
         
         Ok(private_key_path)
     }
     
     fn get_key_directory() -> Result<PathBuf, SshKeyError> {
         let home_dir = dirs::home_dir()
-            .ok_or_else(|| SshKeyError::FileWriteFailed("Could not determine home directory".to_string()))?;
+            .ok_or_else(|| FleetingDnsError::Io("Could not determine home directory".to_string()))?;
         
         Ok(home_dir.join(".edf").join("keys"))
     }
