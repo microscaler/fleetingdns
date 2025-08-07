@@ -1,11 +1,9 @@
-use crate::{ApiError, ApiResult, ApiState, auth::*};
-use axum::{
-    Json,
-    extract::{Path, State},
-    http::HeaderMap,
-};
+use crate::{ApiError, ApiResult, ApiState};
+use auth::{extract_bearer_token, validate_jwt_token};
+use axum::{Json, extract::{Path, State}, http::HeaderMap};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
+use uuid::Uuid;
 
 /// Certificate issuance request
 #[derive(Debug, Deserialize)]

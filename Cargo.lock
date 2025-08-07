@@ -332,6 +332,18 @@ dependencies = [
 [[package]]
 name = "auth"
 version = "0.1.0"
+dependencies = [
+ "axum",
+ "chrono",
+ "common",
+ "md5",
+ "reqwest 0.12.22",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
+ "tracing",
+ "uuid",
+]
 
 [[package]]
 name = "autocfg"
@@ -433,6 +445,7 @@ name = "backendapi"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "auth",
  "axum",
  "base64 0.22.1",
  "bb8",

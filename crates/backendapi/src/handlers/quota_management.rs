@@ -1,7 +1,7 @@
 use crate::{
     ApiResult, ApiState,
-    auth::{extract_bearer_token, validate_jwt_token},
 };
+use auth::{extract_bearer_token, validate_jwt_token};
 use axum::{Json, extract::State, http::HeaderMap};
 use serde::{Deserialize, Serialize};
 
