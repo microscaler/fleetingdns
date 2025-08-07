@@ -290,6 +290,10 @@ async fn run(args: Args) -> AppResult<()> {
 
 #[tokio::main]
 async fn main() -> AppResult<()> {
+    // Initialize the crypto provider for Rustls
+    rustls::crypto::CryptoProvider::install_default(rustls::crypto::ring::default_provider())
+        .expect("Failed to install crypto provider");
+    
     let args = Args::parse();
     run(args).await
 }

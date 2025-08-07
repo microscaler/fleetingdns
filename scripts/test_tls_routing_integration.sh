@@ -47,7 +47,7 @@ check_service_health() {
     local max_attempts=30
     
     while [ $attempts -lt $max_attempts ]; do
-        if docker-compose -f $DOCKER_COMPOSE_FILE ps $service_name | grep -q "Up"; then
+        if docker compose -f $DOCKER_COMPOSE_FILE ps $service_name | grep -q "Up"; then
             if [ -n "$health_endpoint" ]; then
                 if curl -s "$health_endpoint" > /dev/null 2>&1; then
                     echo -e "${GREEN}✅ $service_name is healthy${NC}"
@@ -194,7 +194,7 @@ test_tunnel_creation() {
     fi
     
     # Test tunnel lookup in Redis
-    local tunnel_data=$(docker-compose -f $DOCKER_COMPOSE_FILE exec -T redis redis-cli GET "tunnel:$TEST_SUBDOMAIN")
+    local tunnel_data=$(docker compose -f $DOCKER_COMPOSE_FILE exec -T redis redis-cli GET "tunnel:$TEST_SUBDOMAIN")
     
     if [ -n "$tunnel_data" ]; then
         log_test "Tunnel Storage" "PASS" "Tunnel data stored in Redis"
@@ -250,7 +250,7 @@ main() {
     echo -e "${BLUE}🏗️  Starting Docker Compose services...${NC}"
     
     # Start services
-    docker-compose -f $DOCKER_COMPOSE_FILE up -d
+    docker compose -f $DOCKER_COMPOSE_FILE up -d
     
     # Wait for services to be ready
     sleep 10
@@ -292,9 +292,9 @@ main() {
     
     # Cleanup
     echo -e "${BLUE}🧹 Cleaning up test data...${NC}"
-    docker-compose -f $DOCKER_COMPOSE_FILE exec -T redis redis-cli DEL "slot:$TEST_SUBDOMAIN.fdns.run" > /dev/null 2>&1 || true
-    docker-compose -f $DOCKER_COMPOSE_FILE exec -T redis redis-cli DEL "session:test-session" > /dev/null 2>&1 || true
-    docker-compose -f $DOCKER_COMPOSE_FILE exec -T redis redis-cli DEL "tunnel:$TEST_SUBDOMAIN" > /dev/null 2>&1 || true
+    docker compose -f $DOCKER_COMPOSE_FILE exec -T redis redis-cli DEL "slot:$TEST_SUBDOMAIN.fdns.run" > /dev/null 2>&1 || true
+    docker compose -f $DOCKER_COMPOSE_FILE exec -T redis redis-cli DEL "session:test-session" > /dev/null 2>&1 || true
+    docker compose -f $DOCKER_COMPOSE_FILE exec -T redis redis-cli DEL "tunnel:$TEST_SUBDOMAIN" > /dev/null 2>&1 || true
     
     return $test_results
 }

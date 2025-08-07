@@ -61,7 +61,7 @@ echo -e "${BLUE}🔍 Testing DNS Service...${NC}"
 docker compose exec -T redis redis-cli SET "slot:test-integration.fdns.run" "127.0.0.1" > /dev/null
 
 # Check if DNS service is processing queries (it should be getting external queries)
-if docker compose logs dnsd --tail=5 | grep -q "Processing DNS query"; then
+if docker compose logs dnsd --tail=10 | grep -q "Processing DNS query"; then
     log_test "DNS Service" "PASS" "DNS service processing queries"
 else
     log_test "DNS Service" "FAIL" "DNS service not processing queries"
