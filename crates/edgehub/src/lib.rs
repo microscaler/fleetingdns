@@ -12,14 +12,10 @@ use tokio::sync::broadcast;
 use tokio_rustls::TlsAcceptor;
 use tracing::{info, instrument};
 
-pub mod redis;
-pub mod redis_auth;
 pub mod ssh_server;
 // pub mod tls_router; // Disabled due to compilation issues
 pub mod certificate_manager;
 
-pub use redis::*;
-pub use redis_auth::*;
 pub use ssh_server::*;
 // pub use tls_router::*; // Disabled due to compilation issues
 pub use certificate_manager::*;
@@ -32,7 +28,7 @@ pub struct Config {
     /// TLS configuration used for incoming connections.
     pub tls_config: ServerConfig,
     /// Redis connection pool used to record tunnel state.
-    pub redis_pool: redis::RedisPool,
+    pub redis_pool: common::redis::RedisPool,
 }
 
 /// Start the EdgeHub server.
@@ -60,11 +56,11 @@ pub async fn serve(cfg: Config) -> AppResult<()> {
                     let port: u16 = rand::thread_rng().gen_range(30000..60000);
                     let slot = "demo";
                     if let std::net::IpAddr::V4(ip) = peer.ip() {
-                        let _ = redis::set_slot(&pool, slot, ip, redis::DEFAULT_TTL).await;
+                        let _ = common::redis::set_slot(&pool, slot, ip, 1800).await;
                     }
                     info!(peer=%peer, slot, port, "tunnel mapped");
                     let _ = tls.shutdown().await;
-                    let _ = redis::del_slot(&pool, slot).await;
+                    let _ = common::redis::del_slot(&pool, slot).await;
 
                     // Decrement tunnel gauge when connection is closed
                     gauge!("edge_tunnels_open").decrement(1.0);
@@ -110,11 +106,11 @@ pub async fn serve_with_shutdown(
                                     let port: u16 = rand::thread_rng().gen_range(30000..60000);
                                     let slot = "demo";
                                     if let std::net::IpAddr::V4(ip) = peer.ip() {
-                                        let _ = redis::set_slot(&pool, slot, ip, redis::DEFAULT_TTL).await;
+                                        let _ = common::redis::set_slot(&pool, slot, ip, 1800).await;
                                     }
                                     info!(peer=%peer, slot, port, "tunnel mapped");
                                     let _ = tls.shutdown().await;
-                                    let _ = redis::del_slot(&pool, slot).await;
+                                    let _ = common::redis::del_slot(&pool, slot).await;
 
                                     // Decrement tunnel gauge when connection is closed
                                     gauge!("edge_tunnels_open").decrement(1.0);

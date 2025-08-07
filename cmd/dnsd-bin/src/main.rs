@@ -7,7 +7,7 @@ use tracing::info;
 #[cfg(feature = "dot")]
 use common::tls;
 use common::shutdown::GracefulShutdown;
-use dnsd::redis_cache;
+use common::redis;
 
 #[derive(Parser)]
 #[command(name = "dnsd-bin")]
@@ -58,7 +58,7 @@ async fn main() -> common::AppResult<()> {
     shutdown.start().await?;
 
     let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".into());
-    let pool = redis_cache::new_pool(&redis_url)
+    let pool = common::redis::new_pool(&redis_url)
         .await
         .map_err(|e| common::AppError::Message(e.to_string()))?;
 

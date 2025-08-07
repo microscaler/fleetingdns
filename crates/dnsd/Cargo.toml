@@ -11,12 +11,10 @@ metrics = { workspace = true }
 hickory-proto = { version = "0.24", features = ["dnssec", "dnssec-ring"] }
 tokio-rustls = { workspace = true, optional = true }
 rustls = { workspace = true, optional = true }
-bb8 = { workspace = true }
-bb8-redis = { workspace = true }
-redis = { workspace = true }
 thiserror = { workspace = true }
-# Redis cluster dependencies
-crc16 = "0.4"
+bb8 = "0.9"
+bb8-redis = "0.20"
+redis = { workspace = true }
 ring = "0.17"
 # HIGH-1 ENHANCEMENT: Performance and security dependencies
 serde = { workspace = true, features = ["derive"] }
@@ -40,9 +38,8 @@ testcontainers = { workspace = true }
 testcontainers-modules = { workspace = true }
 tempfile = "3.0"
 serial_test = "2.0"
-# Redis cluster integration testing
+# Redis integration testing
 redis = { workspace = true } # For direct Redis client in tests
 
 [features]
 dot = ["tokio-rustls", "rustls"]
-redis-cluster-integration = [] # Enable Redis cluster integration tests

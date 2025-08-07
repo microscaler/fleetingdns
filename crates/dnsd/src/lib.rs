@@ -8,10 +8,6 @@ use crate::dns_handler::{DnsHandler, PerformanceConfig};
 
 pub mod dns_handler;
 pub mod metrics_manager;
-pub mod redis_cache;
-pub mod redis_cluster;
-pub mod redis_performance;
-pub mod redis_sentinel;
 pub mod response_compression;
 pub mod sign;
 
@@ -20,7 +16,7 @@ pub struct Config {
     /// Address to bind the UDP socket to.
     pub addr: SocketAddr,
     /// Redis connection pool for slot lookups.
-    pub redis_pool: redis_cache::RedisPool,
+    pub redis_pool: common::redis::RedisPool,
     /// DDoS protection configuration
     pub ddos_config: common::ddos_protection::DdosConfig,
     /// Enable DDoS protection
@@ -217,7 +213,7 @@ mod dot {
     pub async fn serve(
         addr: std::net::SocketAddr,
         cfg: ServerConfig,
-        pool: redis_cache::RedisPool,
+        pool: common::redis::RedisPool,
     ) -> AppResult<()> {
         let listener = TcpListener::bind(addr).await?;
         info!(addr=%listener.local_addr()?, "dot listening");
@@ -274,7 +270,7 @@ mod dot {
     pub async fn serve_with_shutdown(
         addr: std::net::SocketAddr,
         cfg: ServerConfig,
-        pool: redis_cache::RedisPool,
+        pool: common::redis::RedisPool,
         mut shutdown_rx: super::broadcast::Receiver<common::shutdown::ShutdownSignal>,
     ) -> AppResult<()> {
         let listener = TcpListener::bind(addr).await?;

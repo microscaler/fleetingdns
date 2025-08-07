@@ -1,5 +1,5 @@
 use dnsd::dns_handler::{DnsHandler, PerformanceConfig};
-use dnsd::redis_cache::RedisPool;
+use common::redis::RedisPool;
 mod redis_test_utils;
 use redis_test_utils::{with_redis_container, with_shared_redis_container};
 
@@ -112,13 +112,13 @@ async fn test_redis_test_utils() {
         let mut conn = pool.get().await.unwrap();
 
         // Test basic Redis operations
-        let _: () = redis::cmd("SET")
+                  let _: () = bb8_redis::redis::cmd("SET")
             .arg("shared_test_key")
             .arg("shared_test_value")
             .query_async(&mut *conn)
             .await
             .unwrap();
-        let result: String = redis::cmd("GET")
+                  let result: String = bb8_redis::redis::cmd("GET")
             .arg("shared_test_key")
             .query_async(&mut *conn)
             .await

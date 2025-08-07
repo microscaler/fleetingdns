@@ -11,7 +11,7 @@ use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
 use dnsd::dns_handler;
-use dnsd::redis_cache;
+use common::redis;
 use dnsd::sign;
 use dnsd::{Config, serve};
 
@@ -21,7 +21,7 @@ async fn start_redis() -> Option<(String, JoinHandle<mini_redis::Result<()>>)> {
     let handle = tokio::spawn(async move { server::run(listener, tokio::signal::ctrl_c()).await });
     sleep(Duration::from_millis(100)).await; // Increased wait time
     let url = format!("redis://{addr}/");
-    if redis_cache::new_pool(&url).await.is_err() {
+    if common::redis::new_pool(&url).await.is_err() {
         handle.abort();
         return None;
     }
@@ -41,7 +41,7 @@ async fn test_dns_query_metrics_udp() {
         return;
     };
     
-    let pool = match redis_cache::new_pool(&redis_url).await {
+    let pool = match common::redis::new_pool(&redis_url).await {
         Ok(pool) => pool,
         Err(e) => {
             eprintln!("Failed to create Redis pool: {}", e);
@@ -51,7 +51,7 @@ async fn test_dns_query_metrics_udp() {
     };
     
     // Set up test data
-    if let Err(e) = redis_cache::set_slot(&pool, "test", Ipv4Addr::new(192, 168, 1, 1), 60).await {
+    if let Err(e) = common::redis::set_slot(&pool, "test", Ipv4Addr::new(192, 168, 1, 1), 60).await {
         eprintln!("Failed to set slot: {}", e);
         redis_handle.abort();
         return;
@@ -113,7 +113,7 @@ async fn test_dns_query_metrics_protocol_differentiation() {
         return;
     };
     
-    let pool = match redis_cache::new_pool(&redis_url).await {
+    let pool = match common::redis::new_pool(&redis_url).await {
         Ok(pool) => pool,
         Err(e) => {
             eprintln!("Failed to create Redis pool: {}", e);
@@ -123,7 +123,7 @@ async fn test_dns_query_metrics_protocol_differentiation() {
     };
     
     // Set up test data
-    if let Err(e) = redis_cache::set_slot(&pool, "test", Ipv4Addr::new(192, 168, 1, 1), 60).await {
+    if let Err(e) = common::redis::set_slot(&pool, "test", Ipv4Addr::new(192, 168, 1, 1), 60).await {
         eprintln!("Failed to set slot: {}", e);
         redis_handle.abort();
         return;

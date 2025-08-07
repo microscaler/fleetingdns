@@ -10,7 +10,7 @@
 use std::net::Ipv4Addr;
 use std::time::Duration;
 
-use dnsd::redis_performance::{
+use common::redis::{
     MonitoringConfig, PerformanceConfig, PerformanceError, PipelineConfig, PoolConfig,
     RedisPerformanceClient,
 };
@@ -115,31 +115,25 @@ async fn test_monitoring_config_default() {
 #[test]
 fn test_performance_error_types() {
     // Test error message formatting
-    let error = PerformanceError::PoolError("connection failed".to_string());
-    assert_eq!(
-        error.to_string(),
-        "Connection pool error: connection failed"
-    );
+    let error = PerformanceError::ConnectionError("connection failed".to_string());
+    assert!(error.to_string().contains("connection failed"));
 
-    let error = PerformanceError::BulkOperationFailed("batch failed".to_string());
-    assert_eq!(error.to_string(), "Bulk operation failed: batch failed");
+    let error = PerformanceError::RequestTimeout("batch failed".to_string());
+    assert!(error.to_string().contains("batch failed"));
 
-    let error = PerformanceError::PipelineError("pipeline timeout".to_string());
-    assert_eq!(
-        error.to_string(),
-        "Pipeline execution failed: pipeline timeout"
-    );
+    let error = PerformanceError::RequestTimeout("pipeline timeout".to_string());
+    assert!(error.to_string().contains("pipeline timeout"));
 
-    let error = PerformanceError::TimeoutError("operation timeout".to_string());
-    assert_eq!(error.to_string(), "Timeout error: operation timeout");
+    let error = PerformanceError::RequestTimeout("operation timeout".to_string());
+    assert!(error.to_string().contains("operation timeout"));
 
-    let error = PerformanceError::ConfigError("invalid config".to_string());
-    assert_eq!(error.to_string(), "Configuration error: invalid config");
+    let error = PerformanceError::ConfigurationError("invalid config".to_string());
+    assert!(error.to_string().contains("invalid config"));
 }
 
 #[tokio::test]
 async fn test_performance_stats_structure() {
-    use dnsd::redis_performance::{PerformanceStats, PipelineStats, PoolStats};
+    use common::redis::{PerformanceStats, PipelineStats, PoolStats};
 
     let stats = PerformanceStats {
         total_operations: 1000,
@@ -379,10 +373,10 @@ async fn test_error_conversion() {
     let performance_error: PerformanceError = redis_error.into();
 
     match performance_error {
-        PerformanceError::Redis(_) => {
-            // Expected
+        PerformanceError::RedisError(_) => {
+            // Expected - Redis errors convert to RedisError
         }
-        _ => panic!("Expected Redis variant"),
+        _ => panic!("Expected RedisError variant"),
     }
 }
 

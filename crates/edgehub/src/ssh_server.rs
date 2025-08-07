@@ -14,7 +14,7 @@ use tokio::sync::{Mutex, mpsc};
 use tracing::{debug, error, info, warn};
 
 // Import Redis authentication functionality
-use crate::redis_auth::RedisAuthHandler;
+use common::redis::RedisAuthHandler;
 
 // Import certificate authority functionality
 use edf_ca::{CaConfig, CertificateAuthority, IssuanceRequest, IssuanceResponse};

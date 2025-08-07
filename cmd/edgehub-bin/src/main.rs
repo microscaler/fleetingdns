@@ -15,7 +15,7 @@ use tokio_rustls::server::TlsStream;
 async fn serve_https_router(
     addr: SocketAddr,
     tls_config: Arc<rustls::ServerConfig>,
-    redis_pool: edgehub::redis::RedisPool,
+    redis_pool: common::redis::RedisPool,
     mut shutdown_rx: tokio::sync::broadcast::Receiver<common::shutdown::ShutdownSignal>,
 ) -> AppResult<()> {
     let listener = TcpListener::bind(addr).await?;
@@ -72,7 +72,7 @@ async fn serve_https_router(
                                         
                                         // Look up tunnel in Redis
                                         info!(subdomain = %subdomain, "About to call get_tunnel_by_subdomain");
-                                        match edgehub::redis::get_tunnel_by_subdomain(&pool, subdomain).await {
+                                        match common::redis::get_tunnel_by_subdomain(&pool, subdomain).await {
                                             Ok(Some(tunnel_info)) => {
                                                 info!(sni = %sni, tunnel_id = %tunnel_info.id, "Routing to tunnel");
                                                 
@@ -231,7 +231,7 @@ async fn run(args: Args) -> AppResult<()> {
 
     let (tls_config, _) = common::tls::generate_tls_config(&["ssh"])?;
     let (https_config, _) = common::tls::generate_tls_config(&["http/1.1", "h2"])?;
-    let pool = edgehub::redis::new_pool(&args.redis)
+    let pool = common::redis::new_pool(&args.redis)
         .await
         .map_err(|e| common::AppError::Message(e.to_string()))?;
 

@@ -492,6 +492,12 @@ impl From<redis::RedisError> for FleetingDnsError {
     }
 }
 
+impl From<bb8_redis::redis::RedisError> for FleetingDnsError {
+    fn from(err: bb8_redis::redis::RedisError) -> Self {
+        FleetingDnsError::RedisError(err.to_string())
+    }
+}
+
 impl From<reqwest::Error> for FleetingDnsError {
     fn from(err: reqwest::Error) -> Self {
         FleetingDnsError::ExternalService(err.to_string())

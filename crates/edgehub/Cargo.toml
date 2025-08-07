@@ -23,7 +23,6 @@ tokio-rustls = "0.26"
 rustls-pemfile = "2.0"
 ring = "0.17"
 hex = "0.4"
-redis = { workspace = true }
 async-trait = "0.1"
 # CRITICAL-3 ENHANCEMENT: Additional dependencies for certificate validation
 x509-parser = "0.16"

@@ -9,9 +9,9 @@ use std::time::{Duration, Instant};
 
 use bb8::Pool;
 use bb8_redis::RedisConnectionManager;
-use redis::{AsyncCommands, RedisError};
+use bb8_redis::redis::{AsyncCommands, RedisError};
 use serde::{Deserialize, Serialize};
-use common::error::{FleetingDnsError, CommonResult};
+use crate::error::{FleetingDnsError, CommonResult};
 use tokio::sync::RwLock;
 use tokio::time::timeout;
 use tracing::error;
@@ -235,7 +235,7 @@ impl RedisPerformanceClient {
         let result = timeout(Duration::from_secs(self.config.operation_timeout), async {
             let conn = self.pool.get().await.map_err(|e| {
                 RedisError::from((
-                    redis::ErrorKind::IoError,
+                    bb8_redis::redis::ErrorKind::IoError,
                     "Failed to get connection",
                     e.to_string(),
                 ))
@@ -245,7 +245,7 @@ impl RedisPerformanceClient {
             match value {
                 Some(ip_str) => ip_str.parse::<Ipv4Addr>().map(Some).map_err(|e| {
                     RedisError::from((
-                        redis::ErrorKind::TypeError,
+                        bb8_redis::redis::ErrorKind::TypeError,
                         "Invalid IP address format",
                         e.to_string(),
                     ))
@@ -277,7 +277,7 @@ impl RedisPerformanceClient {
         timeout(Duration::from_secs(self.config.operation_timeout), async {
             let conn = self.pool.get().await.map_err(|e| {
                 RedisError::from((
-                    redis::ErrorKind::IoError,
+                    bb8_redis::redis::ErrorKind::IoError,
                     "Failed to get connection",
                     e.to_string(),
                 ))

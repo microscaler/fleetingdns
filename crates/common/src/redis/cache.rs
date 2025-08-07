@@ -2,8 +2,8 @@ use std::net::Ipv4Addr;
 
 use bb8::Pool;
 use bb8_redis::RedisConnectionManager;
-use redis::AsyncCommands;
-use common::error::{FleetingDnsError, CommonResult};
+use bb8_redis::redis::AsyncCommands;
+use crate::error::{FleetingDnsError, CommonResult};
 
 /// Connection pool type for Redis.
 pub type RedisPool = Pool<RedisConnectionManager>;
@@ -13,7 +13,7 @@ pub type CacheError = FleetingDnsError;
 pub type CacheResult<T> = CommonResult<T>;
 
 /// Create a new Redis connection pool from the given URL.
-pub async fn new_pool(url: &str) -> Result<RedisPool, redis::RedisError> {
+pub async fn new_pool(url: &str) -> Result<RedisPool, bb8_redis::redis::RedisError> {
     let manager = RedisConnectionManager::new(url)?;
     Pool::builder()
         .connection_timeout(std::time::Duration::from_secs(5))
@@ -45,11 +45,27 @@ pub async fn set_slot(
 ) -> Result<(), CacheError> {
     let mut conn = pool.get().await
         .map_err(|e| FleetingDnsError::ConnectionError(e.to_string()))?;
-    let _: () = redis::cmd("SET")
+    let _: () = bb8_redis::redis::cmd("SET")
         .arg(slot)
         .arg(ip.to_string())
         .arg("EX")
         .arg(ttl)
+        .query_async(&mut *conn)
+        .await?;
+    Ok(())
+}
+
+/// Delete a slot from Redis.
+/// 
+/// This is a legacy compatibility function for existing code.
+pub async fn del_slot(
+    pool: &RedisPool,
+    slot: &str,
+) -> Result<(), CacheError> {
+    let mut conn = pool.get().await
+        .map_err(|e| FleetingDnsError::ConnectionError(e.to_string()))?;
+    let _: () = bb8_redis::redis::cmd("DEL")
+        .arg(slot)
         .query_async(&mut *conn)
         .await?;
     Ok(())

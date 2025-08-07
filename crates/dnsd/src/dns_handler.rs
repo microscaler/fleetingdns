@@ -6,7 +6,7 @@
 //! - Enterprise-grade features (error handling, logging, monitoring)
 
 use crate::metrics_manager::{PerformanceMetrics, get_metrics, update_metrics};
-use crate::redis_cache::RedisPool;
+use common::redis::RedisPool;
 
 use common::{AppError, AppResult};
 use hickory_proto::op::{Message, MessageType, ResponseCode};
@@ -352,8 +352,8 @@ impl DnsHandler {
         let clean_qname = qname.trim_end_matches('.');
         let key = format!("slot:{clean_qname}");
 
-        let result: Result<Option<String>, redis::RedisError> =
-            redis::cmd("GET").arg(&key).query_async(&mut *conn).await;
+        let result: Result<Option<String>, bb8_redis::redis::RedisError> =
+            bb8_redis::redis::cmd("GET").arg(&key).query_async(&mut *conn).await;
 
         match result {
             Ok(slot) => Ok(slot),

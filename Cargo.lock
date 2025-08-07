@@ -436,7 +436,7 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "bb8",
- "bb8-redis",
+ "bb8-redis 0.21.0",
  "chrono",
  "common",
  "config",
@@ -448,7 +448,7 @@ dependencies = [
  "migration",
  "nonzero_ext",
  "rand 0.8.5",
- "redis",
+ "redis 0.29.5",
  "reqwest 0.12.22",
  "sea-orm",
  "sea-orm-migration",
@@ -525,12 +525,22 @@ dependencies = [
 
 [[package]]
 name = "bb8-redis"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3428672918816ef7533c206902630ccaceebf69ca8831a30c18eacf5cb619070"
+dependencies = [
+ "bb8",
+ "redis 0.28.2",
+]
+
+[[package]]
+name = "bb8-redis"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a68215c76c457dccfed027a397ccd72482feabd64c2f93cbb2971a7c4121351"
 dependencies = [
  "bb8",
- "redis",
+ "redis 0.29.5",
 ]
 
 [[package]]
@@ -933,6 +943,8 @@ version = "0.1.0"
 dependencies = [
  "acme2",
  "anyhow",
+ "bb8",
+ "bb8-redis 0.20.0",
  "chrono",
  "ctor",
  "dashmap",
@@ -945,9 +957,10 @@ dependencies = [
  "opentelemetry-proto",
  "opentelemetry_sdk",
  "rcgen 0.14.2",
- "redis",
+ "redis 0.29.5",
  "reqwest 0.12.22",
  "ring",
+ "russh-keys",
  "rustls 0.23.31",
  "rustls-pemfile 2.2.0",
  "serde",
@@ -1077,12 +1090,6 @@ name = "crc-catalog"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19d374276b40fb8bbdee95aef7c7fa6b5316ec764510eb64b8dd0e2ed0d7e7f5"
-
-[[package]]
-name = "crc16"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "338089f42c427b86394a5ee60ff321da23a5c89c9d89514c829687b26359fcff"
 
 [[package]]
 name = "crc32fast"
@@ -1352,9 +1359,8 @@ version = "0.1.0"
 dependencies = [
  "arc-swap",
  "bb8",
- "bb8-redis",
+ "bb8-redis 0.20.0",
  "common",
- "crc16",
  "governor",
  "hex",
  "hickory-proto",
@@ -1363,7 +1369,7 @@ dependencies = [
  "nonzero_ext",
  "once_cell",
  "rand 0.8.5",
- "redis",
+ "redis 0.29.5",
  "ring",
  "rustls 0.23.31",
  "serde",
@@ -1534,7 +1540,6 @@ dependencies = [
  "mini-redis",
  "rand 0.8.5",
  "rcgen 0.14.2",
- "redis",
  "ring",
  "russh",
  "russh-keys",
@@ -4051,6 +4056,26 @@ dependencies = [
  "rustls-pki-types",
  "time",
  "yasna",
+]
+
+[[package]]
+name = "redis"
+version = "0.28.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e37ec3fd44bea2ec947ba6cc7634d7999a6590aca7c35827c250bc0de502bda6"
+dependencies = [
+ "arc-swap",
+ "bytes",
+ "combine",
+ "futures-util",
+ "itoa",
+ "num-bigint",
+ "percent-encoding",
+ "pin-project-lite",
+ "ryu",
+ "tokio",
+ "tokio-util",
+ "url",
 ]
 
 [[package]]

@@ -1,5 +1,5 @@
 use bb8_redis::RedisConnectionManager;
-use dnsd::redis_cache::RedisPool;
+use common::redis::RedisPool;
 use once_cell::sync::Lazy;
 use std::sync::Arc;
 use testcontainers::{ImageExt, runners::AsyncRunner};
@@ -60,7 +60,7 @@ impl RedisTestFixture {
                 Ok(conn) => {
                     // Test the connection with a simple PING
                     let mut conn = conn;
-                    match redis::cmd("PING").query_async::<String>(&mut *conn).await {
+                    match bb8_redis::redis::cmd("PING").query_async::<String>(&mut *conn).await {
                         Ok(pong) if pong == "PONG" => {
                             return Ok(());
                         }
@@ -137,7 +137,7 @@ mod tests {
 
         // Test basic Redis operations
         let mut conn = conn.unwrap();
-        let result: Result<String, _> = redis::cmd("PING").query_async(&mut *conn).await;
+                  let result: Result<String, _> = bb8_redis::redis::cmd("PING").query_async(&mut *conn).await;
         assert_eq!(result.unwrap(), "PONG");
     }
 
@@ -149,14 +149,14 @@ mod tests {
 
             // Test basic operations
             let mut conn = conn.unwrap();
-            let result: Result<String, _> = redis::cmd("SET")
+                          let result: Result<String, _> = bb8_redis::redis::cmd("SET")
                 .arg("test_key")
                 .arg("test_value")
                 .query_async(&mut *conn)
                 .await;
             assert!(result.is_ok());
 
-            let result: Result<String, _> = redis::cmd("GET")
+                          let result: Result<String, _> = bb8_redis::redis::cmd("GET")
                 .arg("test_key")
                 .query_async(&mut *conn)
                 .await;
@@ -176,25 +176,25 @@ mod tests {
             let mut conn = pool.get().await.unwrap();
 
             // Test various Redis operations
-            let _: () = redis::cmd("SET")
+                          let _: () = bb8_redis::redis::cmd("SET")
                 .arg("key1")
                 .arg("value1")
                 .query_async(&mut *conn)
                 .await
                 .unwrap();
-            let _: () = redis::cmd("SET")
+                          let _: () = bb8_redis::redis::cmd("SET")
                 .arg("key2")
                 .arg("value2")
                 .query_async(&mut *conn)
                 .await
                 .unwrap();
 
-            let value1: String = redis::cmd("GET")
+                          let value1: String = bb8_redis::redis::cmd("GET")
                 .arg("key1")
                 .query_async(&mut *conn)
                 .await
                 .unwrap();
-            let value2: String = redis::cmd("GET")
+                          let value2: String = bb8_redis::redis::cmd("GET")
                 .arg("key2")
                 .query_async(&mut *conn)
                 .await
