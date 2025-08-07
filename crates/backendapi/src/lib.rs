@@ -105,6 +105,7 @@ fn create_router(state: ApiState) -> Router {
         // Authentication endpoints
         .route("/v1/auth/github", post(handlers::auth::github_oauth))
         .route("/v1/auth/token", post(handlers::auth::exchange_token))
+        .route("/v1/auth/github/url", get(handlers::auth::get_github_oauth_url))
         // Tunnel management endpoints
         .route("/v1/tunnels", post(handlers::tunnels::create_tunnel))
         .route("/v1/tunnels/{id}", get(handlers::tunnels::get_tunnel))

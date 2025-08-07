@@ -1,10 +1,11 @@
 //! Authentication crate for FleetingDNS
 //!
 //! This crate provides comprehensive authentication functionality including:
-//! - GitHub OAuth integration
+//! - GitHub OAuth integration following official GitHub REST API specifications
 //! - JWT token generation and validation
 //! - User management and service plan resolution
 //! - Development mode bypass support
+//! - Proper scope management and token validation
 
 use axum::http::HeaderMap;
 use chrono::Utc;
@@ -30,6 +31,10 @@ pub enum AuthError {
     InvalidTokenFormat,
     #[error("Invalid token signature")]
     InvalidTokenSignature,
+    #[error("Insufficient scopes: required {required}, granted {granted}")]
+    InsufficientScopes { required: String, granted: String },
+    #[error("Token revoked")]
+    TokenRevoked,
 }
 
 /// Result type for authentication operations
@@ -43,6 +48,11 @@ pub struct GitHubUser {
     pub name: Option<String>,
     pub email: Option<String>,
     pub avatar_url: String,
+    pub public_repos: Option<u32>,
+    pub followers: Option<u32>,
+    pub following: Option<u32>,
+    pub created_at: Option<String>,
+    pub updated_at: Option<String>,
 }
 
 /// Service plan information
@@ -76,6 +86,8 @@ pub struct GitHubOAuthResponse {
     pub expires_at: String,
     /// GitHub user information
     pub user: GitHubUser,
+    /// Granted scopes
+    pub scopes: Vec<String>,
 }
 
 /// Token exchange request
@@ -94,7 +106,7 @@ pub struct TokenResponse {
     pub expires_at: String,
 }
 
-/// Internal GitHub token response
+/// Internal GitHub token response from OAuth exchange
 #[derive(Debug, Deserialize)]
 struct GitHubTokenResponse {
     access_token: String,
@@ -102,7 +114,7 @@ struct GitHubTokenResponse {
     scope: String,
 }
 
-/// Internal GitHub user response
+/// Internal GitHub user response from API
 #[derive(Debug, Deserialize)]
 struct GitHubUserResponse {
     id: u64,
@@ -110,6 +122,11 @@ struct GitHubUserResponse {
     name: Option<String>,
     email: Option<String>,
     avatar_url: String,
+    public_repos: Option<u32>,
+    followers: Option<u32>,
+    following: Option<u32>,
+    created_at: Option<String>,
+    updated_at: Option<String>,
 }
 
 /// Authenticated user with resolved service plan
@@ -118,6 +135,9 @@ pub struct AuthenticatedUserWithPlan {
     pub user: GitHubUser,
     pub service_plan: ServicePlan,
 }
+
+/// Required scopes for FleetingDNS
+pub const REQUIRED_SCOPES: &[&str] = &["user:email", "read:user"];
 
 /// Extract Bearer token from Authorization header
 pub fn extract_bearer_token(headers: &HeaderMap) -> AuthResult<String> {
@@ -173,9 +193,25 @@ pub async fn validate_github_token(
         .map_err(|e| AuthError::ExternalService(e.to_string()))?;
 
     if !response.status().is_success() {
+        if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(AuthError::TokenRevoked);
+        }
         return Err(AuthError::AuthenticationFailed(
             "Invalid GitHub token".to_string(),
         ));
+    }
+
+    // Check granted scopes from response headers
+    if let Some(scopes_header) = response.headers().get("x-oauth-scopes") {
+        if let Ok(scopes_str) = scopes_header.to_str() {
+            let granted_scopes: Vec<&str> = scopes_str.split(", ").collect();
+            if !has_required_scopes(&granted_scopes) {
+                return Err(AuthError::InsufficientScopes {
+                    required: REQUIRED_SCOPES.join(", "),
+                    granted: granted_scopes.join(", "),
+                });
+            }
+        }
     }
 
     let github_user: GitHubUserResponse = response
@@ -189,7 +225,32 @@ pub async fn validate_github_token(
         name: github_user.name,
         email: github_user.email,
         avatar_url: github_user.avatar_url,
+        public_repos: github_user.public_repos,
+        followers: github_user.followers,
+        following: github_user.following,
+        created_at: github_user.created_at,
+        updated_at: github_user.updated_at,
     })
+}
+
+/// Check if granted scopes include required scopes
+fn has_required_scopes(granted_scopes: &[&str]) -> bool {
+    for required_scope in REQUIRED_SCOPES {
+        let has_scope = granted_scopes.iter().any(|scope| {
+            // Exact match
+            scope == required_scope ||
+            // Hierarchical match (e.g., "user" grants "user:email")
+            (required_scope.contains(':') && scope == &required_scope.split(':').next().unwrap()) ||
+            // Broader scope (e.g., "user" grants "read:user")
+            (scope.contains(':') && required_scope.contains(':') && 
+             scope.split(':').next() == required_scope.split(':').next())
+        });
+        
+        if !has_scope {
+            return false;
+        }
+    }
+    true
 }
 
 /// Get GitHub user information from access token
@@ -203,6 +264,9 @@ pub async fn get_github_user(token: &str) -> AuthResult<GitHubUser> {
         .map_err(|e| AuthError::ExternalService(e.to_string()))?;
 
     if !response.status().is_success() {
+        if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+            return Err(AuthError::TokenRevoked);
+        }
         return Err(AuthError::Unauthorized("Invalid GitHub token".to_string()));
     }
 
@@ -217,6 +281,11 @@ pub async fn get_github_user(token: &str) -> AuthResult<GitHubUser> {
         name: github_user.name,
         email: github_user.email,
         avatar_url: github_user.avatar_url,
+        public_repos: github_user.public_repos,
+        followers: github_user.followers,
+        following: github_user.following,
+        created_at: github_user.created_at,
+        updated_at: github_user.updated_at,
     })
 }
 
@@ -273,6 +342,11 @@ pub fn validate_jwt_token(token: &str, secret: &str) -> AuthResult<GitHubUser> {
             name: Some("Development User".to_string()),
             email: Some("dev@fleetingdns.run".to_string()),
             avatar_url: "https://github.com/github.png".to_string(),
+            public_repos: None,
+            followers: None,
+            following: None,
+            created_at: None,
+            updated_at: None,
         });
     }
 
@@ -314,6 +388,11 @@ pub fn validate_jwt_token(token: &str, secret: &str) -> AuthResult<GitHubUser> {
         name: None,
         email: None,
         avatar_url: String::new(),
+        public_repos: None,
+        followers: None,
+        following: None,
+        created_at: None,
+        updated_at: None,
     })
 }
 
@@ -362,6 +441,22 @@ pub fn is_public_endpoint(path: &str) -> bool {
     public_paths.iter().any(|public_path| path.starts_with(public_path))
 }
 
+/// Generate GitHub OAuth authorization URL
+pub fn generate_github_oauth_url(client_id: &str, redirect_uri: &str, state: Option<&str>) -> String {
+    let mut url = format!(
+        "https://github.com/login/oauth/authorize?client_id={}&redirect_uri={}&scope={}",
+        client_id,
+        redirect_uri,
+        REQUIRED_SCOPES.join("%20")
+    );
+    
+    if let Some(state_param) = state {
+        url.push_str(&format!("&state={}", state_param));
+    }
+    
+    url
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -375,6 +470,11 @@ mod tests {
             name: Some("Test User".to_string()),
             email: Some("test@example.com".to_string()),
             avatar_url: "https://example.com/avatar.png".to_string(),
+            public_repos: None,
+            followers: None,
+            following: None,
+            created_at: None,
+            updated_at: None,
         };
 
         let secret = "test-secret";
@@ -419,5 +519,28 @@ mod tests {
         assert!(is_public_endpoint("/metrics"));
         assert!(!is_public_endpoint("/v1/tunnels"));
         assert!(!is_public_endpoint("/v1/certificates"));
+    }
+
+    #[test]
+    fn test_has_required_scopes() {
+        let granted_scopes = vec!["user:email", "read:user"];
+        assert!(has_required_scopes(&granted_scopes));
+
+        let granted_scopes = vec!["user:email"];
+        assert!(!has_required_scopes(&granted_scopes));
+
+        let granted_scopes = vec!["user", "read:user"];
+        assert!(has_required_scopes(&granted_scopes));
+    }
+
+    #[test]
+    fn test_generate_github_oauth_url() {
+        let url = generate_github_oauth_url("test_client_id", "http://localhost:8080/callback", None);
+        assert!(url.contains("client_id=test_client_id"));
+        assert!(url.contains("redirect_uri=http://localhost:8080/callback"));
+        assert!(url.contains("scope=user:email%20read:user"));
+
+        let url = generate_github_oauth_url("test_client_id", "http://localhost:8080/callback", Some("test_state"));
+        assert!(url.contains("state=test_state"));
     }
 }

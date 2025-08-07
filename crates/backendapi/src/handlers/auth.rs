@@ -1,6 +1,6 @@
 use crate::{ApiResult, ApiState};
 use auth::{
-    exchange_github_code, generate_jwt_token, validate_github_token,
+    exchange_github_code, generate_jwt_token, validate_github_token, generate_github_oauth_url,
     GitHubOAuthRequest, GitHubOAuthResponse, TokenRequest, TokenResponse, GitHubUser
 };
 use axum::{Json, extract::State};
@@ -30,7 +30,7 @@ pub async fn github_oauth(
     .await
     .map_err(|e| crate::ApiError::AuthenticationFailed(e.to_string()))?;
 
-    // Get user information from GitHub
+    // Get user information from GitHub with scope validation
     let user = validate_github_token(&state.github_client, &github_token)
         .await
         .map_err(|e| crate::ApiError::AuthenticationFailed(e.to_string()))?;
@@ -53,6 +53,7 @@ pub async fn github_oauth(
         token: jwt_token,
         expires_at: expires_at.to_rfc3339(),
         user,
+        scopes: auth::REQUIRED_SCOPES.iter().map(|s| s.to_string()).collect(),
     }))
 }
 
@@ -69,7 +70,7 @@ pub async fn exchange_token(
     
     debug!("Processing token exchange request");
 
-    // Validate GitHub token and get user info
+    // Validate GitHub token and get user info with scope validation
     let user = validate_github_token(&state.github_client, &request.github_token)
         .await
         .map_err(|e| crate::ApiError::AuthenticationFailed(e.to_string()))?;
@@ -92,4 +93,24 @@ pub async fn exchange_token(
         token: jwt_token,
         expires_at: expires_at.to_rfc3339(),
     }))
+}
+
+/// Generate GitHub OAuth authorization URL
+pub async fn get_github_oauth_url(
+    State(state): State<ApiState>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let redirect_uri = format!("{}/v1/auth/github", state.config.base_url);
+    let state_param = uuid::Uuid::new_v4().to_string();
+    
+    let auth_url = generate_github_oauth_url(
+        &state.config.github_client_id,
+        &redirect_uri,
+        Some(&state_param),
+    );
+
+    Ok(Json(serde_json::json!({
+        "auth_url": auth_url,
+        "state": state_param,
+        "required_scopes": auth::REQUIRED_SCOPES
+    })))
 }

@@ -524,6 +524,10 @@ impl From<auth::AuthError> for ApiError {
             auth::AuthError::TokenExpired => ApiError::AuthenticationFailed("Token expired".to_string()),
             auth::AuthError::InvalidTokenFormat => ApiError::AuthenticationFailed("Invalid token format".to_string()),
             auth::AuthError::InvalidTokenSignature => ApiError::AuthenticationFailed("Invalid token signature".to_string()),
+            auth::AuthError::InsufficientScopes { required, granted } => {
+                ApiError::AuthenticationFailed(format!("Insufficient scopes: required {}, granted {}", required, granted))
+            },
+            auth::AuthError::TokenRevoked => ApiError::AuthenticationFailed("Token revoked".to_string()),
         }
     }
 }
