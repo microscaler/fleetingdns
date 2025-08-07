@@ -6,8 +6,8 @@ use tracing::info;
 
 #[cfg(feature = "dot")]
 use common::tls;
-use common::{init_metrics, init_tracing, shutdown::GracefulShutdown};
-use dnsd::redis_cache;
+use common::shutdown::GracefulShutdown;
+use common::redis;
 
 #[derive(Parser)]
 #[command(name = "dnsd-bin")]
@@ -29,7 +29,7 @@ struct Args {
 #[tokio::main]
 async fn main() -> common::AppResult<()> {
     let args = Args::parse();
-    
+
     // Initialize comprehensive telemetry
     let telemetry_config = common::telemetry::TelemetryConfig {
         service_name: "dnsd".to_string(),
@@ -37,9 +37,9 @@ async fn main() -> common::AppResult<()> {
         environment: std::env::var("ENVIRONMENT").unwrap_or_else(|_| "development".to_string()),
         ..Default::default()
     };
-    
+
     common::telemetry::init_telemetry(telemetry_config)
-        .map_err(|e| common::AppError::Message(format!("Failed to initialize telemetry: {}", e)))?;
+        .map_err(|e| common::AppError::Message(format!("Failed to initialize telemetry: {e}")))?;
 
     // Initialize graceful shutdown framework
     let mut shutdown = if let Some(socket_path) = args.control_socket {
@@ -58,7 +58,7 @@ async fn main() -> common::AppResult<()> {
     shutdown.start().await?;
 
     let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".into());
-    let pool = redis_cache::new_pool(&redis_url)
+    let pool = common::redis::new_pool(&redis_url)
         .await
         .map_err(|e| common::AppError::Message(e.to_string()))?;
 

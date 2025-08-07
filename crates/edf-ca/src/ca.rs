@@ -77,10 +77,11 @@ impl CertificateAuthority {
         let ttl = request.ttl.unwrap_or(self.config.default_ttl);
         if ttl > self.config.max_ttl {
             counter!("certificate_operations_total", "operation" => "issue", "status" => "ttl_validation_failed").increment(1);
-            return Err(CaError::TtlValidation {
-                requested_minutes: ttl.num_minutes(),
-                max_minutes: self.config.max_ttl.num_minutes(),
-            });
+            return Err(CaError::ValidationError(format!(
+                "TTL validation error: requested {} minutes, max allowed {} minutes",
+                ttl.num_minutes(),
+                self.config.max_ttl.num_minutes()
+            )));
         }
 
         // Generate certificate
@@ -157,9 +158,7 @@ impl CertificateAuthority {
             }
             None => {
                 counter!("certificate_operations_total", "operation" => "get_info", "status" => "not_found").increment(1);
-                Err(CaError::CertificateNotFound {
-                    serial: serial_number.to_string(),
-                })
+                Err(CaError::NotFound(format!("Certificate not found: serial {}", serial_number)))
             }
         }
     }
@@ -178,9 +177,7 @@ impl CertificateAuthority {
             Ok(())
         } else {
             counter!("certificate_operations_total", "operation" => "revoke", "status" => "not_found").increment(1);
-            Err(CaError::CertificateNotFound {
-                serial: serial_number.to_string(),
-            })
+            Err(CaError::NotFound(format!("Certificate not found: serial {}", serial_number)))
         }
     }
 
@@ -201,7 +198,7 @@ impl CertificateAuthority {
     pub fn get_ca_certificate_pem(&self) -> CaResult<String> {
         self.ca_certificate
             .serialize_pem()
-            .map_err(|e| CaError::CertificateGeneration(e.to_string()))
+            .map_err(|e| CaError::CertificateError(format!("Certificate generation failed: {}", e)))
     }
 
     /// Get statistics about the CA
@@ -221,7 +218,7 @@ impl CertificateAuthority {
     ) -> CaResult<EphemeralCertificate> {
         // Generate key pair for the certificate
         let key_pair = KeyPair::generate(&rcgen::PKCS_ED25519)
-            .map_err(|e| CaError::CertificateGeneration(e.to_string()))?;
+            .map_err(|e| CaError::CertificateError(format!("Certificate generation failed: {}", e)))?;
 
         // Build certificate
         let cert = CertificateBuilder::new()
@@ -235,7 +232,7 @@ impl CertificateAuthority {
         // Sign with CA
         let cert_pem = cert
             .serialize_pem_with_signer(&self.ca_certificate)
-            .map_err(|e| CaError::CertificateGeneration(e.to_string()))?;
+            .map_err(|e| CaError::CertificateError(format!("Certificate generation failed: {}", e)))?;
 
         let private_key_pem = key_pair.serialize_pem();
 
@@ -312,7 +309,7 @@ impl CertificateAuthority {
         params.not_before = now;
         params.not_after = now + time::Duration::days(3650);
 
-        Certificate::from_params(params).map_err(|e| CaError::CertificateGeneration(e.to_string()))
+        Certificate::from_params(params).map_err(|e| CaError::CertificateError(format!("Certificate generation failed: {}", e)))
     }
 
     /// Load CA certificate from files
@@ -331,13 +328,13 @@ impl CertificateAuthority {
     ) -> CaResult<()> {
         let cert_pem = cert
             .serialize_pem()
-            .map_err(|e| CaError::CertificateGeneration(e.to_string()))?;
+            .map_err(|e| CaError::CertificateError(format!("Certificate generation failed: {}", e)))?;
 
         let key_pem = cert.get_key_pair().serialize_pem();
 
-        fs::write(cert_path, cert_pem).await.map_err(CaError::Io)?;
+        fs::write(cert_path, cert_pem).await?;
 
-        fs::write(key_path, key_pem).await.map_err(CaError::Io)?;
+        fs::write(key_path, key_pem).await?;
 
         info!(cert_path = %cert_path, key_path = %key_path, "CA certificate saved");
         Ok(())
@@ -346,15 +343,11 @@ impl CertificateAuthority {
     /// Validate certificate issuance request
     async fn validate_request(&self, request: &IssuanceRequest) -> CaResult<()> {
         if request.common_name.is_empty() {
-            return Err(CaError::InvalidRequest(
-                "Common name cannot be empty".to_string(),
-            ));
+            return Err(CaError::BadRequest("Common name cannot be empty".to_string()));
         }
 
         if request.client_id.is_empty() {
-            return Err(CaError::InvalidRequest(
-                "Client ID cannot be empty".to_string(),
-            ));
+            return Err(CaError::BadRequest("Client ID cannot be empty".to_string()));
         }
 
         // Additional validation can be added here
@@ -365,11 +358,10 @@ impl CertificateAuthority {
     async fn check_rate_limits(&self, client_id: &str) -> CaResult<()> {
         let rate_limiter = self.rate_limiter.lock().await;
         if rate_limiter.is_rate_limited(client_id) {
-            return Err(CaError::RateLimitExceeded {
-                client_id: client_id.to_string(),
-                limit: rate_limiter.limit,
-                window: "hour".to_string(),
-            });
+            return Err(CaError::RateLimitExceeded(format!(
+                "Rate limit exceeded for client {}: {} certificates per hour",
+                client_id, rate_limiter.limit
+            )));
         }
         Ok(())
     }
@@ -490,7 +482,7 @@ mod tests {
         request.ttl = Some(Duration::hours(5)); // Exceeds 2 hour maximum
 
         let result = ca.issue_certificate(request).await;
-        assert!(matches!(result, Err(CaError::TtlValidation { .. })));
+        assert!(matches!(result, Err(CaError::ValidationError(_))));
     }
 
     #[tokio::test]
@@ -516,7 +508,7 @@ mod tests {
         );
 
         let result = ca.issue_certificate(request).await;
-        assert!(matches!(result, Err(CaError::RateLimitExceeded { .. })));
+        assert!(matches!(result, Err(CaError::RateLimitExceeded(_))));
     }
 
     #[tokio::test]

@@ -1,0 +1,48 @@
+[package]
+name = "fleetingdns-integration-tests"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.0", features = ["full"] }
+testcontainers = "0.15"
+bb8-redis = "0.13"
+redis = { version = "0.23", features = ["tokio-comp", "connection-manager"] }
+sea-orm = { version = "0.12", features = ["sqlx-postgres", "runtime-tokio-rustls"] }
+reqwest = { version = "0.11", features = ["json"] }
+serde_json = "1.0"
+hickory-proto = "0.24"
+hickory-resolver = "0.24"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+futures = "0.3"
+
+# FleetingDNS crates
+fleetingdns-common = { path = "../../crates/common" }
+fleetingdns-dnsd = { path = "../../crates/dnsd" }
+fleetingdns-backendapi = { path = "../../crates/backendapi" }
+fleetingdns-edgehub = { path = "../../crates/edgehub" }
+
+[dev-dependencies]
+testcontainers-modules = { version = "0.3", features = ["redis", "postgres"] }
+
+[[test]]
+name = "test_harness"
+path = "test_harness.rs"
+
+[[test]]
+name = "dns_integration"
+path = "dns_integration.rs"
+
+[[test]]
+name = "api_integration"
+path = "api_integration.rs"
+
+[[test]]
+name = "edgehub_integration"
+path = "edgehub_integration.rs"
+
+[[test]]
+name = "end_to_end"
+path = "end_to_end.rs" 

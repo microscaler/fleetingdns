@@ -1,5 +1,5 @@
 use dnsd::dns_handler::{DnsHandler, PerformanceConfig};
-use dnsd::redis_cache::RedisPool;
+use common::redis::RedisPool;
 mod redis_test_utils;
 use redis_test_utils::{with_redis_container, with_shared_redis_container};
 
@@ -70,9 +70,12 @@ async fn test_error_propagation() {
     let result = with_redis_container(|pool| async move {
         let handler = DnsHandler::new(PerformanceConfig::default());
 
-        // Test that errors are properly propagated
+        // Test that invalid queries return valid DNS error responses
         let result = handler.process_dns_query(b"invalid-query", &pool).await;
-        assert!(result.is_err());
+        assert!(result.is_ok()); // Should return a valid DNS error response
+
+        let response = result.unwrap();
+        assert!(!response.is_empty()); // Should contain a DNS error response
 
         "success"
     })
@@ -109,13 +112,13 @@ async fn test_redis_test_utils() {
         let mut conn = pool.get().await.unwrap();
 
         // Test basic Redis operations
-        let _: () = redis::cmd("SET")
+                  let _: () = bb8_redis::redis::cmd("SET")
             .arg("shared_test_key")
             .arg("shared_test_value")
             .query_async(&mut *conn)
             .await
             .unwrap();
-        let result: String = redis::cmd("GET")
+                  let result: String = bb8_redis::redis::cmd("GET")
             .arg("shared_test_key")
             .query_async(&mut *conn)
             .await

@@ -11,7 +11,7 @@ use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
 use dnsd::dns_handler;
-use dnsd::redis_cache;
+use common::redis;
 use dnsd::sign;
 use dnsd::{Config, serve};
 
@@ -21,7 +21,7 @@ async fn start_redis() -> Option<(String, JoinHandle<mini_redis::Result<()>>)> {
     let handle = tokio::spawn(async move { server::run(listener, tokio::signal::ctrl_c()).await });
     sleep(Duration::from_millis(50)).await;
     let url = format!("redis://{addr}/");
-    if redis_cache::new_pool(&url).await.is_err() {
+    if common::redis::new_pool(&url).await.is_err() {
         handle.abort();
         return None;
     }
@@ -38,8 +38,8 @@ async fn dig_returns_cached_ip() {
         eprintln!("skipping test: redis not available");
         return;
     };
-    let pool = redis_cache::new_pool(&redis_url).await.unwrap();
-    redis_cache::set_slot(&pool, "demo", Ipv4Addr::new(1, 2, 3, 4), 60)
+    let pool = common::redis::new_pool(&redis_url).await.unwrap();
+    common::redis::set_slot(&pool, "demo", Ipv4Addr::new(1, 2, 3, 4), 60)
         .await
         .unwrap();
 
@@ -85,7 +85,7 @@ async fn dig_returns_nxdomain_on_miss() {
         eprintln!("skipping test: redis not available");
         return;
     };
-    let pool = redis_cache::new_pool(&redis_url).await.unwrap();
+    let pool = common::redis::new_pool(&redis_url).await.unwrap();
 
     let std_sock = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
     let addr = std_sock.local_addr().unwrap();

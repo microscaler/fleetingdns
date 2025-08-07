@@ -1,0 +1,35 @@
+# Minimal Docker container with dig for DNS testing
+# No resolver configuration - uses external DNS servers only
+
+FROM debian:bookworm-slim
+
+# Install dig (dnsutils package) and curl for testing
+RUN apt-get update && apt-get install -y \
+    dnsutils \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Note: /etc/resolv.conf is mounted by Docker and cannot be removed
+# The container will use external DNS servers only when dig is called with @server
+
+# Create a simple test script
+RUN echo '#!/bin/bash\n\
+echo "DNS Testing Container"\n\
+echo "==================="\n\
+echo "Available commands:"\n\
+echo "  dig @<server> <domain> - Query specific DNS server"\n\
+echo "  curl <url> - Test HTTP endpoints"\n\
+echo ""\n\
+echo "Example:"\n\
+echo "  dig @localhost -p 6353 test.fdns.run A"\n\
+echo "  curl http://localhost:8001/"\n\
+echo ""\n\
+echo "Note: This container has no resolver configuration."\n\
+echo "All DNS queries must specify a server with @<server>"\n\
+' > /usr/local/bin/test-help && chmod +x /usr/local/bin/test-help
+
+# Set working directory
+WORKDIR /test
+
+# Default command shows help
+CMD ["/usr/local/bin/test-help"] 

@@ -54,6 +54,12 @@ pub async fn github_oauth(
     State(state): State<ApiState>,
     Json(request): Json<GitHubOAuthRequest>,
 ) -> ApiResult<Json<GitHubOAuthResponse>> {
+    let start_time = std::time::Instant::now();
+    
+    // Create auth span for tracing
+    let span = common::telemetry::auth_span("github_oauth");
+    let _enter = span.enter();
+    
     debug!("Processing GitHub OAuth request");
 
     // Exchange code for GitHub access token
@@ -75,6 +81,12 @@ pub async fn github_oauth(
 
     let expires_at = Utc::now() + chrono::Duration::hours(24);
 
+    // Record authentication metrics
+    let response_time = start_time.elapsed();
+    let response_time_ms = response_time.as_millis() as u64;
+    common::telemetry::record_auth_metrics("github_oauth", true);
+    common::telemetry::record_api_metrics("POST", "/v1/auth/github", 200, response_time_ms);
+
     Ok(Json(GitHubOAuthResponse {
         access_token: jwt_token,
         token_type: "Bearer".to_string(),
@@ -88,6 +100,12 @@ pub async fn exchange_token(
     State(state): State<ApiState>,
     Json(request): Json<TokenRequest>,
 ) -> ApiResult<Json<TokenResponse>> {
+    let start_time = std::time::Instant::now();
+    
+    // Create auth span for tracing
+    let span = common::telemetry::auth_span("token_exchange");
+    let _enter = span.enter();
+    
     debug!("Processing token exchange request");
 
     // Validate GitHub token and get user info
@@ -99,6 +117,12 @@ pub async fn exchange_token(
     let jwt_token = generate_jwt_token(&user, &state.config.jwt_secret)?;
 
     let expires_at = Utc::now() + chrono::Duration::hours(24);
+
+    // Record authentication metrics
+    let response_time = start_time.elapsed();
+    let response_time_ms = response_time.as_millis() as u64;
+    common::telemetry::record_auth_metrics("token_exchange", true);
+    common::telemetry::record_api_metrics("POST", "/v1/auth/token", 200, response_time_ms);
 
     Ok(Json(TokenResponse {
         access_token: jwt_token,

@@ -239,7 +239,7 @@ impl CertificateBuilder {
     /// Generate the certificate
     pub fn generate(self) -> CaResult<Certificate> {
         Certificate::from_params(self.params)
-            .map_err(|e| CaError::CertificateGeneration(e.to_string()))
+            .map_err(|e| CaError::CertificateError(format!("Certificate generation failed: {}", e)))
     }
 
     /// Generate certificate signed by CA
@@ -247,7 +247,7 @@ impl CertificateBuilder {
         let cert = self.generate()?;
         let _signed_cert = cert
             .serialize_pem_with_signer(ca_cert)
-            .map_err(|e| CaError::CertificateGeneration(e.to_string()))?;
+            .map_err(|e| CaError::CertificateError(format!("Certificate generation failed: {}", e)))?;
 
         // For now, return the original certificate
         // In a full implementation, we'd parse the signed certificate back
@@ -269,13 +269,13 @@ pub fn calculate_fingerprint(cert_pem: &str) -> CaResult<String> {
 
     let certs = match certs_result {
         Ok(certs) => certs,
-        Err(e) => return Err(CaError::PemParsing(e.to_string())),
+        Err(e) => return Err(CaError::DeserializationError(format!("PEM parsing error: {}", e))),
     };
 
     let cert_der = certs
         .into_iter()
         .next()
-        .ok_or_else(|| CaError::PemParsing("No certificate found in PEM".to_string()))?;
+        .ok_or_else(|| CaError::DeserializationError("No certificate found in PEM".to_string()))?;
 
     // Calculate SHA-256 hash
     let digest = digest::digest(&digest::SHA256, &cert_der);

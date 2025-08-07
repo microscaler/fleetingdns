@@ -10,6 +10,10 @@ tokio = { workspace = true, features = ["full"] }
 clap = { workspace = true }
 common = { path = "../../crates/common" }
 tracing = { workspace = true }
+rustls = "0.23"
+tokio-rustls = "0.26"
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 
 

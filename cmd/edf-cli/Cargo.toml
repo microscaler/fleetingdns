@@ -1,0 +1,40 @@
+[package]
+name = "edf-cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Core dependencies
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1.0"
+thiserror = "2.0"
+
+# Common utilities
+common = { path = "../../crates/common" }
+
+# CLI and configuration
+clap = { version = "4", features = ["derive"] }
+config = "0.14"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# SSH and TLS
+russh = "0.40"
+russh-keys = "0.40"
+rustls = "0.23"
+tokio-rustls = "0.26"
+rustls-pemfile = "1"
+
+# HTTP client for API calls
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+
+# Time and utilities
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+base64 = "0.22"
+
+# SSH key generation
+tempfile = "3.0"
+dirs = "5.0" 

@@ -50,9 +50,6 @@ pub async fn run() -> ApiResult<()> {
 
 /// Run the API server with custom configuration
 pub async fn run_with_config(config: ApiConfig) -> ApiResult<()> {
-    // Initialize tracing
-    tracing_subscriber::fmt::init();
-
     info!("Starting FleetingDNS API server on {}", config.bind_address);
 
     // Initialize certificate authority
@@ -93,7 +90,7 @@ pub async fn run_with_config(config: ApiConfig) -> ApiResult<()> {
     let app = create_router(state);
 
     // Start the server
-    let listener = TcpListener::bind(&config.bind_address).await?;
+    let listener = TcpListener::bind(config.bind_address).await?;
     info!("API server listening on {}", config.bind_address);
 
     axum::serve(listener, app).await?;
@@ -111,8 +108,8 @@ fn create_router(state: ApiState) -> Router {
         .route("/v1/auth/token", post(handlers::auth::exchange_token))
         // Tunnel management endpoints
         .route("/v1/tunnels", post(handlers::tunnels::create_tunnel))
-        .route("/v1/tunnels/:id", get(handlers::tunnels::get_tunnel))
-        .route("/v1/tunnels/:id", delete(handlers::tunnels::delete_tunnel))
+        .route("/v1/tunnels/{id}", get(handlers::tunnels::get_tunnel))
+        .route("/v1/tunnels/{id}", delete(handlers::tunnels::delete_tunnel))
         .route("/v1/tunnels", get(handlers::tunnels::list_tunnels))
         // Certificate management
         .route(
@@ -120,7 +117,7 @@ fn create_router(state: ApiState) -> Router {
             post(handlers::certificates::issue_certificate),
         )
         .route(
-            "/v1/certificates/:serial",
+            "/v1/certificates/{serial}",
             get(handlers::certificates::get_certificate),
         )
         // Statistics and monitoring
@@ -144,19 +141,19 @@ fn create_router(state: ApiState) -> Router {
             get(handlers::admin::list_service_plans),
         )
         .route(
-            "/admin/service-plans/:id",
+            "/admin/service-plans/{id}",
             get(handlers::admin::get_service_plan),
         )
         .route(
-            "/admin/service-plans/:id",
+            "/admin/service-plans/{id}",
             put(handlers::admin::update_service_plan),
         )
         .route(
-            "/admin/service-plans/:id",
+            "/admin/service-plans/{id}",
             delete(handlers::admin::delete_service_plan),
         )
         .route(
-            "/admin/users/:user_id/service-plan",
+            "/admin/users/{user_id}/service-plan",
             post(handlers::admin::assign_service_plan_to_user),
         )
         // User-facing ServicePlan endpoints
@@ -199,6 +196,10 @@ fn create_router(state: ApiState) -> Router {
         .layer(axum::middleware::from_fn(timeout_middleware))
         .layer(axum::middleware::from_fn(request_size_middleware))
         .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            middleware::telemetry_middleware,
+        ))
+        .layer(axum::middleware::from_fn_with_state(
             state.rate_limiter.clone(),
             rate_limiting::rate_limit_middleware,
         ))
@@ -236,7 +237,7 @@ mod tests {
         }
 
         let config = ApiConfig::from_env().unwrap();
-        assert_eq!(config.bind_address, "127.0.0.1:8080");
+        assert_eq!(config.bind_address, "127.0.0.1:8080".parse().unwrap());
         assert_eq!(config.redis_url, "redis://localhost:6379");
         assert_eq!(config.github_client_id, "test_client_id");
         assert_eq!(config.github_client_secret, "test_client_secret");
@@ -278,7 +279,7 @@ mod tests {
     #[test]
     fn test_api_config_default_values() {
         let config = ApiConfig::default();
-        assert_eq!(config.bind_address, "0.0.0.0:8080");
+        assert_eq!(config.bind_address, "0.0.0.0:8080".parse().unwrap());
         assert_eq!(config.redis_url, "redis://localhost:6379");
         assert_eq!(config.base_domain, "fleetingdns.run");
         assert_eq!(config.edgehub_address, "edgehub.fleetingdns.com:443");

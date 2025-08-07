@@ -6,8 +6,8 @@
 //! - Enterprise-grade features (error handling, logging, monitoring)
 
 use crate::metrics_manager::{PerformanceMetrics, get_metrics, update_metrics};
-use crate::redis_cache::RedisPool;
-use crate::response_compression::{CompressionConfig, ResponseCompressor};
+use common::redis::RedisPool;
+
 use common::{AppError, AppResult};
 use hickory_proto::op::{Message, MessageType, ResponseCode};
 use hickory_proto::rr::rdata::A;
@@ -86,7 +86,7 @@ pub struct PerformanceConfig {
 impl Default for PerformanceConfig {
     fn default() -> Self {
         Self {
-            enable_compression: true,
+            enable_compression: false, // Disable compression for standard DNS clients
             cache_ttl: 300,
             enable_metrics: true,
             max_response_time_ms: 50,
@@ -105,7 +105,6 @@ pub struct DnsHandler {
     #[allow(dead_code)]
     time_provider: Arc<dyn TimeProvider + Send + Sync>,
     max_cache_size: usize,
-    response_compressor: Arc<ResponseCompressor>,
 }
 
 impl DnsHandler {
@@ -113,10 +112,6 @@ impl DnsHandler {
     pub fn new(config: PerformanceConfig) -> Self {
         let cache = Arc::new(RwLock::new(TtlCache::new()));
         let max_cache_size = config.max_cache_size; // Use configurable cache size
-
-        // Create response compressor
-        let compression_config = CompressionConfig::default();
-        let response_compressor = Arc::new(ResponseCompressor::new(compression_config));
 
         // Start background purging every 30 seconds (smaller saw effect)
         // Note: This requires a tokio runtime to be running
@@ -133,7 +128,6 @@ impl DnsHandler {
             cache,
             time_provider: Arc::new(RealTimeProvider),
             max_cache_size,
-            response_compressor,
         }
     }
 
@@ -145,16 +139,11 @@ impl DnsHandler {
         let cache = Arc::new(RwLock::new(TtlCache::new()));
         let max_cache_size = 10_000;
 
-        // Create response compressor
-        let compression_config = CompressionConfig::default();
-        let response_compressor = Arc::new(ResponseCompressor::new(compression_config));
-
         Self {
             config,
             cache,
             time_provider,
             max_cache_size,
-            response_compressor,
         }
     }
 
@@ -162,9 +151,8 @@ impl DnsHandler {
     pub async fn handle_packet(&self, packet: &[u8], pool: &RedisPool) -> AppResult<Vec<u8>> {
         let start_time = Instant::now();
 
-        if self.config.enable_compression
-            && let Some(cached_response) = self.get_cached_response(packet).await
-        {
+        // Check cache first (compression disabled due to DNS client compatibility issues)
+        if let Some(cached_response) = self.get_cached_response(packet).await {
             if self.config.enable_metrics {
                 update_metrics(true, start_time.elapsed()).await;
             }
@@ -174,22 +162,14 @@ impl DnsHandler {
         let result = self.process_dns_query(packet, pool).await;
 
         if let Ok(ref response) = result {
-            // Apply response compression for individual query optimization
-            let compressed_response = self
-                .response_compressor
-                .compress_response(response.clone())
-                .await?;
-
-            if self.config.enable_compression {
-                self.cache_response(packet, compressed_response.clone())
-                    .await;
-            }
+            // Cache the uncompressed response
+            self.cache_response(packet, response.clone()).await;
 
             if self.config.enable_metrics {
                 update_metrics(false, start_time.elapsed()).await;
             }
 
-            Ok(compressed_response)
+            Ok(response.clone())
         } else {
             if self.config.enable_metrics {
                 update_metrics(false, start_time.elapsed()).await;
@@ -201,66 +181,156 @@ impl DnsHandler {
     /// Process a DNS query with Redis slot lookup
     pub async fn process_dns_query(&self, packet: &[u8], pool: &RedisPool) -> AppResult<Vec<u8>> {
         let start_time = std::time::Instant::now();
-        
-        let message = Message::from_vec(packet)
-            .map_err(|e| AppError::Message(format!("Failed to parse DNS message: {e}")))?;
+
+        // Parse DNS message with fallback
+        let message = match Message::from_vec(packet) {
+            Ok(msg) => msg,
+            Err(e) => {
+                tracing::error!("Failed to parse DNS message: {}", e);
+                return self
+                    .build_error_response(packet, ResponseCode::FormErr)
+                    .await;
+            }
+        };
 
         if message.header().message_type() == MessageType::Response {
-            return Err(AppError::Message("Received response packet".into()));
+            tracing::warn!("Received response packet, ignoring");
+            return self
+                .build_error_response(packet, ResponseCode::FormErr)
+                .await;
         }
 
-        let query = message
-            .queries()
-            .first()
-            .ok_or_else(|| AppError::Message("No query found".into()))?;
+        let query = match message.queries().first() {
+            Some(q) => q,
+            None => {
+                tracing::error!("No query found in DNS message");
+                return self
+                    .build_error_response(packet, ResponseCode::FormErr)
+                    .await;
+            }
+        };
 
         let qname = query.name().clone();
-        
         tracing::info!("Processing DNS query for: {}", qname);
-        
-        // Redis lookup with telemetry
+
+        // Redis lookup with telemetry and fallback
         let slot = {
             let redis_start = std::time::Instant::now();
             let result = self.lookup_slot_in_redis(qname.to_string(), pool).await;
             let redis_duration = redis_start.elapsed().as_millis() as u64;
-            
+
             match &result {
                 Ok(slot) => {
                     tracing::info!("Redis lookup result for {}: {:?}", qname, slot);
-                    common::telemetry::record_redis_metrics("get", &format!("slot:{}", qname), redis_duration, true);
+                    common::telemetry::record_redis_metrics(
+                        "get",
+                        &format!("slot:{qname}"),
+                        redis_duration,
+                        true,
+                    );
                 }
                 Err(e) => {
                     tracing::error!("Redis lookup failed for {}: {}", qname, e);
-                    common::telemetry::record_redis_metrics("get", &format!("slot:{}", qname), redis_duration, false);
+                    common::telemetry::record_redis_metrics(
+                        "get",
+                        &format!("slot:{qname}"),
+                        redis_duration,
+                        false,
+                    );
                 }
             }
-            result?
+
+            // Return None on Redis errors instead of failing
+            match result {
+                Ok(slot) => slot,
+                Err(e) => {
+                    tracing::warn!("Using fallback response due to Redis error: {}", e);
+                    None
+                }
+            }
         };
 
-        // Build response with telemetry
+        // Build response with telemetry and fallback
         let response = {
             let response_start = std::time::Instant::now();
             let result = self.build_dns_response(&message, query, &qname, slot).await;
             let response_duration = response_start.elapsed().as_millis() as u64;
-            
+
             match &result {
                 Ok(response) => {
                     tracing::info!("Built DNS response for {}: {} bytes", qname, response.len());
-                    common::telemetry::record_dns_metrics("build_response", &qname.to_string(), response_duration, true);
+                    common::telemetry::record_dns_metrics(
+                        "build_response",
+                        &qname.to_string(),
+                        response_duration,
+                        true,
+                    );
                 }
                 Err(e) => {
                     tracing::error!("Failed to build DNS response for {}: {}", qname, e);
-                    common::telemetry::record_dns_metrics("build_response", &qname.to_string(), response_duration, false);
+                    common::telemetry::record_dns_metrics(
+                        "build_response",
+                        &qname.to_string(),
+                        response_duration,
+                        false,
+                    );
                 }
             }
-            result?
+
+            // Return error response on build failure
+            match result {
+                Ok(response) => response,
+                Err(e) => {
+                    tracing::warn!("Using fallback response due to build error: {}", e);
+                    return self
+                        .build_error_response(packet, ResponseCode::ServFail)
+                        .await;
+                }
+            }
         };
-        
+
         // Record overall metrics
         let total_duration = start_time.elapsed().as_millis() as u64;
-        common::telemetry::record_dns_metrics("process_query", &qname.to_string(), total_duration, true);
-        
+        common::telemetry::record_dns_metrics(
+            "process_query",
+            &qname.to_string(),
+            total_duration,
+            true,
+        );
+
         Ok(response)
+    }
+
+    /// Build an error response for DNS queries
+    async fn build_error_response(
+        &self,
+        packet: &[u8],
+        response_code: ResponseCode,
+    ) -> AppResult<Vec<u8>> {
+        // Try to parse the original packet to extract the query
+        let message = match Message::from_vec(packet) {
+            Ok(msg) => msg,
+            Err(_) => {
+                // If we can't parse the packet, create a minimal error response
+                let mut response = Message::new();
+                response.set_message_type(MessageType::Response);
+                response.set_response_code(ResponseCode::FormErr);
+                return Ok(response.to_vec().unwrap_or_else(|_| vec![]));
+            }
+        };
+
+        // Create error response with the same ID as the query
+        let mut response = Message::new();
+        response.set_id(message.header().id());
+        response.set_message_type(MessageType::Response);
+        response.set_response_code(response_code);
+
+        // Add the original query to the response
+        if let Some(query) = message.queries().first() {
+            response.add_query(query.clone());
+        }
+
+        Ok(response.to_vec().unwrap_or_else(|_| vec![]))
     }
 
     /// Look up a domain slot in Redis
@@ -280,10 +350,10 @@ impl DnsHandler {
 
         // Remove trailing dot if present (DNS queries often include trailing dots)
         let clean_qname = qname.trim_end_matches('.');
-        let key = format!("slot:{}", clean_qname);
-        
-        let result: Result<Option<String>, redis::RedisError> =
-            redis::cmd("GET").arg(&key).query_async(&mut *conn).await;
+        let key = format!("slot:{clean_qname}");
+
+        let result: Result<Option<String>, bb8_redis::redis::RedisError> =
+            bb8_redis::redis::cmd("GET").arg(&key).query_async(&mut *conn).await;
 
         match result {
             Ok(slot) => Ok(slot),
@@ -312,16 +382,41 @@ impl DnsHandler {
 
         // Add answer if slot is provided
         if let Some(slot_ip) = slot {
-            let ip: Ipv4Addr = slot_ip
-                .parse()
-                .map_err(|_| AppError::Message(format!("Invalid IP address: {slot_ip}")))?;
+            match query.query_type() {
+                hickory_proto::rr::RecordType::A => {
+                    // Handle IPv4 addresses
+                    let ip: Ipv4Addr = slot_ip
+                        .parse()
+                        .map_err(|_| AppError::Message(format!("Invalid IPv4 address: {slot_ip}")))?;
 
-            let record = Record::from_rdata(
-                qname.clone(),
-                300, // TTL
-                hickory_proto::rr::RData::A(A::from(ip)),
-            );
-            response.add_answer(record);
+                    let record = Record::from_rdata(
+                        qname.clone(),
+                        300, // TTL
+                        hickory_proto::rr::RData::A(A::from(ip)),
+                    );
+                    response.add_answer(record);
+                }
+                hickory_proto::rr::RecordType::AAAA => {
+                    // Handle IPv6 addresses
+                    let ip: std::net::Ipv6Addr = slot_ip
+                        .parse()
+                        .map_err(|_| AppError::Message(format!("Invalid IPv6 address: {slot_ip}")))?;
+
+                    let record = Record::from_rdata(
+                        qname.clone(),
+                        300, // TTL
+                        hickory_proto::rr::RData::AAAA(hickory_proto::rr::rdata::AAAA::from(ip)),
+                    );
+                    response.add_answer(record);
+                }
+                _ => {
+                    // For other record types, return NXDOMAIN
+                    response.set_response_code(ResponseCode::NXDomain);
+                }
+            }
+        } else {
+            // No slot found, return NXDOMAIN
+            response.set_response_code(ResponseCode::NXDomain);
         }
 
         response
@@ -390,7 +485,7 @@ mod tests {
     #[test]
     fn test_performance_config_default() {
         let config = PerformanceConfig::default();
-        assert_eq!(config.enable_compression, true);
+        assert_eq!(config.enable_compression, false);
         assert_eq!(config.cache_ttl, 300);
         assert_eq!(config.enable_metrics, true);
         assert_eq!(config.max_response_time_ms, 50);
@@ -404,7 +499,7 @@ mod tests {
         let config = PerformanceConfig::default();
         let handler = DnsHandler::new(config);
 
-        assert_eq!(handler.config.enable_compression, true);
+        assert_eq!(handler.config.enable_compression, false);
         assert_eq!(handler.config.cache_ttl, 300);
         assert_eq!(handler.config.enable_metrics, true);
         assert_eq!(handler.config.max_cache_size, 5_000);

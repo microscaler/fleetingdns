@@ -1,8 +1,7 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use tokio::sync::{RwLock, mpsc, oneshot};
-use tokio::time::timeout;
 use tracing::{debug, error, info, warn};
 
 use crate::AppResult;
@@ -181,7 +180,7 @@ impl BatchAuditLogger {
     async fn start_background_processor(
         mut processor_rx: mpsc::Receiver<AuditLogBatch>,
         stats: Arc<RwLock<AuditBatchStats>>,
-        config: AuditBatchConfig,
+        #[allow(unused)] config: AuditBatchConfig,
     ) {
         info!("Starting audit log batch processor");
 

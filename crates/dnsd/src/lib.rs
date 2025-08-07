@@ -8,10 +8,6 @@ use crate::dns_handler::{DnsHandler, PerformanceConfig};
 
 pub mod dns_handler;
 pub mod metrics_manager;
-pub mod redis_cache;
-pub mod redis_cluster;
-pub mod redis_performance;
-pub mod redis_sentinel;
 pub mod response_compression;
 pub mod sign;
 
@@ -20,7 +16,7 @@ pub struct Config {
     /// Address to bind the UDP socket to.
     pub addr: SocketAddr,
     /// Redis connection pool for slot lookups.
-    pub redis_pool: redis_cache::RedisPool,
+    pub redis_pool: common::redis::RedisPool,
     /// DDoS protection configuration
     pub ddos_config: common::ddos_protection::DdosConfig,
     /// Enable DDoS protection
@@ -35,9 +31,9 @@ impl Default for Config {
     fn default() -> Self {
         let config = common::config::FleetingDnsConfig::from_env();
         let redis_url = config.redis.url.clone();
-        
+
         Self {
-            addr: config.dns_addr().unwrap_or_else(|_| "0.0.0.0:6353".parse().unwrap()),
+            addr: config.dns_addr(),
             redis_pool: {
                 let manager = bb8_redis::RedisConnectionManager::new(redis_url).unwrap();
                 bb8::Pool::builder().build_unchecked(manager)
@@ -80,16 +76,30 @@ pub async fn serve(cfg: Config) -> AppResult<()> {
                 match result {
                     Ok((len, peer)) => {
                         info!("Received DNS packet from {}: {} bytes", peer, len);
+                        
+                        // Increment DNS query counter for UDP protocol
+                        metrics::counter!("dns_queries_total", "protocol" => "udp").increment(1);
+                        
                         // Use unified DNS handler
                         match dns_handler.handle_packet(&buf[..len], &cfg.redis_pool).await {
                             Ok(resp) => {
                                 info!("Sending DNS response to {}: {} bytes", peer, resp.len());
-                                if let Err(e) = socket.send_to(&resp, peer).await {
-                                    error!("Failed to send response to {}: {}", peer, e);
+                                match socket.send_to(&resp, peer).await {
+                                    Ok(_) => {
+                                        // Record successful DNS response delivery
+                                        common::telemetry::record_dns_delivery_metrics("udp", resp.len(), true);
+                                    }
+                                    Err(e) => {
+                                        error!("Failed to send response to {}: {}", peer, e);
+                                        // Record failed DNS response delivery
+                                        common::telemetry::record_dns_delivery_metrics("udp", resp.len(), false);
+                                    }
                                 }
                             }
                             Err(e) => {
                                 error!("Failed to handle DNS packet: {}", e);
+                                // Record failed DNS response delivery
+                                common::telemetry::record_dns_delivery_metrics("udp", 0, false);
                             }
                         }
                     }
@@ -137,6 +147,7 @@ pub async fn serve_with_shutdown(cfg: Config, shutdown: GracefulShutdown) -> App
                         // Use unified DNS handler
                         match dns_handler.handle_packet(&buf[..len], &cfg.redis_pool).await {
                             Ok(resp) => {
+                                info!("Sending DNS response to {}: {} bytes", peer, resp.len());
                                 if let Err(e) = socket.send_to(&resp, peer).await {
                                     error!("Failed to send response to {}: {}", peer, e);
                                 }
@@ -202,7 +213,7 @@ mod dot {
     pub async fn serve(
         addr: std::net::SocketAddr,
         cfg: ServerConfig,
-        pool: redis_cache::RedisPool,
+        pool: common::redis::RedisPool,
     ) -> AppResult<()> {
         let listener = TcpListener::bind(addr).await?;
         info!(addr=%listener.local_addr()?, "dot listening");
@@ -228,6 +239,10 @@ mod dot {
                         if tls.read_exact(&mut buf).await.is_err() {
                             break;
                         }
+                        
+                        // Increment DNS query counter for DoT protocol
+                        metrics::counter!("dns_queries_total", "protocol" => "dot").increment(1);
+                        
                         if let Ok(resp) = dns_handler.handle_packet(&buf, &pool).await {
                             let resp_len = (resp.len() as u16).to_be_bytes();
                             if tls.write_all(&resp_len).await.is_err() {
@@ -236,7 +251,11 @@ mod dot {
                             if tls.write_all(&resp).await.is_err() {
                                 break;
                             }
+                            // Record successful DNS response delivery for DoT
+                            common::telemetry::record_dns_delivery_metrics("dot", resp.len(), true);
                         } else {
+                            // Record failed DNS response delivery for DoT
+                            common::telemetry::record_dns_delivery_metrics("dot", 0, false);
                             break;
                         }
                     }
@@ -251,7 +270,7 @@ mod dot {
     pub async fn serve_with_shutdown(
         addr: std::net::SocketAddr,
         cfg: ServerConfig,
-        pool: redis_cache::RedisPool,
+        pool: common::redis::RedisPool,
         mut shutdown_rx: super::broadcast::Receiver<common::shutdown::ShutdownSignal>,
     ) -> AppResult<()> {
         let listener = TcpListener::bind(addr).await?;
@@ -279,6 +298,10 @@ mod dot {
                                         if tls.read_exact(&mut buf).await.is_err() {
                                             break;
                                         }
+                                        
+                                        // Increment DNS query counter for DoT protocol
+                                        metrics::counter!("dns_queries_total", "protocol" => "dot").increment(1);
+                                        
                                         if let Ok(resp) = dns_handler.handle_packet(&buf, &pool).await {
                                             let resp_len = (resp.len() as u16).to_be_bytes();
                                             if tls.write_all(&resp_len).await.is_err() {
@@ -287,7 +310,11 @@ mod dot {
                                             if tls.write_all(&resp).await.is_err() {
                                                 break;
                                             }
+                                            // Record successful DNS response delivery for DoT
+                                            common::telemetry::record_dns_delivery_metrics("dot", resp.len(), true);
                                         } else {
+                                            // Record failed DNS response delivery for DoT
+                                            common::telemetry::record_dns_delivery_metrics("dot", 0, false);
                                             break;
                                         }
                                     }
@@ -297,20 +324,17 @@ mod dot {
                             });
                         }
                         Err(e) => {
-                            tracing::error!("DoT accept error: {}", e);
-                            break;
+                            tracing::error!("Failed to accept DoT connection: {}", e);
                         }
                     }
                 }
                 // Handle shutdown signal
                 _ = shutdown_rx.recv() => {
-                    info!("DoT server received shutdown signal, stopping");
+                    info!("Received shutdown signal, stopping DoT server");
                     break;
                 }
             }
         }
-
-        info!("DoT server shutdown complete");
         Ok(())
     }
 }

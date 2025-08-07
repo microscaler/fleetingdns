@@ -2,7 +2,6 @@
 
 x-rust-build: &rust-build
   context: .
-  target: runtime
 
 services:
   dnsd:
@@ -10,12 +9,12 @@ services:
       <<: *rust-build
       dockerfile: docker/Dockerfile.dnsd
     image: fleetingdns/dnsd:dev
-    command: ["--addr", "0.0.0.0:53"]
-    ports: ["6353:53/udp"]
+    command: ["--addr", "0.0.0.0:6353"]
+    ports: ["6353:6353/udp"]
     environment:
       - REDIS_URL=redis://redis:6379
       - DNS_BIND_ADDR=0.0.0.0
-      - DNS_PORT=53
+      - DNS_PORT=6353
       - DNS_ENABLE_DNSSEC=true
       - DNS_ENABLE_DDOS_PROTECTION=true
       - DNS_CACHE_TTL=300
@@ -36,7 +35,17 @@ services:
       dockerfile: docker/Dockerfile.edgehub
     image: fleetingdns/edgehub:dev
     command: []
-    ports: ["2222:2222"]
+    ports: ["2222:2222", "8443:8443", "443:443"]
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - RUST_LOG=info
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - SERVICE_NAME=edgehub
+      - SERVICE_VERSION=0.1.0
+      - ENVIRONMENT=development
+      - TELEMETRY_TRACING_ENABLED=true
+      - TELEMETRY_METRICS_ENABLED=true
+      - TELEMETRY_LOGGING_ENABLED=true
     depends_on: [dnsd, otel-collector]
 
   intake_collector:
@@ -77,11 +86,51 @@ services:
       dockerfile: docker/Dockerfile.api
     image: fleetingdns/api:dev
     command: []
+    ports: ["8080:8080"]
     environment:
       - DATABASE_URL=postgresql://fdns:fdns@postgres:5432/fdns
       - REDIS_URL=redis://redis:6379
       - RUST_LOG=info
+      - API_BIND_ADDRESS=0.0.0.0:8080
+      - DEVELOPMENT_MODE=true
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - SERVICE_NAME=api
+      - SERVICE_VERSION=0.1.0
+      - ENVIRONMENT=development
+      - TELEMETRY_TRACING_ENABLED=true
+      - TELEMETRY_METRICS_ENABLED=true
+      - TELEMETRY_LOGGING_ENABLED=true
     depends_on: [postgres, redis, otel-collector]
+
+  test-service:
+    build:
+      <<: *rust-build
+      dockerfile: docker/Dockerfile.test-service
+    image: fleetingdns/test-service:dev
+    command: []
+    ports: ["8001:8001"]
+    environment:
+      - RUST_LOG=info
+      - SERVICE_BIND_ADDRESS=0.0.0.0:8001
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - SERVICE_NAME=test-service
+      - SERVICE_VERSION=0.1.0
+      - ENVIRONMENT=development
+      - TELEMETRY_TRACING_ENABLED=true
+      - TELEMETRY_METRICS_ENABLED=true
+      - TELEMETRY_LOGGING_ENABLED=true
+    depends_on: [otel-collector]
+
+  dig-test:
+    build:
+      dockerfile: docker/Dockerfile.dig-test
+    image: fleetingdns/dig-test:dev
+    command: []
+    ports: []
+    environment: []
+    depends_on: [dnsd, test-service]
+    volumes:
+      - ./scripts:/scripts:ro
 
   redis:
     image: redis:7-alpine

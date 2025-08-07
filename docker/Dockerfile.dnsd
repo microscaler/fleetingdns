@@ -7,10 +7,12 @@ WORKDIR /usr/src/app
 COPY . .
 RUN cargo build --release -p dnsd-bin
 
-FROM debian:bookworm-slim AS runtime
-RUN useradd -m app
-WORKDIR /app
-COPY --from=builder /usr/src/app/target/release/dnsd-bin /app/
-USER app
-ENTRYPOINT ["/app/dnsd-bin"]
-CMD ["--addr", "0.0.0.0:53"]
+# Use minimal debian image with just libc
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y \
+    libssl3 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /usr/src/app/target/release/dnsd-bin /dnsd-bin
+EXPOSE 6353/udp
+ENTRYPOINT ["/dnsd-bin"]

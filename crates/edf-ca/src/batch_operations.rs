@@ -1,8 +1,7 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use tokio::sync::{mpsc, oneshot, RwLock};
-use tokio::time::timeout;
 use tracing::{debug, error, info, warn};
 
 use crate::ca::CertificateAuthority;
@@ -133,7 +132,7 @@ impl CertificateBatchProcessor {
         // Send batch to background processor
         if let Err(e) = self.processor_tx.send(batch).await {
             error!("Failed to send batch to processor: {}", e);
-            return Err(crate::errors::CaError::Internal(
+            return Err(crate::errors::CaError::InternalError(
                 "Batch processing failed".to_string(),
             ));
         }
@@ -157,7 +156,7 @@ impl CertificateBatchProcessor {
         mut processor_rx: mpsc::Receiver<CertificateBatch>,
         ca: Arc<CertificateAuthority>,
         stats: Arc<RwLock<BatchStats>>,
-        config: BatchConfig,
+        #[allow(unused)] config: BatchConfig,
     ) {
         info!("Starting certificate batch processor");
 
