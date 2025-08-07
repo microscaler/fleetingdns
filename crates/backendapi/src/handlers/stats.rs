@@ -1,7 +1,8 @@
-use crate::{ApiResult, ApiState, auth::*, models::*};
+use crate::{ApiResult, ApiState, models::*};
+use auth::{extract_bearer_token, validate_jwt_token};
 use axum::{Json, extract::State, http::HeaderMap};
-use serde::Serialize;
-use tracing::debug;
+use serde::{Deserialize, Serialize};
+use tracing::info;
 
 /// Statistics response
 #[derive(Debug, Serialize)]
@@ -28,7 +29,7 @@ pub async fn get_stats(
     let token = extract_bearer_token(&headers)?;
     let _user = validate_jwt_token(&token, &state.config.jwt_secret)?;
 
-    debug!("Fetching system statistics");
+    info!("Fetching system statistics");
 
     // Get tunnel statistics from storage
     let active_tunnels = state.storage.get_active_tunnel_count().await?;

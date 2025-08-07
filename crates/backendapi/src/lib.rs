@@ -8,7 +8,6 @@ use tokio::net::TcpListener;
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::info;
 
-mod auth;
 mod config;
 mod error;
 mod handlers;
@@ -190,7 +189,7 @@ fn create_router(state: ApiState) -> Router {
             "/admin/quota/all-users-status",
             get(handlers::quota_management::get_all_users_quota_status),
         )
-        // Add middleware layers (order matters - error handling first, then rate limiting)
+        // Add middleware layers (order matters - error handling first, then authentication, then rate limiting)
         .layer(axum::middleware::from_fn(error_handler_middleware))
         .layer(axum::middleware::from_fn(error_recovery_middleware))
         .layer(axum::middleware::from_fn(timeout_middleware))
@@ -198,6 +197,10 @@ fn create_router(state: ApiState) -> Router {
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             middleware::telemetry_middleware,
+        ))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            middleware::auth_middleware,
         ))
         .layer(axum::middleware::from_fn_with_state(
             state.rate_limiter.clone(),
@@ -209,7 +212,7 @@ fn create_router(state: ApiState) -> Router {
 }
 
 // Re-export main types for external use
-pub use handlers::auth::{GitHubOAuthRequest, GitHubOAuthResponse, TokenRequest, TokenResponse};
+pub use auth::{GitHubOAuthRequest, GitHubOAuthResponse, TokenRequest, TokenResponse};
 pub use handlers::tunnels::{CreateTunnelRequest, CreateTunnelResponse, TunnelInfo};
 
 #[cfg(test)]

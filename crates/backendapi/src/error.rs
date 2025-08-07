@@ -514,6 +514,20 @@ impl From<sea_orm::DbErr> for ApiError {
     }
 }
 
+impl From<auth::AuthError> for ApiError {
+    fn from(err: auth::AuthError) -> Self {
+        match err {
+            auth::AuthError::AuthenticationFailed(msg) => ApiError::AuthenticationFailed(msg),
+            auth::AuthError::Unauthorized(msg) => ApiError::Unauthorized(msg),
+            auth::AuthError::ExternalService(msg) => ApiError::ExternalService(msg),
+            auth::AuthError::ConfigurationError(msg) => ApiError::ConfigurationError(msg),
+            auth::AuthError::TokenExpired => ApiError::AuthenticationFailed("Token expired".to_string()),
+            auth::AuthError::InvalidTokenFormat => ApiError::AuthenticationFailed("Invalid token format".to_string()),
+            auth::AuthError::InvalidTokenSignature => ApiError::AuthenticationFailed("Invalid token signature".to_string()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
