@@ -15,4 +15,7 @@ pub use seaography::*;
 
 // Use common error system
 pub use common::error::FleetingDnsError as ModelError;
-pub type ModelResult<T> = Result<T, ModelError>; 
+pub type ModelResult<T> = Result<T, ModelError>;
+
+#[cfg(test)]
+mod tests; 

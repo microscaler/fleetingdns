@@ -39,7 +39,7 @@ pub trait TunnelRepository {
 
 /// SeaORM implementation of UserRepository
 pub struct SeaOrmUserRepository {
-    db: DatabaseConnection,
+    pub db: DatabaseConnection,
 }
 
 impl SeaOrmUserRepository {
@@ -86,7 +86,7 @@ impl UserRepository for SeaOrmUserRepository {
 
 /// SeaORM implementation of ServicePlanRepository
 pub struct SeaOrmServicePlanRepository {
-    db: DatabaseConnection,
+    pub db: DatabaseConnection,
 }
 
 impl SeaOrmServicePlanRepository {
@@ -132,7 +132,7 @@ impl ServicePlanRepository for SeaOrmServicePlanRepository {
 
 /// SeaORM implementation of TunnelRepository
 pub struct SeaOrmTunnelRepository {
-    db: DatabaseConnection,
+    pub db: DatabaseConnection,
 }
 
 impl SeaOrmTunnelRepository {
