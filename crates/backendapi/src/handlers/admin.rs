@@ -1,7 +1,10 @@
 use crate::{
     ApiResult, ApiState,
-    handlers::{service_plan_entity, user_service_plan_entity},
     rate_limiting::RateLimitConfig,
+};
+use models::{
+    service_plan::{Entity as ServicePlanEntity, ActiveModel as ServicePlanActiveModel, Column as ServicePlanColumn},
+    user_service_plan::{Entity as UserServicePlanEntity, ActiveModel as UserServicePlanActiveModel, Column as UserServicePlanColumn},
 };
 use auth::{extract_bearer_token, validate_jwt_token};
 use axum::{
@@ -35,8 +38,8 @@ pub async fn create_service_plan(
     let db = &state.db;
 
     // Validate unique name
-    let existing = service_plan_entity::Entity::find()
-        .filter(service_plan_entity::Column::Name.eq(&plan_data.name))
+    let existing = ServicePlanEntity::find()
+        .filter(ServicePlanColumn::Name.eq(&plan_data.name))
         .one(db)
         .await?;
 

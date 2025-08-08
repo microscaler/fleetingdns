@@ -63,6 +63,7 @@ dashmap = "5.5"
 nonzero_ext = "0.3"
 
 sea-orm = { version = "1.1.13", features = ["sqlx-postgres", "runtime-tokio-native-tls"] }
+models = { path = "../models" }
 
 [dev-dependencies]
 tempfile = "3.0"

@@ -9,6 +9,12 @@ pub mod repository;
 pub use entities::*;
 pub use repository::*;
 
+// Re-export repository types for convenience
+pub use repository::{
+    UserRepository, ServicePlanRepository, TunnelRepository,
+    SeaOrmUserRepository, SeaOrmServicePlanRepository, SeaOrmTunnelRepository,
+};
+
 // Re-export commonly used types
 pub use sea_orm::*;
 pub use seaography::*;

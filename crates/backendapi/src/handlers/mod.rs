@@ -1,24 +1,10 @@
 pub mod admin;
-mod api_stats_entity;
-mod audit_log_entity;
 pub mod auth;
-mod auth_token_entity;
-mod billing_event_entity;
-mod ca_stats_entity;
-mod certificate_info_entity;
 pub mod certificates;
-mod payment_info_entity;
-mod pricing_entity;
 pub mod quota_management;
-pub mod service_plan_entity;
-mod ssh_key_pair_entity;
 pub mod stats;
-mod tunnel_entity;
 pub mod tunnels;
-mod user_entity;
 pub mod user_service_plan;
-pub mod user_service_plan_entity;
-mod user_usage_entity;
 
 use crate::ApiResult;
 use axum::Json;
