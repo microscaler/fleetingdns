@@ -53,6 +53,19 @@ Push to `main`, tags `v*`, pull requests to `main`, and manual dispatch.
 The age **public** recipient lives in [`.sops.yaml`](../../.sops.yaml); secrets are
 encrypted only on ms02 with the shared identity.
 
+## Docker Compose (local + smoke)
+
+`docker-compose.yml` reads DB config and passwords via `${VAR:-default}`
+interpolation from the same env contract, not hardcoded values:
+
+- Secrets: `FDNS_DB_PASSWORD`, `DATABASE_URL` (SOPS-decrypted).
+- Non-secret config: `FDNS_DB_USER`, `FDNS_DB_NAME`, `REDIS_URL`.
+
+Every var has a dev default, so plain `docker compose up` needs no `.env`. To run
+against the real decrypted values, generate a gitignored `.env`
+(`just compose-env`, ms02 only) or let the octopilot `sops-decrypt` action export
+them into the job environment before `docker compose` runs. See `.env.example`.
+
 ## Deploy manifests
 
 - `k8s/deployment/` — Flux `OCIRepository` + `HelmRelease` base (namespace,

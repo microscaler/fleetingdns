@@ -248,6 +248,20 @@ ci-test:
     cargo clippy --all -- -D warnings
     cargo test --workspace
 
+# Generate a decrypted .env for docker compose from the SOPS runtime profile.
+# ms02 only (needs the shared age identity). CI uses the octopilot sops-decrypt
+# action instead. .env is gitignored — never commit it.
+compose-env:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    profile=deployment-configuration/profiles/dev/fleetingdns/core
+    { cat "${profile}/runtime/application.properties" | grep -E '^(DB_USER|DB_NAME)='  \
+        | sed 's/^DB_USER=/FDNS_DB_USER=/; s/^DB_NAME=/FDNS_DB_NAME=/'
+      SOPS_AGE_KEY_FILE="${HOME}/.config/sops/age/flux-shared-gitops" \
+        sops --decrypt "${profile}/runtime/application.secrets.env"
+    } > .env
+    echo "✅ Wrote .env (FDNS_DB_USER/NAME + decrypted FDNS_DB_PASSWORD/DATABASE_URL). Do not commit."
+
 docs:
     @echo "📚 Generating documentation..."
     cargo doc --open

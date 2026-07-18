@@ -40,6 +40,10 @@ __pycache__/
 
 *.egg-info
  **/.venv
+# Decrypted docker-compose env (SOPS output) — never commit. .env.example is tracked.
+.env
+!.env.example
+
 # Redis dump files
 dump.rdb
 *.rdb
