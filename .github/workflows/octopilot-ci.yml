@@ -23,7 +23,11 @@ jobs:
     with:
       integration: true
       profile: dev
-    secrets: inherit
+    # Pass explicitly (not `inherit`): inherit does not reliably cross the
+    # org boundary to octopilot/actions. Maps to the workflow's declared secrets.
+    secrets:
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
   # ── Release binaries (CLI tools → GitHub Release; tags only) ────────────────
   release-binaries:
