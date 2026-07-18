@@ -249,18 +249,21 @@ ci-test:
     cargo test --workspace
 
 # Generate a decrypted .env for docker compose from the SOPS runtime profile.
+# The two profile files ARE the env contract, split by sensitivity — so this is
+# a plain concatenation (config + decrypted secrets), no renaming:
+#   application.properties  -> non-secret config (FDNS_DB_HOST/PORT/NAME/USER, REDIS_URL)
+#   application.secrets.env -> secrets (FDNS_DB_PASSWORD, DATABASE_URL)
 # ms02 only (needs the shared age identity). CI uses the octopilot sops-decrypt
 # action instead. .env is gitignored — never commit it.
 compose-env:
     #!/usr/bin/env bash
     set -euo pipefail
-    profile=deployment-configuration/profiles/dev/fleetingdns/core
-    { cat "${profile}/runtime/application.properties" | grep -E '^(DB_USER|DB_NAME)='  \
-        | sed 's/^DB_USER=/FDNS_DB_USER=/; s/^DB_NAME=/FDNS_DB_NAME=/'
+    profile=deployment-configuration/profiles/dev/fleetingdns/core/runtime
+    { grep -vE '^\s*(#|$)' "${profile}/application.properties"
       SOPS_AGE_KEY_FILE="${HOME}/.config/sops/age/flux-shared-gitops" \
-        sops --decrypt "${profile}/runtime/application.secrets.env"
+        sops --decrypt "${profile}/application.secrets.env"
     } > .env
-    echo "✅ Wrote .env (FDNS_DB_USER/NAME + decrypted FDNS_DB_PASSWORD/DATABASE_URL). Do not commit."
+    echo "✅ Wrote .env (config + decrypted secrets). Do not commit."
 
 docs:
     @echo "📚 Generating documentation..."
