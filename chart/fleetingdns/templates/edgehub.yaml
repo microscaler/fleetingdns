@@ -22,6 +22,9 @@ spec:
         - name: edgehub
           image: {{ .Values.edgehub.image | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Select the edgehub process type; the buildpack image's default "web"
+          # process points at an unrelated bundled binary.
+          command: ["/cnb/process/edgehub-bin"]
           ports:
             - containerPort: {{ .Values.edgehub.sshPort }}
               protocol: TCP

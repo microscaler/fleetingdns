@@ -22,6 +22,10 @@ spec:
         - name: api
           image: {{ .Values.api.image | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # The buildpack image bundles every workspace binary and defaults its
+          # "web" process to an unrelated stub, so select the api process type
+          # explicitly via the CNB launcher.
+          command: ["/cnb/process/api-bin"]
           ports:
             # 8880: 8080 is chronically contested on shared dev hosts; /health
             # and /metrics are served on 8880 too.

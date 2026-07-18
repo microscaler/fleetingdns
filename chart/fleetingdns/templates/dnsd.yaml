@@ -22,6 +22,9 @@ spec:
         - name: dnsd
           image: {{ .Values.dnsd.image | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Select the dnsd process type; the buildpack image's default "web"
+          # process points at an unrelated bundled binary.
+          command: ["/cnb/process/dnsd-bin"]
           ports:
             - containerPort: {{ .Values.dnsd.port }}
               protocol: UDP
