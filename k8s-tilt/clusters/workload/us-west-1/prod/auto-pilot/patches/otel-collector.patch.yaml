@@ -1,8 +1,0 @@
-- op: replace
-  path: /spec/type
-  value: LoadBalancer
-- op: add
-  path: /metadata/annotations
-  value:
-    cloud.google.com/load-balancer-type: "Internal"
-    networking.gke.io/load-balancer-type: "Internal" 

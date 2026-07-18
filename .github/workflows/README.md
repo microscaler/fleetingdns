@@ -53,26 +53,25 @@ Push to `main`, tags `v*`, pull requests to `main`, and manual dispatch.
 The age **public** recipient lives in [`.sops.yaml`](../../.sops.yaml); secrets are
 encrypted only on ms02 with the shared identity.
 
-## Docker Compose (local + smoke)
-
-`docker-compose.yml` reads DB config and passwords via `${VAR:-default}`
-interpolation from the same env contract, not hardcoded values:
-
-- Secrets: `FDNS_DB_PASSWORD`, `DATABASE_URL` (SOPS-decrypted).
-- Non-secret config: `FDNS_DB_USER`, `FDNS_DB_NAME`, `REDIS_URL`.
-
-Every var has a dev default, so plain `docker compose up` needs no `.env`. To run
-against the real decrypted values, generate a gitignored `.env`
-(`just compose-env`, ms02 only) or let the octopilot `sops-decrypt` action export
-them into the job environment before `docker compose` runs. See `.env.example`.
-
 ## Deploy manifests
 
 - `k8s/deployment/` — Flux `OCIRepository` + `HelmRelease` base (namespace,
   ocirepository, helmrelease).
 - `k8s/env/ci` / `k8s/env/kind` — overlays toggling `spec.insecure` and pull policy.
-- `k8s/ci-deps/` — ephemeral redis + postgres for the Kind smoke deploy only
+- `hack/ci-deps/` — ephemeral redis + postgres for the Kind smoke deploy only
   (production redis/postgres are provisioned externally).
+
+## In-cluster tests (Helm test + migration hook)
+
+The chart carries its own smoke tests so the deployed API is validated in-cluster:
+
+- A `helm.sh/hook: pre-install,pre-upgrade` Job runs `migration up` (the
+  `migration` binary) so the schema exists before the app starts.
+- A `helm.sh/hook: test` Pod curls the running API (`/health`, `/metrics`, and a
+  tunnel round-trip).
+
+The `HelmRelease` sets `spec.test.enable: true`, so Flux runs the Helm tests as
+part of reconciliation — a failing API test fails the deploy job.
 
 ## Local equivalents
 

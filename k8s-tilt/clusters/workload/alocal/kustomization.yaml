@@ -41,27 +41,6 @@ patches:
       kind: Service
       name: postgres
   
-  # Observability NodePort patches for Kind
-  - path: patches/prometheus.patch.yaml
-    target:
-      kind: Service
-      name: prometheus
-  
-  - path: patches/grafana.patch.yaml
-    target:
-      kind: Service
-      name: grafana
-  
-  - path: patches/loki.patch.yaml
-    target:
-      kind: Service
-      name: loki
-  
-  - path: patches/otel-collector.patch.yaml
-    target:
-      kind: Service
-      name: otel-collector
-  
   # Point core services at the shared-kind-cluster infra:
   # redis + postgres live in the `data` namespace, otel-collector in
   # `observability` (deployed by tilt-shared-kind, port 10348).

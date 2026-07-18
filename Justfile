@@ -77,7 +77,7 @@ up:
         fi
     else
         echo "🚀 tilt up on {{MS02_HOST}} (UI forwarded to http://localhost:{{TILT_UI_PORT}})"
-        python3 scripts/kubeconfig_sync.py remote-tilt-up
+        python3 hack/kubeconfig_sync.py remote-tilt-up
     fi
 
 # Legacy Kind-only start on ms02
@@ -92,7 +92,7 @@ down:
         tilt down --context {{KIND_CONTEXT}} || true ; \
     else \
         echo "🛑 tilt down on {{MS02_HOST}}" ; \
-        python3 scripts/kubeconfig_sync.py remote-tilt-down ; \
+        python3 hack/kubeconfig_sync.py remote-tilt-down ; \
     fi
 
 # Tear everything down (tilt + optional kubectl tunnel).
@@ -111,11 +111,11 @@ reset: clean up
 # Run an arbitrary command on ms02 inside the repo.
 #   just remote-exec "kubectl get pods -A"
 remote-exec cmd:
-    python3 scripts/kubeconfig_sync.py remote-exec {{cmd}}
+    python3 hack/kubeconfig_sync.py remote-exec {{cmd}}
 
 # Report kind/kubectl/tilt status on ms02.
 remote-status:
-    python3 scripts/kubeconfig_sync.py remote-status
+    python3 hack/kubeconfig_sync.py remote-status
 
 # -----------------------------------------------------------------------
 # Optional: run kubectl from the Mac (apiserver + registry SSH forwards)
@@ -123,19 +123,19 @@ remote-status:
 
 # Fetch ms02's kubeconfig into {{KUBECONFIG_PATH}}.
 kubeconfig-sync:
-    python3 scripts/kubeconfig_sync.py fetch
+    python3 hack/kubeconfig_sync.py fetch
 
 # Open SSH forwards for apiserver (:38839) and kind-registry (:5001).
 kubectl-tunnel-up:
-    python3 scripts/kubeconfig_sync.py tunnel-up
+    python3 hack/kubeconfig_sync.py tunnel-up
 
 # Close those SSH forwards.
 kubectl-tunnel-down:
-    python3 scripts/kubeconfig_sync.py tunnel-down
+    python3 hack/kubeconfig_sync.py tunnel-down
 
 # Health of tilt session + optional kubectl tunnel.
 cluster-status:
-    python3 scripts/kubeconfig_sync.py status
+    python3 hack/kubeconfig_sync.py status
 
 # -----------------------------------------------------------------------
 # Day-to-day helpers
@@ -248,23 +248,6 @@ ci-test:
     cargo clippy --all -- -D warnings
     cargo test --workspace
 
-# Generate a decrypted .env for docker compose from the SOPS runtime profile.
-# The two profile files ARE the env contract, split by sensitivity — so this is
-# a plain concatenation (config + decrypted secrets), no renaming:
-#   application.properties  -> non-secret config (FDNS_DB_HOST/PORT/NAME/USER, REDIS_URL)
-#   application.secrets.env -> secrets (FDNS_DB_PASSWORD, DATABASE_URL)
-# ms02 only (needs the shared age identity). CI uses the octopilot sops-decrypt
-# action instead. .env is gitignored — never commit it.
-compose-env:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    profile=deployment-configuration/profiles/dev/fleetingdns/core/runtime
-    { grep -vE '^\s*(#|$)' "${profile}/application.properties"
-      SOPS_AGE_KEY_FILE="${HOME}/.config/sops/age/flux-shared-gitops" \
-        sops --decrypt "${profile}/application.secrets.env"
-    } > .env
-    echo "✅ Wrote .env (config + decrypted secrets). Do not commit."
-
 docs:
     @echo "📚 Generating documentation..."
     cargo doc --open
@@ -275,7 +258,7 @@ docs-serve:
     @echo "Documentation available at: file://$(pwd)/target/doc/fleetingdns/index.html"
 
 urls:
-    @echo "🌐 Service URLs (ms02 NodePorts via kind-config.yaml):"
+    @echo "🌐 Service URLs (ms02 NodePorts via hack/kind/kind-config.yaml):"
     @echo "======================================================"
     @echo "Tilt UI:                    http://localhost:{{TILT_UI_PORT}}   (ssh -L to {{MS02_HOST}})"
     @echo "Backend API:                http://{{MS02_HOST}}:8880"
