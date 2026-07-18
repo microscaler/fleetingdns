@@ -13,6 +13,7 @@ pub mod error;
 pub mod metrics;
 pub mod redis;
 pub mod shutdown;
+pub mod ssh_keys;
 pub mod telemetry;
 pub mod tls;
 pub mod tunnel;

@@ -1,0 +1,55 @@
+# Ephemeral Postgres for the CI Kind smoke deploy only. Not part of the fleetingdns
+# chart (production DB is provisioned externally). Credentials fdns/fdns/fdns match
+# the SOPS-decrypted DATABASE_URL (postgresql://fdns:fdns@postgres:5432/fdns).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: fleetingdns
+  labels: { app: postgres, tier: ci-deps }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: postgres }
+  template:
+    metadata:
+      labels: { app: postgres, tier: ci-deps }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - name: POSTGRES_USER
+              value: fdns
+            - name: POSTGRES_PASSWORD
+              value: fdns
+            - name: POSTGRES_DB
+              value: fdns
+            # Ephemeral data dir under emptyDir; avoids lost+found init failure.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "fdns", "-d", "fdns"]
+            initialDelaySeconds: 5
+            periodSeconds: 3
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: fleetingdns
+  labels: { app: postgres, tier: ci-deps }
+spec:
+  selector: { app: postgres }
+  ports:
+    - port: 5432
+      targetPort: 5432

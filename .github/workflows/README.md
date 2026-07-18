@@ -1,135 +1,104 @@
 # FleetingDNS CI/CD Workflows
 
-This directory contains the GitHub Actions workflows for FleetingDNS CI/CD pipeline.
+FleetingDNS runs a single, Octopilot-based pipeline. It is the first microscaler
+repo migrated to the Octopilot composite actions; the goal is to converge every
+repo on this same shape.
 
-## Workflows
+## `octopilot-ci.yml` — the pipeline
 
-### `fleetingdns-ci.yml` - Main CI Pipeline
+The application "shape" is auto-detected from [`skaffold.yaml`](../../skaffold.yaml)
+(the source of truth). `octopilot/actions/detect-contexts` reads it and derives
+the build matrix, languages, chart paths, and integration matrix — there is no
+hand-maintained job list per service.
 
-The main consolidated CI workflow that runs all tests and validations:
+### Detected shape
 
-#### Jobs:
+Container services (built with the `octopilot/rust` buildpack via
+`BP_RUST_PACKAGE`, no Dockerfile):
 
-1. **Rust Unit Tests & Code Quality** (`rust-tests`)
-   - Format checking with `cargo fmt`
-   - Linting with `cargo clippy`
-   - Unit tests with `cargo test`
-   - DoT (DNS-over-TLS) feature tests
-   - Binary smoke tests
+- `fleetingdns-api` (api-bin)
+- `fleetingdns-dnsd` (dnsd-bin)
+- `fleetingdns-edgehub` (edgehub-bin)
 
-2. **Integration Tests** (`integration-tests`)
-   - Testcontainers-based integration tests
-   - Redis cache integration tests
-   - Slot-setter tests
-   - Docker container management
+Plus the `fleetingdns` Helm chart artifact (`chart/fleetingdns`).
 
-3. **DNS Integration Testing** (`dns-integration`)
-   - Full Docker Compose stack testing
-   - Custom DNS client testing
-   - DNS integration script execution
-   - Grafana and Prometheus health checks
-   - Metrics validation
-   - Test report artifact upload
+CLI tools (`edf-cli`, `fleetingdns-ctl`, `slot-setter`) are deliberately **not**
+in `skaffold.yaml`. Octopilot models every skaffold artifact as a container, so
+the CLIs are shipped as GitHub Release binaries instead (see `release-binaries`).
 
-4. **Docker Compose Smoke Tests** (`compose-smoke`)
-   - Docker Compose CI overlay testing
-   - Service health verification
-   - Round-trip demo execution
+### Jobs
 
-#### Triggers:
-- Push to `main` branch
-- Pull requests
-- Manual workflow dispatch
-- Daily scheduled run at 2 AM UTC
+| Job | Action | Purpose |
+| --- | --- | --- |
+| `detect` | `detect-contexts` | Parse `skaffold.yaml` → `pipeline-context` JSON. |
+| `lint` | `lint` | Language-aware lint (fmt + clippy). |
+| `test` | `test` (matrix) | Per-context tests. |
+| `integration-validate` | `integration-validate` | Release build gate + ttl.sh UUID. |
+| `integration-artifacts` | `integration-build-artifact` (matrix) | Build + push service images and the OCI chart. |
+| `integration-deploy` | `merge-build-results`, `sops-decrypt`, `setup-flux` | Kind cluster; decrypt DB secret; apply ephemeral redis+postgres; reconcile the chart via Flux OCIRepository + HelmRelease. |
+| `release-binaries` (tags) | — | Cross-compile the CLIs and attach tarballs + `SHA256SUMS.txt` to the GitHub Release. |
+| `release-notes` (tags) | `previous-tag`, `release` | Generate and publish release notes. |
 
-#### Dependencies:
-- Jobs 3 and 4 depend on Jobs 1 and 2 completing successfully
-- Ensures unit tests pass before running integration tests
+### Triggers
 
-#### Artifacts:
-- DNS test reports uploaded as artifacts
-- JUnit XML and JSON test reports available for download
+Push to `main`, tags `v*`, pull requests to `main`, and manual dispatch.
 
-## Local Testing
+## Secrets & config
 
-To run the same tests locally:
+- `SOPS_AGE_KEY` — shared Flux age private key; used by `sops-decrypt` to
+  materialise the DB credentials Secret from
+  `deployment-configuration/profiles/dev/fleetingdns/core/runtime/application.secrets.env`.
+- `ANTHROPIC_API_KEY` — used by the release-notes generator (tags only).
+
+The age **public** recipient lives in [`.sops.yaml`](../../.sops.yaml); secrets are
+encrypted only on ms02 with the shared identity.
+
+## Docker Compose (local + smoke)
+
+`docker-compose.yml` reads DB config and passwords via `${VAR:-default}`
+interpolation from the same env contract, not hardcoded values:
+
+- Secrets: `FDNS_DB_PASSWORD`, `DATABASE_URL` (SOPS-decrypted).
+- Non-secret config: `FDNS_DB_USER`, `FDNS_DB_NAME`, `REDIS_URL`.
+
+Every var has a dev default, so plain `docker compose up` needs no `.env`. To run
+against the real decrypted values, generate a gitignored `.env`
+(`just compose-env`, ms02 only) or let the octopilot `sops-decrypt` action export
+them into the job environment before `docker compose` runs. See `.env.example`.
+
+## Deploy manifests
+
+- `k8s/deployment/` — Flux `OCIRepository` + `HelmRelease` base (namespace,
+  ocirepository, helmrelease).
+- `k8s/env/ci` / `k8s/env/kind` — overlays toggling `spec.insecure` and pull policy.
+- `k8s/ci-deps/` — ephemeral redis + postgres for the Kind smoke deploy only
+  (production redis/postgres are provisioned externally).
+
+## Local equivalents
 
 ```bash
-# Unit tests
+# Lint + unit tests (what lint/test run)
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 
-# Integration tests with testcontainers
-cargo test --workspace
-env TESTCONTAINERS_RYUK_DISABLED=true RUST_TEST_THREADS=1
+# Render the chart the pipeline ships
+helm template fleetingdns chart/fleetingdns
 
-# DNS integration tests
-./scripts/test_dns_ci.sh
-
-# Custom DNS client tests
-python3 scripts/dns_test_client.py test
-
-# Docker Compose smoke tests
-docker compose up -d --build
-# ... run tests ...
-docker compose down
+# Render the Flux deploy overlay
+kubectl kustomize k8s/env/ci
 ```
 
-## Environment Variables
+## Design notes
 
-### Testcontainers Configuration
-- `TESTCONTAINERS_RYUK_DISABLED=true` - Disable Ryuk container for CI
-- `TESTCONTAINERS_COMMAND_TIMEOUT=180` - Increase timeout for container operations
-- `RUST_TEST_THREADS=1` - Run tests serially to avoid Docker conflicts
-- `RUST_TEST_TIME_UNIT=180s` - Increase test timeout for container startup
+See [`docs/engineering/OCTOPILOT-PIPELINE-MIGRATION.md`](../../docs/engineering/OCTOPILOT-PIPELINE-MIGRATION.md)
+for the full migration rationale, the container-vs-CLI assessment, and the
+proposed upstream extension to `octopilot/actions`.
 
-### Docker Configuration
-- `DOCKER_HOST=unix:///var/run/docker.sock` - Use local Docker socket
-- `TESTCONTAINERS_LOG_LEVEL=OFF` - Reduce log noise in CI
+## Migration history
 
-## Troubleshooting
-
-### Common Issues
-
-1. **Docker Resource Conflicts**
-   - Tests run serially (`RUST_TEST_THREADS=1`)
-   - Container cleanup happens after each job
-   - Use `docker container prune -f` for cleanup
-
-2. **DNS Service Not Ready**
-   - Wait loops with health checks
-   - Service startup delays built in
-   - Check service logs for startup issues
-
-3. **Test Timeouts**
-   - Increased timeouts for container operations
-   - Graceful degradation for non-critical tests
-   - Artifact upload even on failure
-
-### Debugging
-
-To debug workflow issues:
-
-1. Check job dependencies and execution order
-2. Review service logs in Docker Compose
-3. Download test report artifacts
-4. Run failing tests locally with same environment
-
-## Workflow Optimization
-
-The consolidated workflow provides:
-
-- **Single Source of Truth**: All CI logic in one place
-- **Efficient Resource Usage**: Parallel jobs where possible, dependencies where needed
-- **Comprehensive Coverage**: Unit, integration, and end-to-end testing
-- **Artifact Management**: Test reports and logs preserved
-- **Graceful Degradation**: Non-blocking tests for non-critical components
-
-## Migration from Old Workflows
-
-This workflow consolidates the functionality from:
-- `rust_ci.yml` - Rust unit tests and code quality
-- `testcontainers.yml` - Integration tests with containers
-- `compose-ci.yml` - Docker Compose smoke tests
-- `dns-integration.yml` - DNS-specific integration testing
-
-All functionality is now available in the single `fleetingdns-ci.yml` workflow. 
+The previous consolidated `fleetingdns-ci.yml` (bespoke rust-tests /
+integration-tests / dns-integration / compose-smoke jobs) has been retired in
+favour of this Octopilot pipeline. That workflow itself had consolidated the
+older `rust_ci.yml`, `testcontainers.yml`, `compose-ci.yml`, and
+`dns-integration.yml`.

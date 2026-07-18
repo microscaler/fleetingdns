@@ -55,6 +55,7 @@ async fn delete_tunnel(id: &str) -> Result<u16, Box<dyn std::error::Error + Send
 // =============================================================================
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_api_health() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -72,6 +73,7 @@ async fn test_api_health() -> Result<(), Box<dyn std::error::Error + Send + Sync
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_api_tunnels() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -83,6 +85,7 @@ async fn test_api_tunnels() -> Result<(), Box<dyn std::error::Error + Send + Syn
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_api_tunnel_creation() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -110,6 +113,7 @@ async fn test_api_tunnel_creation() -> Result<(), Box<dyn std::error::Error + Se
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_api_tunnel_retrieval() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -131,6 +135,7 @@ async fn test_api_tunnel_retrieval() -> Result<(), Box<dyn std::error::Error + S
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_api_certificates() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -159,6 +164,7 @@ async fn test_api_certificates() -> Result<(), Box<dyn std::error::Error + Send 
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_api_error_handling() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -180,6 +186,7 @@ async fn test_api_error_handling() -> Result<(), Box<dyn std::error::Error + Sen
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_api_authentication() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -197,6 +204,7 @@ async fn test_api_authentication() -> Result<(), Box<dyn std::error::Error + Sen
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_api_rate_limiting() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -211,6 +219,7 @@ async fn test_api_rate_limiting() -> Result<(), Box<dyn std::error::Error + Send
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_api_metrics() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -229,6 +238,7 @@ async fn test_api_metrics() -> Result<(), Box<dyn std::error::Error + Send + Syn
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_api_database_connectivity() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -240,6 +250,7 @@ async fn test_api_database_connectivity() -> Result<(), Box<dyn std::error::Erro
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_api_redis_connectivity() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -261,6 +272,7 @@ async fn test_api_redis_connectivity() -> Result<(), Box<dyn std::error::Error +
 // =============================================================================
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_edgehub_ssh_connectivity() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -271,6 +283,7 @@ async fn test_edgehub_ssh_connectivity() -> Result<(), Box<dyn std::error::Error
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_edgehub_tunnel_creation() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -295,6 +308,7 @@ async fn test_edgehub_tunnel_creation() -> Result<(), Box<dyn std::error::Error 
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_edgehub_certificate_issuance() -> Result<(), Box<dyn std::error::Error + Send + Sync>>
 {
     wait_api_healthy().await?;
@@ -321,6 +335,7 @@ async fn test_edgehub_certificate_issuance() -> Result<(), Box<dyn std::error::E
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_edgehub_brute_force_protection(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
@@ -351,6 +366,7 @@ async fn test_edgehub_brute_force_protection(
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_edgehub_tunnel_statistics() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -370,6 +386,7 @@ async fn test_edgehub_tunnel_statistics() -> Result<(), Box<dyn std::error::Erro
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_edgehub_redis_connectivity() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -383,6 +400,7 @@ async fn test_edgehub_redis_connectivity() -> Result<(), Box<dyn std::error::Err
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_edgehub_certificate_validation(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
@@ -410,6 +428,7 @@ async fn test_edgehub_certificate_validation(
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_edgehub_tunnel_lifecycle() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -435,6 +454,7 @@ async fn test_edgehub_tunnel_lifecycle() -> Result<(), Box<dyn std::error::Error
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_edgehub_error_handling() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -455,6 +475,7 @@ async fn test_edgehub_error_handling() -> Result<(), Box<dyn std::error::Error +
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_edgehub_metrics() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -477,6 +498,7 @@ async fn test_edgehub_metrics() -> Result<(), Box<dyn std::error::Error + Send +
 // =============================================================================
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_complete_tunnel_workflow() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -506,6 +528,7 @@ async fn test_complete_tunnel_workflow() -> Result<(), Box<dyn std::error::Error
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_certificate_workflow() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -531,6 +554,7 @@ async fn test_certificate_workflow() -> Result<(), Box<dyn std::error::Error + S
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_redis_integration_workflow() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -552,6 +576,7 @@ async fn test_redis_integration_workflow() -> Result<(), Box<dyn std::error::Err
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_service_communication() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -579,6 +604,7 @@ async fn test_service_communication() -> Result<(), Box<dyn std::error::Error + 
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_error_handling_workflow() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -615,6 +641,7 @@ async fn test_error_handling_workflow() -> Result<(), Box<dyn std::error::Error 
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_performance_workflow() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -659,6 +686,7 @@ async fn test_performance_workflow() -> Result<(), Box<dyn std::error::Error + S
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_metrics_workflow() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -700,6 +728,7 @@ async fn test_metrics_workflow() -> Result<(), Box<dyn std::error::Error + Send 
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_graceful_shutdown_workflow() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -725,6 +754,7 @@ async fn test_graceful_shutdown_workflow() -> Result<(), Box<dyn std::error::Err
 // =============================================================================
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_complete_tunnel_lifecycle() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -801,6 +831,7 @@ async fn test_complete_tunnel_lifecycle() -> Result<(), Box<dyn std::error::Erro
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_tunnel_creation_scenarios() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -831,6 +862,7 @@ async fn test_tunnel_creation_scenarios() -> Result<(), Box<dyn std::error::Erro
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_tunnel_health_scenarios() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -905,6 +937,7 @@ async fn test_tunnel_health_scenarios() -> Result<(), Box<dyn std::error::Error 
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_tunnel_error_scenarios() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 
@@ -953,6 +986,7 @@ async fn test_tunnel_error_scenarios() -> Result<(), Box<dyn std::error::Error +
 }
 
 #[tokio::test]
+#[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
 async fn test_tunnel_performance_load() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     wait_api_healthy().await?;
 

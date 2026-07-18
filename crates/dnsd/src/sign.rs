@@ -1204,6 +1204,11 @@ impl ProductionDnssecSigner {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Serializes tests that mutate the process-wide FDNS_HMAC_KEY env var —
+    /// otherwise they race under the multithreaded test runner (observed flake
+    /// in `test_hmac_signer_from_env_missing`).
+    static HMAC_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
     use hickory_proto::rr::{RData, RecordType};
     use std::time::Duration;
 
@@ -1552,6 +1557,9 @@ mod tests {
 
     #[test]
     fn test_hmac_signer_from_env() {
+        let _env = HMAC_ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         unsafe {
             std::env::set_var("FDNS_HMAC_KEY", "test_env_key");
         }
@@ -1793,6 +1801,9 @@ mod tests {
 
     #[test]
     fn test_hmac_signer_from_env_isolated() {
+        let _env = HMAC_ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         // Test environment variable isolation
         unsafe {
             std::env::set_var("FDNS_HMAC_KEY", "isolated_test_key");
@@ -1811,6 +1822,9 @@ mod tests {
 
     #[test]
     fn test_hmac_signer_from_env_missing() {
+        let _env = HMAC_ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         // Ensure env var is not set
         unsafe {
             std::env::remove_var("FDNS_HMAC_KEY");

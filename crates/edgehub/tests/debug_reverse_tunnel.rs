@@ -79,6 +79,7 @@ async fn spawn_server() -> u16 {
         redis_url: None,
         redis_auth_enabled: false,
         redis_key_prefix: "session".into(),
+        insecure_accept_all_keys: true,
     };
 
     let server = SshServer::new(cfg).await.expect("SshServer::new");

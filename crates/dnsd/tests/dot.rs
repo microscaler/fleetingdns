@@ -1,17 +1,15 @@
 #![cfg(feature = "dot")]
 
-use std::net::{Ipv4Addr, TcpListener, UdpSocket as StdUdpSocket};
+use std::net::{Ipv4Addr, TcpListener};
 use std::process::Stdio;
 use tokio::process::Command;
 use tokio::time::{Duration, sleep};
 
 use common::tls;
-use dnsd::{Config, redis_cache, serve};
 use mini_redis::server;
 use tokio::net::TcpListener as TokioTcpListener;
 use tokio::task::JoinHandle;
 
-#[cfg(feature = "dot")]
 #[tokio::test]
 async fn kdig_dot_returns_loopback() {
     if std::env::var("RUN_REDIS_TESTS").is_err() {
@@ -25,7 +23,7 @@ async fn kdig_dot_returns_loopback() {
             tokio::spawn(async move { server::run(listener, tokio::signal::ctrl_c()).await });
         sleep(Duration::from_millis(50)).await;
         let url = format!("redis://{addr}/");
-        if redis_cache::new_pool(&url).await.is_err() {
+        if common::redis::new_pool(&url).await.is_err() {
             handle.abort();
             return None;
         }
@@ -36,14 +34,10 @@ async fn kdig_dot_returns_loopback() {
         eprintln!("skipping test: redis not available");
         return;
     };
-    let pool = redis_cache::new_pool(&redis_url).await.unwrap();
-    redis_cache::set_slot(&pool, "demo", Ipv4Addr::new(1, 2, 3, 4), 60)
+    let pool = common::redis::new_pool(&redis_url).await.unwrap();
+    common::redis::set_slot(&pool, "demo", Ipv4Addr::new(1, 2, 3, 4), 60)
         .await
         .unwrap();
-
-    let udp_sock = StdUdpSocket::bind("127.0.0.1:0").unwrap();
-    let udp_addr = udp_sock.local_addr().unwrap();
-    drop(udp_sock);
 
     let tcp = TcpListener::bind("127.0.0.1:0").unwrap();
     let dot_addr = tcp.local_addr().unwrap();
@@ -53,18 +47,11 @@ async fn kdig_dot_returns_loopback() {
     let cert_file = std::env::temp_dir().join("dot_cert.pem");
     std::fs::write(&cert_file, &cert_pem).unwrap();
 
-    let cfg = Config {
-        addr: udp_addr,
-        redis_pool: pool.clone(),
-        dot_addr,
-        tls_config,
-        cert_manager: None,
-        dnssec_config: None,
-        ddos_config: common::ddos_protection::DdosConfig::default(),
-        enable_ddos_protection: false,
-    };
-
-    let handle = tokio::spawn(async move { serve(cfg).await.unwrap() });
+    // DoT is now served by the feature-gated `dnsd::dot::serve`, which takes the
+    // bind address, a rustls ServerConfig, and the Redis pool directly (the old
+    // Config-embedded `dot_addr`/`tls_config`/`cert_manager` fields were removed).
+    let handle =
+        tokio::spawn(async move { dnsd::dot::serve(dot_addr, tls_config, pool).await.unwrap() });
     sleep(Duration::from_millis(50)).await;
 
     let output = Command::new("kdig")

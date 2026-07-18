@@ -42,8 +42,8 @@ Key files: `cmd/edgehub-bin/src/main.rs` (router), `crates/edgehub/src/ssh_serve
 | TDP-5 | Session-grant gating for protected tunnels (FR-EDGE-3) | ✅ Done |
 | TDP-10 | Delete dead forwarding implementations | ✅ Done (2026-07-17) — `BruteForceProtection` retained under `#[allow(dead_code)]` pending TDP-13 |
 | TDP-11 | CLI stops killing its own tunnel (inactivity timeout + keepalives) | ✅ Code landed (2026-07-17) — 10-min-idle AC test still owed under TDP-16 |
-| TDP-12 | CLI authenticates with the API-issued keypair (ex-R8) | ✅ Code landed (2026-07-17) — rejection AC blocked on TDP-13 |
-| TDP-13 | Real SSH auth wired into the live handler | 🆕 P1 |
+| TDP-12 | CLI authenticates with the API-issued keypair (ex-R8) | ✅ Done (2026-07-18) — rejection AC now satisfied by TDP-13's e2e_auth |
+| TDP-13 | Real SSH auth wired into the live handler | ✅ Done (2026-07-18) — API mints a real Ed25519 key + stores the session fingerprint; hub validates the presented key against it, per-peer brute-force lockout, fail-closed with an explicit `FDNS_INSECURE_ACCEPT_ALL_KEYS` dev flag; e2e proves issued-key-accepted / unknown-key-rejected |
 | TDP-14 | One public domain, sourced from the API | ✅ Done (2026-07-17) |
 | TDP-15 | Hub robustness: accept backoff + `edge_tunnels_open` gauge (absorbs T-29) | ◕ Partial (2026-07-17) — backoff + gauge done; connection caps still open |
 | TDP-16 | E2E asserts the product promise, both directions, over time | 🆕 P1 (now also owns TDP-11's idle AC test) |

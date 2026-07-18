@@ -1,0 +1,13 @@
+FleetingDNS core services deployed to namespace {{ include "fleetingdns.namespace" . }}:
+
+  api      → ClusterIP :{{ .Values.api.port }} (http, /health, /metrics)
+  dnsd     → ClusterIP :{{ .Values.dnsd.port }}/UDP (authoritative DNS)
+  edgehub  → ClusterIP :{{ .Values.edgehub.sshPort }} (SSH reverse-tunnel), :443→{{ .Values.edgehub.httpsPort }} (HTTPS router)
+
+Images:
+  api:     {{ .Values.api.image }}
+  dnsd:    {{ .Values.dnsd.image }}
+  edgehub: {{ .Values.edgehub.image }}
+
+The api reads DATABASE_URL from Secret "{{ .Values.database.urlSecret.name }}"
+(materialised from the SOPS-encrypted deployment-configuration profile).

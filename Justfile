@@ -43,6 +43,12 @@ default:
     @echo "📋 All commands:"
     @just --list
 
+# Enable the versioned git hooks (.githooks/pre-commit runs fmt + clippy + tests).
+# Run once per clone.
+setup-hooks:
+    git config core.hooksPath .githooks
+    @echo "✓ git hooks enabled (.githooks). Pre-commit runs fmt + clippy + fast tests."
+
 # -----------------------------------------------------------------------
 # Primary workflow: Tilt runs on ms02
 # -----------------------------------------------------------------------
@@ -241,6 +247,23 @@ ci-test:
     cargo fmt -- --check
     cargo clippy --all -- -D warnings
     cargo test --workspace
+
+# Generate a decrypted .env for docker compose from the SOPS runtime profile.
+# The two profile files ARE the env contract, split by sensitivity — so this is
+# a plain concatenation (config + decrypted secrets), no renaming:
+#   application.properties  -> non-secret config (FDNS_DB_HOST/PORT/NAME/USER, REDIS_URL)
+#   application.secrets.env -> secrets (FDNS_DB_PASSWORD, DATABASE_URL)
+# ms02 only (needs the shared age identity). CI uses the octopilot sops-decrypt
+# action instead. .env is gitignored — never commit it.
+compose-env:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    profile=deployment-configuration/profiles/dev/fleetingdns/core/runtime
+    { grep -vE '^\s*(#|$)' "${profile}/application.properties"
+      SOPS_AGE_KEY_FILE="${HOME}/.config/sops/age/flux-shared-gitops" \
+        sops --decrypt "${profile}/application.secrets.env"
+    } > .env
+    echo "✅ Wrote .env (config + decrypted secrets). Do not commit."
 
 docs:
     @echo "📚 Generating documentation..."

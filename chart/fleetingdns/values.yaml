@@ -1,0 +1,47 @@
+# FleetingDNS chart values. Image refs are overridden per-service by the deploy
+# job (from build_result.json). The DB URL comes from the SOPS-generated Secret
+# (deployment-configuration), never inlined here.
+nameOverride: ""
+namespace: fleetingdns
+
+image:
+  pullPolicy: IfNotPresent
+
+# Shared, non-secret runtime config.
+config:
+  redisUrl: "redis://redis:6379"
+  rustLog: "info"
+  otelEndpoint: "http://otel-collector:4317"
+
+# Secret providing the full DATABASE_URL for the api (materialised from the
+# SOPS-encrypted deployment-configuration runtime profile).
+database:
+  urlSecret:
+    name: fleetingdns-db-credentials
+    key: DATABASE_URL
+
+api:
+  # Full image ref, e.g. ghcr.io/microscaler/fleetingdns-api:<tag>@sha256:...
+  image: ghcr.io/microscaler/fleetingdns-api:dev
+  replicas: 1
+  port: 8880
+  resources:
+    requests: { memory: "128Mi", cpu: "100m" }
+    limits: { memory: "512Mi", cpu: "500m" }
+
+dnsd:
+  image: ghcr.io/microscaler/fleetingdns-dnsd:dev
+  replicas: 1
+  port: 53
+  resources:
+    requests: { memory: "64Mi", cpu: "50m" }
+    limits: { memory: "256Mi", cpu: "200m" }
+
+edgehub:
+  image: ghcr.io/microscaler/fleetingdns-edgehub:dev
+  replicas: 1
+  sshPort: 2222
+  httpsPort: 8443
+  resources:
+    requests: { memory: "64Mi", cpu: "50m" }
+    limits: { memory: "256Mi", cpu: "200m" }

@@ -88,8 +88,11 @@ services:
     command: []
     ports: ["8880:8880"]
     environment:
-      - DATABASE_URL=postgresql://fdns:fdns@postgres:5432/fdns
-      - REDIS_URL=redis://redis:6379
+      # DATABASE_URL is the SOPS-decrypted secret loaded by the octopilot
+      # sops-decrypt action (or a local `.env`). Dev default keeps
+      # `docker compose up` working without secrets.
+      - DATABASE_URL=${DATABASE_URL:-postgresql://fdns:fdns@postgres:5432/fdns}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
       - RUST_LOG=info
       - API_BIND_ADDRESS=0.0.0.0:8880
       - DEVELOPMENT_MODE=true
@@ -139,10 +142,13 @@ services:
 
   postgres:
     image: postgres:15-alpine
+    # Credentials come from environment variables loaded by the octopilot
+    # sops-decrypt action (FDNS_DB_PASSWORD is the secret; user/db name are
+    # non-secret config). Dev defaults keep local `docker compose up` working.
     environment:
-      POSTGRES_USER: fdns
-      POSTGRES_PASSWORD: fdns
-      POSTGRES_DB: fdns
+      POSTGRES_USER: ${FDNS_DB_USER:-fdns}
+      POSTGRES_PASSWORD: ${FDNS_DB_PASSWORD:-fdns}
+      POSTGRES_DB: ${FDNS_DB_NAME:-fdns}
     volumes: ["pgdata:/var/lib/postgresql/data"]
 
   mimir:

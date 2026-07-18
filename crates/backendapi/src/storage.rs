@@ -4,6 +4,7 @@ use crate::{
 };
 use bb8::{Pool, PooledConnection};
 use bb8_redis::{RedisConnectionManager, redis::AsyncCommands};
+use chrono::{DateTime, Utc};
 use tracing::{debug, info};
 use uuid::Uuid;
 
@@ -183,6 +184,41 @@ impl TunnelStorage {
             .await
             .map_err(|e| ApiError::StorageError(format!("Failed to store session grant: {e}")))?;
         debug!("Stored session grant for subdomain {subdomain} (ttl {ttl_seconds}s)");
+        Ok(())
+    }
+
+    /// Store the SSH session record the hub authenticates against (TDP-13).
+    ///
+    /// Written under `session:{session_id}` in the shape the hub's
+    /// `RedisAuthHandler` reads (`common::redis::SessionData`), with a TTL that
+    /// tracks the tunnel's own expiry so stale keys cannot authenticate.
+    pub async fn store_ssh_session(
+        &self,
+        session_id: &str,
+        github_user_id: &str,
+        public_key: &str,
+        fingerprint: &str,
+        expires_at: DateTime<Utc>,
+    ) -> ApiResult<()> {
+        let mut conn = self.get_connection().await?;
+        let session = common::redis::SessionData {
+            github_user_id: github_user_id.to_string(),
+            public_key: public_key.to_string(),
+            fingerprint: fingerprint.to_string(),
+            expires_at,
+            session_id: session_id.to_string(),
+        };
+        let value = serde_json::to_string(&session)
+            .map_err(|e| ApiError::StorageError(format!("Failed to serialize SSH session: {e}")))?;
+        // Match the hub's default key prefix ("session"); +60s grace so the
+        // record does not vanish exactly at tunnel expiry mid-handshake.
+        let ttl = (expires_at - Utc::now()).num_seconds().max(1) as u64 + 60;
+        let key = format!("session:{session_id}");
+        let _: () = conn
+            .set_ex(&key, value, ttl)
+            .await
+            .map_err(|e| ApiError::StorageError(format!("Failed to store SSH session: {e}")))?;
+        debug!("Stored SSH session {session_id} (ttl {ttl}s)");
         Ok(())
     }
 

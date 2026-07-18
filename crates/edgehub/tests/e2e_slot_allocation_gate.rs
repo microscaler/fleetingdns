@@ -88,6 +88,7 @@ async fn hub_only_binds_api_allocated_slots() {
         redis_url: Some(redis_url),
         redis_auth_enabled: false,
         redis_key_prefix: "session".into(),
+        insecure_accept_all_keys: true,
     };
     let ssh_server = SshServer::new(ssh_config).await.expect("SshServer::new");
     let (shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel(1);
