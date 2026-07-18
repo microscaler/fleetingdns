@@ -1,0 +1,49 @@
+#!/bin/sh
+# FleetingDNS pre-commit hook — mirrors the CI "quality" gate so failures are
+# caught locally before they reach a PR. Enable once with:
+#
+#     git config core.hooksPath .githooks      # or: just setup-hooks
+#
+# Bypass in a pinch with `git commit --no-verify`.
+echo "==== Running pre-commit hooks ===="
+
+# Only run the (relatively slow) Rust checks when Rust sources or the cargo
+# manifests/lockfile are staged — docs-only commits skip straight through.
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null || true)
+NEEDS_RUST=0
+for f in $STAGED; do
+  case "$f" in
+    *.rs | */Cargo.toml | Cargo.toml | Cargo.lock) NEEDS_RUST=1 ;;
+  esac
+done
+
+if [ "$NEEDS_RUST" = 0 ]; then
+  echo "[rust] Skipped (no staged .rs / Cargo.toml / Cargo.lock)."
+  echo "✓ All pre-commit checks passed! Commit allowed."
+  exit 0
+fi
+
+# 1) Formatting — must match `cargo fmt` exactly.
+echo "[rust] cargo fmt --all --check ..."
+cargo fmt --all -- --check || {
+  echo "Error: rustfmt found unformatted code. Run 'cargo fmt --all' and re-stage."
+  exit 1
+}
+
+# 2) Lints — pedantic is configured in [workspace.lints]; -D warnings makes any
+#    warning (including in test code) a hard failure, matching CI.
+echo "[rust] cargo clippy --workspace --all-targets -- -D warnings ..."
+cargo clippy --workspace --all-targets -- -D warnings || {
+  echo "Error: clippy reported warnings/errors. Fix them before committing."
+  exit 1
+}
+
+# 3) Fast tests — unit + bin tests only (no Docker/Redis e2e; those run in CI).
+echo "[rust] cargo test --workspace --lib --bins ..."
+cargo test --workspace --lib --bins || {
+  echo "Error: tests failed. Fix them before committing."
+  exit 1
+}
+
+echo "✓ All pre-commit checks passed! Commit allowed."
+exit 0

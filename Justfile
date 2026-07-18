@@ -43,6 +43,12 @@ default:
     @echo "📋 All commands:"
     @just --list
 
+# Enable the versioned git hooks (.githooks/pre-commit runs fmt + clippy + tests).
+# Run once per clone.
+setup-hooks:
+    git config core.hooksPath .githooks
+    @echo "✓ git hooks enabled (.githooks). Pre-commit runs fmt + clippy + fast tests."
+
 # -----------------------------------------------------------------------
 # Primary workflow: Tilt runs on ms02
 # -----------------------------------------------------------------------
