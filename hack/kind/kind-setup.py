@@ -128,7 +128,7 @@ def create_kind_cluster():
         pass
     
     # Create cluster
-    config_path = Path(__file__).parent.parent / "kind-config.yaml"
+    config_path = Path(__file__).parent / "kind-config.yaml"
     if not config_path.exists():
         print(f"❌ Kind config not found at {config_path}")
         sys.exit(1)

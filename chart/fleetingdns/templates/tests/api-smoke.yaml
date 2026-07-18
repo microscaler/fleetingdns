@@ -1,0 +1,42 @@
+# Helm test hook: validate the deployed API in-cluster. Run via `helm test` or,
+# in the pipeline, by Flux (HelmRelease spec.test.enable: true) after each
+# install/upgrade — a failure fails the deploy.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fleetingdns-api-smoke
+  namespace: {{ include "fleetingdns.namespace" . }}
+  labels:
+    app: fleetingdns-api-smoke
+    component: test
+    {{- include "fleetingdns.commonLabels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  containers:
+    - name: smoke
+      image: curlimages/curl:8.11.1
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          set -eu
+          api="http://api:{{ .Values.api.port }}"
+
+          echo "GET $api/health (must be 200)"
+          curl -fsS --retry 15 --retry-delay 3 --retry-connrefused "$api/health"
+          echo
+
+          # The tunnel routes sit behind auth, so we assert the endpoint responds
+          # with a real HTTP status (routing + DB path wired) rather than failing
+          # to connect. Schema existence itself is validated by the migration hook.
+          echo "GET $api/v1/tunnels (expect a real HTTP status)"
+          code="$(curl -s -o /dev/null -w '%{http_code}' "$api/v1/tunnels")"
+          echo "  -> HTTP $code"
+          if [ "$code" = "000" ] || [ "$code" -ge 500 ]; then
+            echo "API tunnels endpoint unhealthy (HTTP $code)"
+            exit 1
+          fi
+
+          echo "API smoke test passed"

@@ -207,7 +207,7 @@ jobs:
             -n fleetingdns --from-env-file=/tmp/db.env \
             --dry-run=client -o yaml | kubectl apply -f -
           rm -f /tmp/db.env
-          kubectl apply -n fleetingdns -f k8s/ci-deps/
+          kubectl apply -n fleetingdns -f hack/ci-deps/
           kubectl rollout status deploy/postgres -n fleetingdns --timeout=180s
           kubectl rollout status deploy/redis -n fleetingdns --timeout=120s
 
@@ -232,7 +232,9 @@ jobs:
           export CHART_REF_VALUE="$CHART_DIGEST"
           kubectl kustomize k8s/env/ci | envsubst | kubectl apply -f -
           flux reconcile source oci fleetingdns-chart -n fleetingdns --timeout=2m || RECONCILE_FAILED=1
-          flux reconcile helmrelease fleetingdns -n fleetingdns --timeout=5m || RECONCILE_FAILED=1
+          # 8m covers the pre-install migration hook, the three Deployments
+          # becoming ready, and the Helm test hook (spec.test.enable: true).
+          flux reconcile helmrelease fleetingdns -n fleetingdns --timeout=8m || RECONCILE_FAILED=1
           kubectl get all -n fleetingdns
           flux get helmrelease -n fleetingdns
           if [ "$RECONCILE_FAILED" -ne 0 ]; then
@@ -240,7 +242,16 @@ jobs:
             kubectl logs -n flux-system -l app=source-controller --tail=300 --all-containers=true 2>/dev/null || true
             kubectl logs -n flux-system -l app=helm-controller --tail=300 --all-containers=true 2>/dev/null || true
             kubectl get events -n fleetingdns --sort-by='.lastTimestamp' 2>/dev/null | tail -80 || true
-            kubectl describe pods -n fleetingdns 2>/dev/null | tail -120 || true
+            kubectl describe pods -n fleetingdns 2>/dev/null | tail -160 || true
+            echo "=== migration hook Job logs ==="
+            kubectl logs -n fleetingdns job/fleetingdns-migrate --tail=100 2>/dev/null || true
+            echo "=== Helm test Pod logs ==="
+            kubectl logs -n fleetingdns fleetingdns-api-smoke --tail=100 2>/dev/null || true
+            echo "=== api/dnsd/edgehub pod logs ==="
+            for app in api dnsd edgehub; do
+              echo "--- $app ---"
+              kubectl logs -n fleetingdns -l app=$app --tail=60 --all-containers=true 2>/dev/null || true
+            done
             flux get source oci -n fleetingdns 2>/dev/null || true
             flux get helmrelease -n fleetingdns 2>/dev/null || true
             echo "::endgroup::"

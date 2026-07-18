@@ -13,13 +13,19 @@ spec:
     namespace: fleetingdns
   releaseName: fleetingdns
   targetNamespace: fleetingdns
+  # Run the chart's Helm test hooks (API smoke) as part of reconciliation so a
+  # broken API fails the release.
+  test:
+    enable: true
   install:
     createNamespace: true
+    # retries: 0 leaves a failed release (and its migration/test pods) in place
+    # for diagnosis instead of uninstalling. Bump for production resilience.
     remediation:
-      retries: 3
+      retries: 0
   upgrade:
     remediation:
-      retries: 3
+      retries: 0
   values:
     namespace: fleetingdns
     image:

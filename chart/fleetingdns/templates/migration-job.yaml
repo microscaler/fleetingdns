@@ -1,0 +1,42 @@
+# Helm pre-install/pre-upgrade hook: migrate the database schema before the app
+# starts. Runs the `migration` binary bundled in the api image. The DB URL comes
+# from the same SOPS-generated Secret the api uses.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fleetingdns-migrate
+  namespace: {{ include "fleetingdns.namespace" . }}
+  labels:
+    app: fleetingdns-migrate
+    component: migration
+    {{- include "fleetingdns.commonLabels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels:
+        app: fleetingdns-migrate
+        component: migration
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: {{ .Values.api.image | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # The api buildpack image bundles every workspace binary; select the
+          # migration process explicitly (its default "web" process is unrelated).
+          command: ["/cnb/process/migration", "up"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.urlSecret.name }}
+                  key: {{ .Values.database.urlSecret.key }}
+          resources:
+            requests: { memory: "64Mi", cpu: "50m" }
+            limits: { memory: "256Mi", cpu: "250m" }
