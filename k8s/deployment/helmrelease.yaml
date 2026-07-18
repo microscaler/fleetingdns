@@ -1,0 +1,32 @@
+# Helm release for fleetingdns. The three service image refs (API_IMAGE, DNSD_IMAGE,
+# EDGEHUB_IMAGE) are substituted by the CI deploy job from the merged build_result.json.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: fleetingdns
+  namespace: fleetingdns
+spec:
+  interval: 5m
+  chartRef:
+    kind: OCIRepository
+    name: fleetingdns-chart
+    namespace: fleetingdns
+  releaseName: fleetingdns
+  targetNamespace: fleetingdns
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    namespace: fleetingdns
+    image:
+      pullPolicy: Always
+    api:
+      image: ${API_IMAGE}
+    dnsd:
+      image: ${DNSD_IMAGE}
+    edgehub:
+      image: ${EDGEHUB_IMAGE}

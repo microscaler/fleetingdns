@@ -1,0 +1,48 @@
+# Octopilot shape source of truth (detect-contexts reads this).
+#
+# FleetingDNS is a multi-binary Cargo workspace. Only the CONTAINER services are
+# listed here; the CLI tools (edf-cli, fleetingdns-ctl, slot-setter) are shipped
+# as GitHub Release binaries by the workflow's `release-binaries` job, NOT as
+# images — see docs/engineering/OCTOPILOT-PIPELINE-MIGRATION.md §2.
+#
+# Each service uses the octopilot/rust buildpack with BP_RUST_PACKAGE selecting
+# the workspace member (context is the repo root, which carries Cargo.toml so
+# detect-contexts classifies these as rust). The Helm chart is packaged as an
+# OCI artifact for the Flux HelmRelease deploy path.
+apiVersion: skaffold/v4beta7
+kind: Config
+metadata:
+  name: fleetingdns
+build:
+  artifacts:
+    - image: ghcr.io/microscaler/fleetingdns-api
+      context: .
+      buildpacks:
+        builder: ghcr.io/octopilot/builder-jammy-base:latest
+        buildpacks:
+          - octopilot/rust
+        env:
+          - BP_RUST_PACKAGE=api-bin
+          - BP_RUST_BINARY_NAME=api-bin
+    - image: ghcr.io/microscaler/fleetingdns-dnsd
+      context: .
+      buildpacks:
+        builder: ghcr.io/octopilot/builder-jammy-base:latest
+        buildpacks:
+          - octopilot/rust
+        env:
+          - BP_RUST_PACKAGE=dnsd-bin
+          - BP_RUST_BINARY_NAME=dnsd-bin
+    - image: ghcr.io/microscaler/fleetingdns-edgehub
+      context: .
+      buildpacks:
+        builder: ghcr.io/octopilot/builder-jammy-base:latest
+        buildpacks:
+          - octopilot/rust
+        env:
+          - BP_RUST_PACKAGE=edgehub-bin
+          - BP_RUST_BINARY_NAME=edgehub-bin
+    - image: ghcr.io/microscaler/fleetingdns-chart
+      context: chart/fleetingdns
+      buildpacks:
+        builder: ghcr.io/octopilot/builder-jammy-base:latest
