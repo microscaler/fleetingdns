@@ -1,7 +1,7 @@
 use sea_orm::entity::prelude::*;
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// Authentication token entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
@@ -9,7 +9,7 @@ use chrono::{DateTime, Utc};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub token: String,
-    
+
     pub token_type: String,
     pub expires_at: DateTime<Utc>,
     pub user_id: String,
@@ -32,4 +32,4 @@ impl Related<super::user::Entity> for Entity {
     }
 }
 
-impl ActiveModelBehavior for ActiveModel {} 
+impl ActiveModelBehavior for ActiveModel {}

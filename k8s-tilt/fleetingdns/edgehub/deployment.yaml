@@ -23,13 +23,14 @@ spec:
           ports:
             - containerPort: 2222
               protocol: TCP
-              name: tunnel
-            - containerPort: 8080
+              name: ssh
+            - containerPort: 8443
               protocol: TCP
-              name: metrics
+              name: https
+          # --ssh-addr defaults to 0.0.0.0:2222 and --https-addr to
+          # 0.0.0.0:8443 (non-privileged; container runs as non-root user
+          # `app`). Only redis needs overriding here.
           args:
-            - "--addr"
-            - "0.0.0.0:2222"
             - "--redis"
             - "redis://redis:6379"
           env:
@@ -46,13 +47,15 @@ spec:
             limits:
               memory: "256Mi"
               cpu: "200m"
+          # edgehub binds 2222 (SSH reverse-tunnel) and 443 (HTTPS router);
+          # probe the SSH port which the CLI connects out to.
           livenessProbe:
             tcpSocket:
-              port: 8080
+              port: 2222
             initialDelaySeconds: 30
             periodSeconds: 10
           readinessProbe:
             tcpSocket:
-              port: 8080
+              port: 2222
             initialDelaySeconds: 5
             periodSeconds: 5 

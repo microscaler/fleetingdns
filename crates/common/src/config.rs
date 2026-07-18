@@ -1,12 +1,11 @@
 use serde::{Deserialize, Serialize};
-use std::env;
 use std::net::SocketAddr;
 
 /// Utility functions for environment variable parsing
 mod env_utils {
     use std::env;
-    use std::net::SocketAddr;
     use std::fmt::Display;
+    use std::net::SocketAddr;
 
     /// Parse an environment variable with a default value
     pub fn parse_env<T>(key: &str, default: T) -> T
@@ -32,29 +31,36 @@ mod env_utils {
     /// Parse an environment variable as a boolean with a default value
     pub fn parse_env_bool(key: &str, default: bool) -> bool {
         match env::var(key) {
-            Ok(value) => {
-                match value.to_lowercase().as_str() {
-                    "true" | "1" | "yes" | "on" => true,
-                    "false" | "0" | "no" | "off" => false,
-                    _ => default,
-                }
-            }
+            Ok(value) => match value.to_lowercase().as_str() {
+                "true" | "1" | "yes" | "on" => true,
+                "false" | "0" | "no" | "off" => false,
+                _ => default,
+            },
             Err(_) => default,
         }
     }
 
     /// Parse an environment variable as a SocketAddr with a default value
-    pub fn parse_env_socket_addr(key: &str, port_key: &str, default_addr: &str, default_port: u16) -> SocketAddr {
+    pub fn parse_env_socket_addr(
+        key: &str,
+        port_key: &str,
+        default_addr: &str,
+        default_port: u16,
+    ) -> SocketAddr {
         let bind_addr_str = parse_env_str(key, default_addr);
         let port = parse_env(port_key, default_port);
-        
+
         format!("{}:{}", bind_addr_str, port)
             .parse()
-            .unwrap_or_else(|_| format!("{}:{}", default_addr, default_port).parse().unwrap())
+            .unwrap_or_else(|_| {
+                format!("{}:{}", default_addr, default_port)
+                    .parse()
+                    .unwrap()
+            })
     }
 }
 
-use env_utils::{parse_env, parse_env_bool, parse_env_str, parse_env_opt, parse_env_socket_addr};
+use env_utils::{parse_env, parse_env_bool, parse_env_opt, parse_env_socket_addr, parse_env_str};
 
 /// Global configuration for all FleetingDNS services
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -158,7 +164,8 @@ pub struct ApiConfig {
 impl Default for ApiConfig {
     fn default() -> Self {
         Self {
-            bind_addr: parse_env_socket_addr("API_BIND_ADDR", "API_PORT", "0.0.0.0", 8080),
+            // 8880: 8080 is chronically contested on shared dev hosts.
+            bind_addr: parse_env_socket_addr("API_BIND_ADDR", "API_PORT", "0.0.0.0", 8880),
             enable_cors: parse_env_bool("API_ENABLE_CORS", true),
             rate_limit_per_minute: parse_env("API_RATE_LIMIT_PER_MINUTE", 100u32),
         }
@@ -281,7 +288,7 @@ mod tests {
         assert!(!config.redis.url.is_empty());
         assert!(!config.database.url.is_empty());
         assert_eq!(config.dns.bind_addr.port(), 6353);
-        assert_eq!(config.api.bind_addr.port(), 8080);
+        assert_eq!(config.api.bind_addr.port(), 8880);
         assert_eq!(config.edgehub.bind_addr.port(), 2222);
     }
 
@@ -302,7 +309,7 @@ mod tests {
     fn test_api_addr_parsing() {
         let config = FleetingDnsConfig::default();
         let api_addr = config.api_addr();
-        assert_eq!(api_addr.port(), 8080);
+        assert_eq!(api_addr.port(), 8880);
     }
 
     #[test]
@@ -321,17 +328,23 @@ mod env_utils_tests {
     #[test]
     fn test_parse_env_with_default() {
         // Test with existing environment variable
-        unsafe { env::set_var("TEST_U32", "42"); }
+        unsafe {
+            env::set_var("TEST_U32", "42");
+        }
         assert_eq!(parse_env("TEST_U32", 10u32), 42);
-        
+
         // Test with non-existent environment variable
-        unsafe { env::remove_var("TEST_NONEXISTENT"); }
+        unsafe {
+            env::remove_var("TEST_NONEXISTENT");
+        }
         assert_eq!(parse_env("TEST_NONEXISTENT", 100u32), 100);
-        
+
         // Test with invalid value (should fall back to default)
-        unsafe { env::set_var("TEST_INVALID", "not_a_number"); }
+        unsafe {
+            env::set_var("TEST_INVALID", "not_a_number");
+        }
         assert_eq!(parse_env("TEST_INVALID", 50u32), 50);
-        
+
         // Cleanup
         unsafe {
             env::remove_var("TEST_U32");
@@ -342,55 +355,79 @@ mod env_utils_tests {
     #[test]
     fn test_parse_env_str() {
         // Test with existing environment variable
-        unsafe { env::set_var("TEST_STR", "custom_value"); }
+        unsafe {
+            env::set_var("TEST_STR", "custom_value");
+        }
         assert_eq!(parse_env_str("TEST_STR", "default"), "custom_value");
-        
+
         // Test with non-existent environment variable
-        unsafe { env::remove_var("TEST_STR_NONEXISTENT"); }
+        unsafe {
+            env::remove_var("TEST_STR_NONEXISTENT");
+        }
         assert_eq!(parse_env_str("TEST_STR_NONEXISTENT", "default"), "default");
-        
+
         // Cleanup
-        unsafe { env::remove_var("TEST_STR"); }
+        unsafe {
+            env::remove_var("TEST_STR");
+        }
     }
 
     #[test]
     fn test_parse_env_opt() {
         // Test with existing environment variable
-        unsafe { env::set_var("TEST_OPT", "some_value"); }
+        unsafe {
+            env::set_var("TEST_OPT", "some_value");
+        }
         assert_eq!(parse_env_opt("TEST_OPT"), Some("some_value".to_string()));
-        
+
         // Test with non-existent environment variable
-        unsafe { env::remove_var("TEST_OPT_NONEXISTENT"); }
+        unsafe {
+            env::remove_var("TEST_OPT_NONEXISTENT");
+        }
         assert_eq!(parse_env_opt("TEST_OPT_NONEXISTENT"), None);
-        
+
         // Cleanup
-        unsafe { env::remove_var("TEST_OPT"); }
+        unsafe {
+            env::remove_var("TEST_OPT");
+        }
     }
 
     #[test]
     fn test_parse_env_bool() {
         // Test with true values
-        unsafe { env::set_var("TEST_BOOL_TRUE", "true"); }
-        assert_eq!(parse_env_bool("TEST_BOOL_TRUE", false), true);
-        
-        unsafe { env::set_var("TEST_BOOL_1", "1"); }
-        assert_eq!(parse_env_bool("TEST_BOOL_1", false), true);
-        
+        unsafe {
+            env::set_var("TEST_BOOL_TRUE", "true");
+        }
+        assert!(parse_env_bool("TEST_BOOL_TRUE", false));
+
+        unsafe {
+            env::set_var("TEST_BOOL_1", "1");
+        }
+        assert!(parse_env_bool("TEST_BOOL_1", false));
+
         // Test with false values
-        unsafe { env::set_var("TEST_BOOL_FALSE", "false"); }
-        assert_eq!(parse_env_bool("TEST_BOOL_FALSE", true), false);
-        
-        unsafe { env::set_var("TEST_BOOL_0", "0"); }
-        assert_eq!(parse_env_bool("TEST_BOOL_0", true), false);
-        
+        unsafe {
+            env::set_var("TEST_BOOL_FALSE", "false");
+        }
+        assert!(!parse_env_bool("TEST_BOOL_FALSE", true));
+
+        unsafe {
+            env::set_var("TEST_BOOL_0", "0");
+        }
+        assert!(!parse_env_bool("TEST_BOOL_0", true));
+
         // Test with non-existent environment variable
-        unsafe { env::remove_var("TEST_BOOL_NONEXISTENT"); }
-        assert_eq!(parse_env_bool("TEST_BOOL_NONEXISTENT", true), true);
-        
+        unsafe {
+            env::remove_var("TEST_BOOL_NONEXISTENT");
+        }
+        assert!(parse_env_bool("TEST_BOOL_NONEXISTENT", true));
+
         // Test with invalid value (should fall back to default)
-        unsafe { env::set_var("TEST_BOOL_INVALID", "not_a_bool"); }
-        assert_eq!(parse_env_bool("TEST_BOOL_INVALID", false), false);
-        
+        unsafe {
+            env::set_var("TEST_BOOL_INVALID", "not_a_bool");
+        }
+        assert!(!parse_env_bool("TEST_BOOL_INVALID", false));
+
         // Cleanup
         unsafe {
             env::remove_var("TEST_BOOL_TRUE");
@@ -411,16 +448,21 @@ mod env_utils_tests {
         let addr = parse_env_socket_addr("TEST_ADDR", "TEST_PORT", "0.0.0.0", 3000);
         assert_eq!(addr.port(), 8080);
         assert_eq!(addr.ip().to_string(), "127.0.0.1");
-        
+
         // Test with non-existent environment variables
         unsafe {
             env::remove_var("TEST_ADDR_NONEXISTENT");
             env::remove_var("TEST_PORT_NONEXISTENT");
         }
-        let addr = parse_env_socket_addr("TEST_ADDR_NONEXISTENT", "TEST_PORT_NONEXISTENT", "0.0.0.0", 3000);
+        let addr = parse_env_socket_addr(
+            "TEST_ADDR_NONEXISTENT",
+            "TEST_PORT_NONEXISTENT",
+            "0.0.0.0",
+            3000,
+        );
         assert_eq!(addr.port(), 3000);
         assert_eq!(addr.ip().to_string(), "0.0.0.0");
-        
+
         // Test with invalid port (should fall back to default)
         unsafe {
             env::set_var("TEST_ADDR_VALID", "127.0.0.1");
@@ -428,7 +470,7 @@ mod env_utils_tests {
         }
         let addr = parse_env_socket_addr("TEST_ADDR_VALID", "TEST_PORT_INVALID", "0.0.0.0", 3000);
         assert_eq!(addr.port(), 3000);
-        
+
         // Cleanup
         unsafe {
             env::remove_var("TEST_ADDR");

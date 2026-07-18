@@ -1,0 +1,70 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fleetingdns-db-init
+  labels:
+    app.kubernetes.io/name: fleetingdns-db-init
+    app.kubernetes.io/part-of: fleetingdns
+    app.kubernetes.io/component: database-bootstrap
+spec:
+  backoffLimit: 6
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      annotations:
+        # Increment only when a failed/completed immutable Job must be replaced
+        # after bootstrap logic or platform prerequisites change.
+        deployment.fleetingdns.io/bootstrap-revision: "1"
+      labels:
+        app.kubernetes.io/name: fleetingdns-db-init
+        app.kubernetes.io/part-of: fleetingdns
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: db-init
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PGHOST
+              value: postgres.data.svc.cluster.local
+            - name: PGUSER
+              value: postgres
+            # Admin password from the shared postgres Secret (never inlined).
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: postgres-password
+            # fdns role password from the SOPS-generated bootstrap Secret.
+            - name: FDNS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: fleetingdns-bootstrap-db
+                  key: FDNS_DB_PASSWORD
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              # Create the fdns role (idempotent) with the SOPS-provided password.
+              psql -v ON_ERROR_STOP=1 <<SQL
+              DO \$\$
+              BEGIN
+                IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'fdns') THEN
+                  CREATE ROLE fdns LOGIN PASSWORD '${FDNS_DB_PASSWORD}';
+                ELSE
+                  ALTER ROLE fdns WITH LOGIN PASSWORD '${FDNS_DB_PASSWORD}';
+                END IF;
+              END
+              \$\$;
+              SQL
+              # Create the fdns database owned by fdns (idempotent).
+              echo "SELECT 'CREATE DATABASE fdns OWNER fdns' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'fdns')\gexec" \
+                | psql -v ON_ERROR_STOP=1
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi

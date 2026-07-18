@@ -34,7 +34,7 @@ services:
       <<: *rust-build
       dockerfile: docker/Dockerfile.edgehub
     image: fleetingdns/edgehub:dev
-    command: []
+    command: ["--ssh-addr", "0.0.0.0:2222", "--addr", "0.0.0.0:8443"]
     ports: ["2222:2222", "8443:8443", "443:443"]
     environment:
       - REDIS_URL=redis://redis:6379
@@ -86,12 +86,12 @@ services:
       dockerfile: docker/Dockerfile.api
     image: fleetingdns/api:dev
     command: []
-    ports: ["8080:8080"]
+    ports: ["8880:8880"]
     environment:
       - DATABASE_URL=postgresql://fdns:fdns@postgres:5432/fdns
       - REDIS_URL=redis://redis:6379
       - RUST_LOG=info
-      - API_BIND_ADDRESS=0.0.0.0:8080
+      - API_BIND_ADDRESS=0.0.0.0:8880
       - DEVELOPMENT_MODE=true
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - SERVICE_NAME=api

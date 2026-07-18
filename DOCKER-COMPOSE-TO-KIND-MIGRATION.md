@@ -32,7 +32,7 @@ just dev  # or: just setup && just up
 |---------|----------------|-------------|
 | DNS Server | `localhost:5353` | `localhost:5353` ✅ |
 | EdgeHub | `localhost:2222` | `localhost:2222` ✅ |
-| API | `localhost:8080` | `localhost:8080` ✅ |
+| API | `localhost:8880` | `localhost:8880` ✅ |
 | Redis | `localhost:6379` | `localhost:6379` ✅ |
 | PostgreSQL | `localhost:5432` | `localhost:5432` ✅ |
 | Grafana | `localhost:3000` | `localhost:3000` ✅ |

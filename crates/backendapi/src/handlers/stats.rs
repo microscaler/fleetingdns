@@ -1,7 +1,10 @@
-use crate::{ApiResult, ApiState, models::*};
-use auth::{extract_bearer_token, validate_jwt_token};
+use crate::{
+    ApiResult, ApiState,
+    models::{ApiStats, CaStats},
+};
+use auth::{extract_bearer_token_with_dev_bypass, validate_jwt_token};
 use axum::{Json, extract::State, http::HeaderMap};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tracing::info;
 
 /// Statistics response
@@ -26,7 +29,7 @@ pub async fn get_stats(
     headers: HeaderMap,
 ) -> ApiResult<Json<StatsResponse>> {
     // Authenticate user
-    let token = extract_bearer_token(&headers)?;
+    let token = extract_bearer_token_with_dev_bypass(&headers, state.config.development_mode)?;
     let _user = validate_jwt_token(&token, &state.config.jwt_secret)?;
 
     info!("Fetching system statistics");

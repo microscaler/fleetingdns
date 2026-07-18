@@ -230,8 +230,7 @@ impl RateLimitState {
     pub fn get_user_tier(&self, token: &str) -> String {
         self.user_tiers
             .get(token)
-            .map(|t| t.clone())
-            .unwrap_or_else(|| "Free".to_string())
+            .map_or_else(|| "Free".to_string(), |t| t.clone())
     }
 
     /// Update system load for dynamic rate limiting
@@ -242,7 +241,7 @@ impl RateLimitState {
 
     /// Get current system load
     pub fn get_system_load(&self) -> f64 {
-        self.system_load.get("current").map(|l| *l).unwrap_or(0.0)
+        self.system_load.get("current").map_or(0.0, |l| *l)
     }
 
     /// Check IP-based rate limiting for DDoS protection
@@ -258,9 +257,8 @@ impl RateLimitState {
         if let Some(blocked_until) = ip_limit.blocked_until {
             if now < blocked_until {
                 return Err("IP is temporarily blocked due to abuse".to_string());
-            } else {
-                ip_limit.blocked_until = None;
             }
+            ip_limit.blocked_until = None;
         }
 
         // Reset counter if window has passed
@@ -371,7 +369,7 @@ impl RateLimitState {
             .or_insert_with(|| self.create_api_limiter(tier.clone()));
 
         match limiter.check_key(&token.to_string()) {
-            Ok(_) => Ok(()),
+            Ok(()) => Ok(()),
             Err(_) => Err(format!("API rate limit exceeded for tier: {tier}")),
         }
     }
@@ -399,7 +397,7 @@ impl RateLimitState {
             .or_insert_with(|| self.create_tunnel_limiter(tier.clone()));
 
         match limiter.check_key(&token.to_string()) {
-            Ok(_) => Ok(()),
+            Ok(()) => Ok(()),
             Err(_) => Err(format!(
                 "Tunnel creation rate limit exceeded for tier: {tier}"
             )),
@@ -429,7 +427,7 @@ impl RateLimitState {
             .or_insert_with(|| self.create_dns_limiter(tier.clone()));
 
         match limiter.check_key(&token.to_string()) {
-            Ok(_) => Ok(()),
+            Ok(()) => Ok(()),
             Err(_) => Err(format!(
                 "DNS operation rate limit exceeded for tier: {tier}"
             )),
@@ -556,7 +554,7 @@ pub async fn rate_limit_middleware(
     };
 
     match check_result {
-        Ok(_) => {
+        Ok(()) => {
             debug!(token = token, path = path, ip = ?client_ip, "Rate limit check passed");
 
             // Get rate limit info for response headers

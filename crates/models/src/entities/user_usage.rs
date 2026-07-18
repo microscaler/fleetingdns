@@ -1,7 +1,7 @@
 use sea_orm::entity::prelude::*;
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// User usage tracking entity
@@ -10,7 +10,7 @@ use uuid::Uuid;
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: Uuid,
-    
+
     pub user_id: String,
     pub period_start: DateTime<Utc>,
     pub api_calls_count: i32,
@@ -36,4 +36,4 @@ impl Related<super::user::Entity> for Entity {
     }
 }
 
-impl ActiveModelBehavior for ActiveModel {} 
+impl ActiveModelBehavior for ActiveModel {}

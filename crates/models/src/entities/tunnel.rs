@@ -1,7 +1,7 @@
 use sea_orm::entity::prelude::*;
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Tunnel entity representing ephemeral tunnels
@@ -10,7 +10,7 @@ use uuid::Uuid;
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: Uuid,
-    
+
     pub github_user_id: String,
     pub github_username: String,
     pub subdomain: String,
@@ -34,14 +34,14 @@ pub enum Relation {
         to = "super::user::Column::GithubUserId"
     )]
     User,
-    
+
     #[sea_orm(
         belongs_to = "super::certificate_info::Entity",
         from = "Column::CertificateSerial",
         to = "super::certificate_info::Column::Serial"
     )]
     CertificateInfo,
-    
+
     #[sea_orm(
         belongs_to = "super::ssh_key_pair::Entity",
         from = "Column::SshKeyPairId",
@@ -68,4 +68,4 @@ impl Related<super::ssh_key_pair::Entity> for Entity {
     }
 }
 
-impl ActiveModelBehavior for ActiveModel {} 
+impl ActiveModelBehavior for ActiveModel {}

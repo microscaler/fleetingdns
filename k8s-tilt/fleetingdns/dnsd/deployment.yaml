@@ -24,9 +24,6 @@ spec:
             - containerPort: 53
               protocol: UDP
               name: dns-udp
-            - containerPort: 8080
-              protocol: TCP
-              name: metrics
           args:
             - "--addr"
             - "0.0.0.0:53"
@@ -46,13 +43,16 @@ spec:
             limits:
               memory: "256Mi"
               cpu: "200m"
+          # dnsd only binds UDP :53 (no TCP/HTTP listener), and Kubernetes
+          # cannot probe UDP — so verify the UDP socket exists in /proc.
+          # 0035 is port 53 in hex.
           livenessProbe:
-            tcpSocket:
-              port: 8080
+            exec:
+              command: ["/bin/sh", "-c", "grep -q ':0035' /proc/net/udp /proc/net/udp6"]
             initialDelaySeconds: 30
             periodSeconds: 10
           readinessProbe:
-            tcpSocket:
-              port: 8080
+            exec:
+              command: ["/bin/sh", "-c", "grep -q ':0035' /proc/net/udp /proc/net/udp6"]
             initialDelaySeconds: 5
             periodSeconds: 5 

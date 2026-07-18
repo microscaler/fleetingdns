@@ -1,30 +1,68 @@
 //! SeaORM entities for FleetingDNS database models
 
-pub mod user;
-pub mod service_plan;
-pub mod user_service_plan;
-pub mod auth_token;
-pub mod tunnel;
-pub mod ssh_key_pair;
-pub mod certificate_info;
 pub mod api_stats;
-pub mod ca_stats;
-pub mod payment_info;
-pub mod user_usage;
 pub mod audit_log;
+pub mod auth_token;
 pub mod billing_event;
+pub mod ca_stats;
+pub mod certificate_info;
+pub mod payment_info;
+pub mod service_plan;
+pub mod ssh_key_pair;
+pub mod tunnel;
+pub mod user;
+pub mod user_service_plan;
+pub mod user_usage;
 
 // Re-export specific types to avoid naming conflicts
-pub use user::{Entity as User, Model as UserModel, ActiveModel as UserActiveModel, Column as UserColumn};
-pub use service_plan::{Entity as ServicePlan, Model as ServicePlanModel, ActiveModel as ServicePlanActiveModel, Column as ServicePlanColumn};
-pub use user_service_plan::{Entity as UserServicePlan, Model as UserServicePlanModel, ActiveModel as UserServicePlanActiveModel, Column as UserServicePlanColumn};
-pub use auth_token::{Entity as AuthToken, Model as AuthTokenModel, ActiveModel as AuthTokenActiveModel, Column as AuthTokenColumn};
-pub use tunnel::{Entity as Tunnel, Model as TunnelModel, ActiveModel as TunnelActiveModel, Column as TunnelColumn};
-pub use ssh_key_pair::{Entity as SshKeyPair, Model as SshKeyPairModel, ActiveModel as SshKeyPairActiveModel, Column as SshKeyPairColumn};
-pub use certificate_info::{Entity as CertificateInfo, Model as CertificateInfoModel, ActiveModel as CertificateInfoActiveModel, Column as CertificateInfoColumn};
-pub use api_stats::{Entity as ApiStats, Model as ApiStatsModel, ActiveModel as ApiStatsActiveModel, Column as ApiStatsColumn};
-pub use ca_stats::{Entity as CaStats, Model as CaStatsModel, ActiveModel as CaStatsActiveModel, Column as CaStatsColumn};
-pub use payment_info::{Entity as PaymentInfo, Model as PaymentInfoModel, ActiveModel as PaymentInfoActiveModel, Column as PaymentInfoColumn};
-pub use user_usage::{Entity as UserUsage, Model as UserUsageModel, ActiveModel as UserUsageActiveModel, Column as UserUsageColumn};
-pub use audit_log::{Entity as AuditLog, Model as AuditLogModel, ActiveModel as AuditLogActiveModel, Column as AuditLogColumn};
-pub use billing_event::{Entity as BillingEvent, Model as BillingEventModel, ActiveModel as BillingEventActiveModel, Column as BillingEventColumn}; 
+pub use api_stats::{
+    ActiveModel as ApiStatsActiveModel, Column as ApiStatsColumn, Entity as ApiStats,
+    Model as ApiStatsModel,
+};
+pub use audit_log::{
+    ActiveModel as AuditLogActiveModel, Column as AuditLogColumn, Entity as AuditLog,
+    Model as AuditLogModel,
+};
+pub use auth_token::{
+    ActiveModel as AuthTokenActiveModel, Column as AuthTokenColumn, Entity as AuthToken,
+    Model as AuthTokenModel,
+};
+pub use billing_event::{
+    ActiveModel as BillingEventActiveModel, Column as BillingEventColumn, Entity as BillingEvent,
+    Model as BillingEventModel,
+};
+pub use ca_stats::{
+    ActiveModel as CaStatsActiveModel, Column as CaStatsColumn, Entity as CaStats,
+    Model as CaStatsModel,
+};
+pub use certificate_info::{
+    ActiveModel as CertificateInfoActiveModel, Column as CertificateInfoColumn,
+    Entity as CertificateInfo, Model as CertificateInfoModel,
+};
+pub use payment_info::{
+    ActiveModel as PaymentInfoActiveModel, Column as PaymentInfoColumn, Entity as PaymentInfo,
+    Model as PaymentInfoModel,
+};
+pub use service_plan::{
+    ActiveModel as ServicePlanActiveModel, Column as ServicePlanColumn, Entity as ServicePlan,
+    Model as ServicePlanModel,
+};
+pub use ssh_key_pair::{
+    ActiveModel as SshKeyPairActiveModel, Column as SshKeyPairColumn, Entity as SshKeyPair,
+    Model as SshKeyPairModel,
+};
+pub use tunnel::{
+    ActiveModel as TunnelActiveModel, Column as TunnelColumn, Entity as Tunnel,
+    Model as TunnelModel,
+};
+pub use user::{
+    ActiveModel as UserActiveModel, Column as UserColumn, Entity as User, Model as UserModel,
+};
+pub use user_service_plan::{
+    ActiveModel as UserServicePlanActiveModel, Column as UserServicePlanColumn,
+    Entity as UserServicePlan, Model as UserServicePlanModel,
+};
+pub use user_usage::{
+    ActiveModel as UserUsageActiveModel, Column as UserUsageColumn, Entity as UserUsage,
+    Model as UserUsageModel,
+};

@@ -34,6 +34,14 @@ pub struct TunnelInfo {
     pub status: String,
     pub bytes_transferred: u64,
     pub request_count: u64,
+    /// When true the edge requires a valid session grant cookie before
+    /// forwarding any bytes (FR-EDGE-3). serde(default) keeps records
+    /// written by older API versions deserializable (and public).
+    #[serde(default)]
+    pub protected: bool,
+    /// Teardown lifecycle policy (FR-HUB-2); default `ttl_only`.
+    #[serde(default)]
+    pub teardown_policy: common::redis::TeardownPolicy,
 }
 
 /// Create a new Redis connection pool using the given URL.

@@ -6,7 +6,7 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use redis::AsyncCommands;
-use russh_keys::key::PublicKey;
+use russh::keys::key::PublicKey;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
@@ -257,7 +257,7 @@ impl RedisAuthHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use russh_keys::key::KeyPair;
+    use russh::keys::key::KeyPair;
     use chrono::Duration;
 
     #[tokio::test]

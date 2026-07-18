@@ -12,10 +12,10 @@ spec:
     - port: 2222
       targetPort: 2222
       protocol: TCP
-      name: tunnel
-    - port: 8080
-      targetPort: 8080
+      name: ssh
+    - port: 443
+      targetPort: 8443
       protocol: TCP
-      name: metrics
+      name: https
   selector:
     app: edgehub 

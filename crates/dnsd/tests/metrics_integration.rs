@@ -11,7 +11,6 @@ use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
 use dnsd::dns_handler;
-use common::redis;
 use dnsd::sign;
 use dnsd::{Config, serve};
 
@@ -35,12 +34,12 @@ async fn test_dns_query_metrics_udp() {
         eprintln!("skipping test: RUN_REDIS_TESTS not set");
         return;
     }
-    
+
     let Some((redis_url, redis_handle)) = start_redis().await else {
         eprintln!("skipping test: redis not available");
         return;
     };
-    
+
     let pool = match common::redis::new_pool(&redis_url).await {
         Ok(pool) => pool,
         Err(e) => {
@@ -49,9 +48,10 @@ async fn test_dns_query_metrics_udp() {
             return;
         }
     };
-    
+
     // Set up test data
-    if let Err(e) = common::redis::set_slot(&pool, "test", Ipv4Addr::new(192, 168, 1, 1), 60).await {
+    if let Err(e) = common::redis::set_slot(&pool, "test", Ipv4Addr::new(192, 168, 1, 1), 60).await
+    {
         eprintln!("Failed to set slot: {}", e);
         redis_handle.abort();
         return;
@@ -69,7 +69,7 @@ async fn test_dns_query_metrics_udp() {
         enable_ddos_protection: false,
         performance_config: dns_handler::PerformanceConfig::default(),
     };
-    
+
     let handle = tokio::spawn(async move { serve(cfg).await.unwrap() });
     sleep(Duration::from_millis(100)).await; // Increased wait time
 
@@ -90,11 +90,11 @@ async fn test_dns_query_metrics_udp() {
 
     handle.abort();
     redis_handle.abort();
-    
+
     // Verify the query was successful
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("192.168.1.1"));
-    
+
     // Verify metrics were incremented by checking that the counter call doesn't panic
     // The actual increment happens in the DNS service code
     metrics::counter!("dns_queries_total", "protocol" => "udp").increment(1);
@@ -107,12 +107,12 @@ async fn test_dns_query_metrics_protocol_differentiation() {
         eprintln!("skipping test: RUN_REDIS_TESTS not set");
         return;
     }
-    
+
     let Some((redis_url, redis_handle)) = start_redis().await else {
         eprintln!("skipping test: redis not available");
         return;
     };
-    
+
     let pool = match common::redis::new_pool(&redis_url).await {
         Ok(pool) => pool,
         Err(e) => {
@@ -121,9 +121,10 @@ async fn test_dns_query_metrics_protocol_differentiation() {
             return;
         }
     };
-    
+
     // Set up test data
-    if let Err(e) = common::redis::set_slot(&pool, "test", Ipv4Addr::new(192, 168, 1, 1), 60).await {
+    if let Err(e) = common::redis::set_slot(&pool, "test", Ipv4Addr::new(192, 168, 1, 1), 60).await
+    {
         eprintln!("Failed to set slot: {}", e);
         redis_handle.abort();
         return;
@@ -141,7 +142,7 @@ async fn test_dns_query_metrics_protocol_differentiation() {
         enable_ddos_protection: false,
         performance_config: dns_handler::PerformanceConfig::default(),
     };
-    
+
     let handle = tokio::spawn(async move { serve(cfg).await.unwrap() });
     sleep(Duration::from_millis(100)).await; // Increased wait time
 
@@ -162,13 +163,13 @@ async fn test_dns_query_metrics_protocol_differentiation() {
 
     handle.abort();
     redis_handle.abort();
-    
+
     // Verify the query was successful
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("192.168.1.1"));
-    
+
     // Verify metrics were incremented by checking that the counter calls don't panic
     // The actual increment happens in the DNS service code
     metrics::counter!("dns_queries_total", "protocol" => "udp").increment(1);
     metrics::counter!("dns_queries_total", "protocol" => "dot").increment(1);
-} 
+}

@@ -1,12 +1,4 @@
-use crate::{
-    ApiResult, ApiState,
-    rate_limiting::RateLimitConfig,
-};
-use models::{
-    service_plan::{Entity as ServicePlanEntity, ActiveModel as ServicePlanActiveModel, Column as ServicePlanColumn},
-    user_service_plan::{Entity as UserServicePlanEntity, ActiveModel as UserServicePlanActiveModel, Column as UserServicePlanColumn},
-    user::{Entity as UserEntity, ActiveModel as UserActiveModel},
-};
+use crate::{ApiResult, ApiState, rate_limiting::RateLimitConfig};
 use auth::{extract_bearer_token, validate_jwt_token};
 use axum::{
     Json,
@@ -15,6 +7,16 @@ use axum::{
     response::IntoResponse,
 };
 use chrono::Utc;
+use models::{
+    service_plan::{
+        ActiveModel as ServicePlanActiveModel, Column as ServicePlanColumn,
+        Entity as ServicePlanEntity,
+    },
+    user_service_plan::{
+        ActiveModel as UserServicePlanActiveModel, Column as UserServicePlanColumn,
+        Entity as UserServicePlanEntity,
+    },
+};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
@@ -210,7 +212,9 @@ pub async fn update_service_plan(
         tunnel_creation_limit: updated_plan.tunnel_creation_limit as u32,
         dns_provisioning_limit: updated_plan.dns_provisioning_limit as u32,
         max_concurrent_tunnels: updated_plan.max_concurrent_tunnels as u32,
-        features_json: updated_plan.features_json.unwrap_or_else(|| "{}".to_string()),
+        features_json: updated_plan
+            .features_json
+            .unwrap_or_else(|| "{}".to_string()),
         created_at: updated_plan.created_at,
     }))
 }
@@ -228,7 +232,7 @@ pub async fn delete_service_plan(
     let db = &state.db;
 
     // Check if plan exists
-    let existing_plan = ServicePlanEntity::find_by_id(plan_id.clone())
+    let _existing_plan = ServicePlanEntity::find_by_id(plan_id.clone())
         .one(db)
         .await?
         .ok_or_else(|| {
@@ -249,9 +253,7 @@ pub async fn delete_service_plan(
     }
 
     // Delete the plan
-    ServicePlanEntity::delete_by_id(plan_id)
-        .exec(db)
-        .await?;
+    ServicePlanEntity::delete_by_id(plan_id).exec(db).await?;
 
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
@@ -396,33 +398,24 @@ pub struct UserServicePlanResponse {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[tokio::test]
     async fn test_get_rate_limit_policy_requires_admin() {
-        // Test that admin authentication is required
-        // This is a placeholder test
-        assert!(true);
+        // Placeholder: admin authentication is exercised in integration tests.
     }
 }
 
 #[cfg(test)]
 mod e2e_serviceplan_tests {
     use super::*;
-    use sea_orm::{ActiveModelTrait, Database, EntityTrait};
-
     #[tokio::test]
     async fn serviceplan_crud_and_assignment_e2e() {
         // This test would require a test database setup
         // For now, we'll just verify the types compile correctly
-        
+
         // Test that we can use the models crate entities
         let _service_plan_entity = ServicePlanEntity;
         let _user_service_plan_entity = UserServicePlanEntity;
-        
-        // Test that we can use the models crate entities
-        // Note: ActiveModel::default() is not available, so we'll just verify the types exist
-        
-        assert!(true);
+
+        // compile-only test
     }
 }

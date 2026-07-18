@@ -29,13 +29,14 @@ impl CliConfig {
             .join(".edf")
             .join("keys")
     }
-    
+
     pub fn load() -> Result<Self, Box<dyn std::error::Error>> {
         // TODO: Implement config file loading
         // For now, return default config
         Ok(Self::default())
     }
-    
+
+    #[allow(dead_code)] // TODO: implement config persistence
     pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
         // TODO: Implement config file saving
         Ok(())
@@ -45,11 +46,11 @@ impl CliConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_default_config() {
         let config = CliConfig::default();
         assert_eq!(config.default_ttl, 1800);
         assert_eq!(config.log_level, "info");
     }
-} 
+}

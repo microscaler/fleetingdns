@@ -245,9 +245,9 @@ impl CertificateBuilder {
     /// Generate certificate signed by CA
     pub fn generate_signed_by(self, ca_cert: &Certificate) -> CaResult<Certificate> {
         let cert = self.generate()?;
-        let _signed_cert = cert
-            .serialize_pem_with_signer(ca_cert)
-            .map_err(|e| CaError::CertificateError(format!("Certificate generation failed: {}", e)))?;
+        let _signed_cert = cert.serialize_pem_with_signer(ca_cert).map_err(|e| {
+            CaError::CertificateError(format!("Certificate generation failed: {}", e))
+        })?;
 
         // For now, return the original certificate
         // In a full implementation, we'd parse the signed certificate back
@@ -269,7 +269,12 @@ pub fn calculate_fingerprint(cert_pem: &str) -> CaResult<String> {
 
     let certs = match certs_result {
         Ok(certs) => certs,
-        Err(e) => return Err(CaError::DeserializationError(format!("PEM parsing error: {}", e))),
+        Err(e) => {
+            return Err(CaError::DeserializationError(format!(
+                "PEM parsing error: {}",
+                e
+            )))
+        }
     };
 
     let cert_der = certs

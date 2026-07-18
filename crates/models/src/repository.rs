@@ -1,17 +1,20 @@
 //! Repository pattern for database operations
-//! 
+//!
 //! This module provides repository traits and implementations for database operations
 //! using SeaORM entities.
 
-use async_trait::async_trait;
-use sea_orm::*;
+use crate::entities::{service_plan, tunnel, user};
 use crate::{ModelError, ModelResult};
-use crate::entities::*;
+use async_trait::async_trait;
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 
 /// Repository trait for User entity
 #[async_trait]
 pub trait UserRepository {
-    async fn find_by_github_user_id(&self, github_user_id: &str) -> ModelResult<Option<user::Model>>;
+    async fn find_by_github_user_id(
+        &self,
+        github_user_id: &str,
+    ) -> ModelResult<Option<user::Model>>;
     async fn create(&self, user: user::ActiveModel) -> ModelResult<user::Model>;
     async fn update(&self, user: user::ActiveModel) -> ModelResult<user::Model>;
     async fn delete(&self, id: &str) -> ModelResult<bool>;
@@ -30,8 +33,12 @@ pub trait ServicePlanRepository {
 #[async_trait]
 pub trait TunnelRepository {
     async fn find_by_id(&self, id: uuid::Uuid) -> ModelResult<Option<tunnel::Model>>;
-    async fn find_by_github_user_id(&self, github_user_id: &str) -> ModelResult<Vec<tunnel::Model>>;
-    async fn find_active_by_github_user_id(&self, github_user_id: &str) -> ModelResult<Vec<tunnel::Model>>;
+    async fn find_by_github_user_id(&self, github_user_id: &str)
+        -> ModelResult<Vec<tunnel::Model>>;
+    async fn find_active_by_github_user_id(
+        &self,
+        github_user_id: &str,
+    ) -> ModelResult<Vec<tunnel::Model>>;
     async fn create(&self, tunnel: tunnel::ActiveModel) -> ModelResult<tunnel::Model>;
     async fn update(&self, tunnel: tunnel::ActiveModel) -> ModelResult<tunnel::Model>;
     async fn delete(&self, id: uuid::Uuid) -> ModelResult<bool>;
@@ -50,27 +57,34 @@ impl SeaOrmUserRepository {
 
 #[async_trait]
 impl UserRepository for SeaOrmUserRepository {
-    async fn find_by_github_user_id(&self, github_user_id: &str) -> ModelResult<Option<user::Model>> {
+    async fn find_by_github_user_id(
+        &self,
+        github_user_id: &str,
+    ) -> ModelResult<Option<user::Model>> {
         let user = user::Entity::find()
             .filter(user::Column::GithubUserId.eq(github_user_id))
             .one(&self.db)
             .await
             .map_err(|e| ModelError::DatabaseError(e.to_string()))?;
-        
+
         Ok(user)
     }
 
     async fn create(&self, user: user::ActiveModel) -> ModelResult<user::Model> {
-        let user = user.insert(&self.db).await
+        let user = user
+            .insert(&self.db)
+            .await
             .map_err(|e| ModelError::DatabaseError(e.to_string()))?;
-        
+
         Ok(user)
     }
 
     async fn update(&self, user: user::ActiveModel) -> ModelResult<user::Model> {
-        let user = user.update(&self.db).await
+        let user = user
+            .update(&self.db)
+            .await
             .map_err(|e| ModelError::DatabaseError(e.to_string()))?;
-        
+
         Ok(user)
     }
 
@@ -79,7 +93,7 @@ impl UserRepository for SeaOrmUserRepository {
             .exec(&self.db)
             .await
             .map_err(|e| ModelError::DatabaseError(e.to_string()))?;
-        
+
         Ok(result.rows_affected > 0)
     }
 }
@@ -102,7 +116,7 @@ impl ServicePlanRepository for SeaOrmServicePlanRepository {
             .one(&self.db)
             .await
             .map_err(|e| ModelError::DatabaseError(e.to_string()))?;
-        
+
         Ok(plan)
     }
 
@@ -111,21 +125,25 @@ impl ServicePlanRepository for SeaOrmServicePlanRepository {
             .all(&self.db)
             .await
             .map_err(|e| ModelError::DatabaseError(e.to_string()))?;
-        
+
         Ok(plans)
     }
 
     async fn create(&self, plan: service_plan::ActiveModel) -> ModelResult<service_plan::Model> {
-        let plan = plan.insert(&self.db).await
+        let plan = plan
+            .insert(&self.db)
+            .await
             .map_err(|e| ModelError::DatabaseError(e.to_string()))?;
-        
+
         Ok(plan)
     }
 
     async fn update(&self, plan: service_plan::ActiveModel) -> ModelResult<service_plan::Model> {
-        let plan = plan.update(&self.db).await
+        let plan = plan
+            .update(&self.db)
+            .await
             .map_err(|e| ModelError::DatabaseError(e.to_string()))?;
-        
+
         Ok(plan)
     }
 }
@@ -148,21 +166,27 @@ impl TunnelRepository for SeaOrmTunnelRepository {
             .one(&self.db)
             .await
             .map_err(|e| ModelError::DatabaseError(e.to_string()))?;
-        
+
         Ok(tunnel)
     }
 
-    async fn find_by_github_user_id(&self, github_user_id: &str) -> ModelResult<Vec<tunnel::Model>> {
+    async fn find_by_github_user_id(
+        &self,
+        github_user_id: &str,
+    ) -> ModelResult<Vec<tunnel::Model>> {
         let tunnels = tunnel::Entity::find()
             .filter(tunnel::Column::GithubUserId.eq(github_user_id))
             .all(&self.db)
             .await
             .map_err(|e| ModelError::DatabaseError(e.to_string()))?;
-        
+
         Ok(tunnels)
     }
 
-    async fn find_active_by_github_user_id(&self, github_user_id: &str) -> ModelResult<Vec<tunnel::Model>> {
+    async fn find_active_by_github_user_id(
+        &self,
+        github_user_id: &str,
+    ) -> ModelResult<Vec<tunnel::Model>> {
         let tunnels = tunnel::Entity::find()
             .filter(tunnel::Column::GithubUserId.eq(github_user_id))
             .filter(tunnel::Column::Status.eq("active"))
@@ -170,21 +194,25 @@ impl TunnelRepository for SeaOrmTunnelRepository {
             .all(&self.db)
             .await
             .map_err(|e| ModelError::DatabaseError(e.to_string()))?;
-        
+
         Ok(tunnels)
     }
 
     async fn create(&self, tunnel: tunnel::ActiveModel) -> ModelResult<tunnel::Model> {
-        let tunnel = tunnel.insert(&self.db).await
+        let tunnel = tunnel
+            .insert(&self.db)
+            .await
             .map_err(|e| ModelError::DatabaseError(e.to_string()))?;
-        
+
         Ok(tunnel)
     }
 
     async fn update(&self, tunnel: tunnel::ActiveModel) -> ModelResult<tunnel::Model> {
-        let tunnel = tunnel.update(&self.db).await
+        let tunnel = tunnel
+            .update(&self.db)
+            .await
             .map_err(|e| ModelError::DatabaseError(e.to_string()))?;
-        
+
         Ok(tunnel)
     }
 
@@ -193,7 +221,7 @@ impl TunnelRepository for SeaOrmTunnelRepository {
             .exec(&self.db)
             .await
             .map_err(|e| ModelError::DatabaseError(e.to_string()))?;
-        
+
         Ok(result.rows_affected > 0)
     }
-} 
+}

@@ -6,3 +6,6 @@ edition = "2024"
 
 [dependencies]
 ml_scorer = { path = "../../crates/ml_scorer" }
+
+[lints]
+workspace = true

@@ -564,8 +564,15 @@ mod tests {
         assert_eq!(shutdown.state(), ShutdownState::Draining);
     }
 
+    /// Serializes tests that mutate FLEETINGDNS_CONTROL_SOCKET — process-wide
+    /// env vars + multithreaded test runner = races (observed flake).
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn test_socket_path_generation() {
+        let _guard = ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         // Test with environment variable
         unsafe {
             std::env::set_var("FLEETINGDNS_CONTROL_SOCKET", "/tmp/test.sock");
@@ -785,6 +792,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_environment_variable_socket_path() {
+        let _guard = ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let test_path = "/tmp/test_fleetingdns.sock";
         unsafe {
             std::env::set_var("FLEETINGDNS_CONTROL_SOCKET", test_path);
@@ -800,6 +810,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_socket_path_different_components() {
+        let _guard = ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         // Make sure environment variable is not set
         unsafe {
             std::env::remove_var("FLEETINGDNS_CONTROL_SOCKET");

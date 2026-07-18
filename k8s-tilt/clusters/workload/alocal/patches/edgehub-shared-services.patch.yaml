@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edgehub
+  namespace: fleetingdns
+spec:
+  template:
+    spec:
+      containers:
+        - name: edgehub
+          # args replace the base list wholesale: repoint --redis at the
+          # shared-kind-cluster redis (data namespace). --ssh-addr (2222)
+          # and --https-addr (443) keep their binary defaults.
+          args:
+            - "--redis"
+            - "redis://redis.data.svc.cluster.local:6379"
+          env:
+            - name: REDIS_URL
+              value: "redis://redis.data.svc.cluster.local:6379"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector.observability.svc.cluster.local:4317"

@@ -1,5 +1,3 @@
-#![feature(str_as_str)]
-
 // Canonical migration crate for FleetingDNS. All migration logic, tests, and binaries must reside here.
 // Do not use a root-level migration crate. All workspace, CI, and Docker references must use crates/migration/.
 //
@@ -12,8 +10,8 @@ mod tests {
     use serial_test::serial;
     use std::process::Command;
     use std::time::{Duration, Instant};
+    use testcontainers::ImageExt;
     use testcontainers::runners::SyncRunner;
-    use testcontainers::{Image, ImageExt};
     use testcontainers_modules::postgres::Postgres;
 
     // Pin to stable Postgres version
@@ -93,17 +91,18 @@ mod tests {
         let timeout = std::env::var("POSTGRES_READY_TIMEOUT_SECS")
             .ok()
             .and_then(|s| s.parse().ok())
-            .map(Duration::from_secs)
-            .unwrap_or_else(|| Duration::from_secs(60));
+            .map_or_else(|| Duration::from_secs(60), Duration::from_secs);
 
         let start = Instant::now();
+        #[allow(unused_assignments)] // rustc can't see the assert! read across the loop
         let mut last_error = None;
 
         loop {
             // Check if container is still running
-            if !is_container_running(container.id()) {
-                panic!("Container stopped unexpectedly");
-            }
+            assert!(
+                is_container_running(container.id()),
+                "Container stopped unexpectedly"
+            );
 
             // Try to connect to the database using blocking operations
             let rt = tokio::runtime::Runtime::new().expect("create tokio runtime");
@@ -127,12 +126,12 @@ mod tests {
                 }
             }
 
-            if start.elapsed() > timeout {
-                panic!(
-                    "Failed to connect to Postgres after {:?}. Last error: {:?}",
-                    timeout, last_error
-                );
-            }
+            assert!(
+                start.elapsed() <= timeout,
+                "Failed to connect to Postgres after {:?}. Last error: {:?}",
+                timeout,
+                last_error
+            );
 
             std::thread::sleep(Duration::from_millis(100));
         }

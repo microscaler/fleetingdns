@@ -185,7 +185,7 @@ mod tests {
         assert_eq!(format_duration(Duration::from_secs(59)), "59s");
         assert_eq!(format_duration(Duration::from_secs(60)), "1m 0s");
         assert_eq!(format_duration(Duration::from_secs(3600)), "1h 0m 0s");
-        assert_eq!(format_duration(Duration::from_secs(3660)), "1h 1m 0s");
+        assert_eq!(format_duration(Duration::from_mins(61)), "1h 1m 0s");
         assert_eq!(format_duration(Duration::from_secs(7323)), "2h 2m 3s");
     }
 
@@ -379,7 +379,7 @@ mod tests {
                 let response = ControlResponse {
                     component: "test".to_string(),
                     status: "running".to_string(),
-                    uptime: Duration::from_secs(1800),
+                    uptime: Duration::from_mins(30),
                     active_connections: 3,
                     shutdown_state: ShutdownState::Running,
                 };
@@ -484,7 +484,7 @@ mod tests {
     #[test]
     fn test_format_duration_large_values() {
         // Test very large durations
-        assert_eq!(format_duration(Duration::from_secs(86400)), "24h 0m 0s");
+        assert_eq!(format_duration(Duration::from_hours(24)), "24h 0m 0s");
         assert_eq!(format_duration(Duration::from_secs(90061)), "25h 1m 1s");
     }
 }

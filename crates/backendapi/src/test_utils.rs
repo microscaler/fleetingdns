@@ -9,6 +9,7 @@ pub mod postgres_test_container {
     use testcontainers_modules::postgres::Postgres;
 
     /// PostgreSQL test container configuration
+    #[allow(dead_code)] // container/port/url kept alive for the container's lifetime
     pub struct PostgresTestContainer {
         pub container: testcontainers::ContainerAsync<testcontainers_modules::postgres::Postgres>,
         pub port: u16,
@@ -53,7 +54,7 @@ pub mod postgres_test_container {
             let mut migration_retries = 10;
             loop {
                 match Migrator::up(&db, None).await {
-                    Ok(_) => break,
+                    Ok(()) => break,
                     Err(_) if migration_retries > 0 => {
                         migration_retries -= 1;
                         tokio::time::sleep(Duration::from_millis(500)).await;

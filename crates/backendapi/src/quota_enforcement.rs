@@ -70,11 +70,11 @@ impl UsageTracker {
     /// Get current usage for a user
     pub async fn get_user_usage(&self, user_id: &str) -> ApiResult<UserUsage> {
         let start_time = std::time::Instant::now();
-        
+
         // Create DB span for tracing
         let span = common::telemetry::db_span("select", "user_usage");
         let _enter = span.enter();
-        
+
         // Check cache first
         {
             let cache = self.cache.read().await;
@@ -82,7 +82,12 @@ impl UsageTracker {
                 // Record cache hit metrics
                 let response_time = start_time.elapsed();
                 let response_time_ms = response_time.as_millis() as u64;
-                common::telemetry::record_db_metrics("select_cache", "user_usage", response_time_ms, true);
+                common::telemetry::record_db_metrics(
+                    "select_cache",
+                    "user_usage",
+                    response_time_ms,
+                    true,
+                );
                 return Ok(usage.clone());
             }
         }
@@ -201,11 +206,11 @@ impl UsageTracker {
         amount: i64,
     ) -> ApiResult<()> {
         let start_time = std::time::Instant::now();
-        
+
         // Create DB span for tracing
         let span = common::telemetry::db_span("update", "user_usage");
         let _enter = span.enter();
-        
+
         // Get current usage
         let mut usage = self.get_user_usage(user_id).await?;
 

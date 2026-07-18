@@ -1,6 +1,4 @@
-use crate::{
-    ApiResult, ApiState,
-};
+use crate::{ApiResult, ApiState};
 use auth::{extract_bearer_token, validate_jwt_token};
 use axum::{Json, extract::State, http::HeaderMap};
 use serde::{Deserialize, Serialize};
@@ -13,7 +11,7 @@ pub async fn get_quota_info(
     // Extract and validate JWT token
     let token = extract_bearer_token(&headers)?;
     let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
-    let user_id = user.id.to_string();
+    let user_id = user.id.clone();
 
     // Get quota information
     let quota_info = state.quota_enforcer.get_quota_info(&user_id).await?;
@@ -40,7 +38,7 @@ pub async fn check_operation_allowed(
     // Extract and validate JWT token
     let token = extract_bearer_token(&headers)?;
     let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
-    let user_id = user.id.to_string();
+    let user_id = user.id.clone();
 
     // Check the specific operation
     let allowed = match request.operation_type.as_str() {
@@ -153,14 +151,10 @@ pub struct UserQuotaStatus {
 #[cfg(test)]
 mod tests {
     use models::{
-        service_plan::{Entity as ServicePlanEntity, ActiveModel as ServicePlanActiveModel},
-        user::{Entity as UserEntity, ActiveModel as UserActiveModel},
-        user_service_plan::{Entity as UserServicePlanEntity, ActiveModel as UserServicePlanActiveModel},
+        service_plan::Entity as ServicePlanEntity, user::Entity as UserEntity,
+        user_service_plan::Entity as UserServicePlanEntity,
     };
-    use chrono::Utc;
-    use sea_orm::{ActiveModelTrait, EntityTrait};
     use std::sync::Arc;
-    use uuid::Uuid;
 
     #[tokio::test]
     async fn test_quota_entities_compile() {
@@ -168,25 +162,18 @@ mod tests {
         let _service_plan_entity = ServicePlanEntity;
         let _user_entity = UserEntity;
         let _user_service_plan_entity = UserServicePlanEntity;
-        
-        // Test that we can use the models crate entities
-        // Note: ActiveModel::default() is not available, so we'll just verify the types exist
-        
-        assert!(true);
+
+        // compile-only test
     }
 
     #[tokio::test]
     async fn test_quota_management_types() {
         // Test that the quota management types compile correctly
         let _usage_tracker = Arc::new(crate::quota_enforcement::UsageTracker::new(
-            sea_orm::DatabaseConnection::default()
+            sea_orm::DatabaseConnection::default(),
         ));
-        let _rate_limiter = crate::quota_enforcement::ServicePlanRateLimiter::new(
-            Arc::new(crate::quota_enforcement::UsageTracker::new(
-                sea_orm::DatabaseConnection::default()
-            ))
-        );
-        
-        assert!(true);
+        let _rate_limiter = crate::quota_enforcement::ServicePlanRateLimiter::new(Arc::new(
+            crate::quota_enforcement::UsageTracker::new(sea_orm::DatabaseConnection::default()),
+        ));
     }
 }

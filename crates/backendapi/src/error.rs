@@ -6,8 +6,8 @@ use axum::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use uuid::Uuid;
 use thiserror::Error;
+use uuid::Uuid;
 
 /// Enhanced API error types with detailed error information
 #[derive(Error, Debug, Clone)]
@@ -521,13 +521,24 @@ impl From<auth::AuthError> for ApiError {
             auth::AuthError::Unauthorized(msg) => ApiError::Unauthorized(msg),
             auth::AuthError::ExternalService(msg) => ApiError::ExternalService(msg),
             auth::AuthError::ConfigurationError(msg) => ApiError::ConfigurationError(msg),
-            auth::AuthError::TokenExpired => ApiError::AuthenticationFailed("Token expired".to_string()),
-            auth::AuthError::InvalidTokenFormat => ApiError::AuthenticationFailed("Invalid token format".to_string()),
-            auth::AuthError::InvalidTokenSignature => ApiError::AuthenticationFailed("Invalid token signature".to_string()),
+            auth::AuthError::TokenExpired => {
+                ApiError::AuthenticationFailed("Token expired".to_string())
+            }
+            auth::AuthError::InvalidTokenFormat => {
+                ApiError::AuthenticationFailed("Invalid token format".to_string())
+            }
+            auth::AuthError::InvalidTokenSignature => {
+                ApiError::AuthenticationFailed("Invalid token signature".to_string())
+            }
             auth::AuthError::InsufficientScopes { required, granted } => {
-                ApiError::AuthenticationFailed(format!("Insufficient scopes: required {}, granted {}", required, granted))
-            },
-            auth::AuthError::TokenRevoked => ApiError::AuthenticationFailed("Token revoked".to_string()),
+                ApiError::AuthenticationFailed(format!(
+                    "Insufficient scopes: required {}, granted {}",
+                    required, granted
+                ))
+            }
+            auth::AuthError::TokenRevoked => {
+                ApiError::AuthenticationFailed("Token revoked".to_string())
+            }
         }
     }
 }
@@ -704,5 +715,123 @@ mod tests {
         // Test that ApiError implements Send and Sync
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<ApiError>();
+    }
+}
+
+#[cfg(test)]
+mod exhaustive_tests {
+    use super::*;
+
+    fn all_variants() -> Vec<ApiError> {
+        use ApiError as E;
+        let m = || "m".to_string();
+        vec![
+            E::AuthenticationFailed(m()),
+            E::AuthorizationFailed(m()),
+            E::Unauthorized(m()),
+            E::Forbidden(m()),
+            E::TunnelNotFound(m()),
+            E::CertificateError(m()),
+            E::StorageError(m()),
+            E::ConfigurationError(m()),
+            E::GitHubApiError(m()),
+            E::ExternalService(m()),
+            E::RateLimitExceeded,
+            E::BadRequest(m()),
+            E::InternalError(m()),
+            E::ValidationError(m()),
+            E::NotFound(m()),
+            E::DatabaseError(m()),
+            E::ServiceUnavailable(m()),
+            E::Conflict(m()),
+            E::PreconditionFailed(m()),
+            E::RequestTimeout(m()),
+            E::PayloadTooLarge(m()),
+            E::UnsupportedMediaType(m()),
+            E::TooManyRequests(m()),
+            E::QuotaExceeded(m()),
+            E::ResourceExhausted(m()),
+            E::CircuitBreakerOpen(m()),
+        ]
+    }
+
+    #[test]
+    fn every_variant_produces_an_error_status_response() {
+        for e in all_variants() {
+            let display = e.to_string();
+            let resp = e.into_response();
+            let status = resp.status();
+            assert!(
+                status.is_client_error() || status.is_server_error(),
+                "{display}: unexpected status {status}"
+            );
+        }
+    }
+
+    #[test]
+    fn context_response_includes_request_id() {
+        let ctx = ErrorContext {
+            request_id: Some("req-9".to_string()),
+            user_id: Some("u-9".to_string()),
+            endpoint: Some("/v1/x".to_string()),
+            method: Some("GET".to_string()),
+            client_ip: Some("198.51.100.9".to_string()),
+            user_agent: Some("test".to_string()),
+        };
+        let resp = ApiError::ValidationError("nope".to_string()).into_response_with_context(ctx);
+        assert!(resp.status().is_client_error());
+    }
+
+    #[test]
+    fn conversions_map_to_expected_variants() {
+        assert!(matches!(
+            ApiError::from(anyhow::anyhow!("x")),
+            ApiError::InternalError(_)
+        ));
+        assert!(matches!(
+            ApiError::from(sea_orm::DbErr::Custom("db down".to_string())),
+            ApiError::DatabaseError(_)
+        ));
+        assert!(matches!(
+            ApiError::from(redis::RedisError::from((redis::ErrorKind::IoError, "io"))),
+            ApiError::StorageError(_) | ApiError::InternalError(_) | ApiError::DatabaseError(_)
+        ));
+        assert!(matches!(
+            ApiError::from(serde_json::from_str::<serde_json::Value>("{").unwrap_err()),
+            ApiError::BadRequest(_) | ApiError::InternalError(_) | ApiError::ValidationError(_)
+        ));
+        assert!(matches!(
+            ApiError::from(std::io::Error::other("io")),
+            ApiError::InternalError(_) | ApiError::StorageError(_)
+        ));
+    }
+
+    #[test]
+    fn auth_error_conversion_covers_every_arm() {
+        use auth::AuthError as A;
+        let cases: Vec<A> = vec![
+            A::AuthenticationFailed("m".to_string()),
+            A::Unauthorized("m".to_string()),
+            A::ExternalService("m".to_string()),
+            A::ConfigurationError("m".to_string()),
+            A::TokenExpired,
+            A::InvalidTokenFormat,
+            A::InvalidTokenSignature,
+            A::InsufficientScopes {
+                required: "a".to_string(),
+                granted: "b".to_string(),
+            },
+            A::TokenRevoked,
+        ];
+        for c in cases {
+            let e: ApiError = c.into();
+            assert!(matches!(
+                e,
+                ApiError::AuthenticationFailed(_)
+                    | ApiError::Unauthorized(_)
+                    | ApiError::ExternalService(_)
+                    | ApiError::ConfigurationError(_)
+            ));
+        }
     }
 }

@@ -1,19 +1,15 @@
 //! Comprehensive test suite for database entities
-//! 
+//!
 //! Uses test containers for each test to ensure isolation.
 
+use chrono::Utc;
 use sea_orm::*;
 use testcontainers::runners::AsyncRunner;
 use testcontainers::ImageExt;
 use testcontainers_modules::postgres::Postgres;
 use uuid::Uuid;
-use chrono::Utc;
 
-use crate::{
-    entities::*,
-    repository::*,
-    ModelError, ModelResult,
-};
+use crate::{entities::*, repository::*, ModelError, ModelResult};
 
 /// Test database setup and teardown
 pub struct TestDatabase {
@@ -29,16 +25,19 @@ impl TestDatabase {
             .with_env_var("POSTGRES_DB", "fleetingdns_test")
             .with_env_var("POSTGRES_USER", "postgres")
             .with_env_var("POSTGRES_PASSWORD", "postgres");
-        let container = postgres_image.start().await
-            .map_err(|e| ModelError::DatabaseError(format!("Failed to start Postgres container: {}", e)))?;
-        
-        let host_port = container.get_host_port_ipv4(5432).await
+        let container = postgres_image.start().await.map_err(|e| {
+            ModelError::DatabaseError(format!("Failed to start Postgres container: {}", e))
+        })?;
+
+        let host_port = container
+            .get_host_port_ipv4(5432)
+            .await
             .map_err(|e| ModelError::DatabaseError(format!("Failed to get host port: {}", e)))?;
         let database_url = format!(
             "postgresql://postgres:postgres@localhost:{}/fleetingdns_test",
             host_port
         );
-        
+
         // Connect to database with retry logic
         let mut retries = 30;
         let db = loop {
@@ -48,19 +47,24 @@ impl TestDatabase {
                     retries -= 1;
                     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
                 }
-                Err(e) => return Err(ModelError::DatabaseError(format!("Failed to connect to database after retries: {}", e))),
+                Err(e) => {
+                    return Err(ModelError::DatabaseError(format!(
+                        "Failed to connect to database after retries: {}",
+                        e
+                    )))
+                }
             }
         };
-        
+
         // Run migrations
         Self::run_migrations(&db).await?;
-        
-        Ok(Self { 
+
+        Ok(Self {
             db,
             _container: container,
         })
     }
-    
+
     /// Run database migrations
     async fn run_migrations(db: &DatabaseConnection) -> ModelResult<()> {
         // Create tables based on our entities
@@ -221,15 +225,14 @@ impl TestDatabase {
                 created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
         "#;
-        
+
         // Execute migration SQL
-        db.execute_unprepared(sql).await
+        db.execute_unprepared(sql)
+            .await
             .map_err(|e| ModelError::DatabaseError(e.to_string()))?;
-        
+
         Ok(())
     }
-    
-
 }
 
 /// Test utilities for creating test data
@@ -254,7 +257,7 @@ impl TestData {
             ..Default::default()
         }
     }
-    
+
     /// Create a test service plan
     pub fn create_test_service_plan() -> service_plan::ActiveModel {
         service_plan::ActiveModel {
@@ -269,7 +272,7 @@ impl TestData {
             ..Default::default()
         }
     }
-    
+
     /// Create a test tunnel
     pub fn create_test_tunnel() -> tunnel::ActiveModel {
         tunnel::ActiveModel {
@@ -290,7 +293,7 @@ impl TestData {
             ..Default::default()
         }
     }
-    
+
     /// Create a test auth token
     pub fn create_test_auth_token() -> auth_token::ActiveModel {
         auth_token::ActiveModel {
@@ -307,183 +310,259 @@ impl TestData {
 /// Test suite for User entity
 #[tokio::test]
 async fn test_user_entity() {
-    let db = TestDatabase::new().await.expect("Failed to initialize test database");
+    let db = TestDatabase::new()
+        .await
+        .expect("Failed to initialize test database");
     let repo = SeaOrmUserRepository::new(db.db.clone());
-    
+
     // Test creating a user
     let user_model = TestData::create_test_user();
-    let created_user = repo.create(user_model).await.expect("Failed to create user");
-    
+    let created_user = repo
+        .create(user_model)
+        .await
+        .expect("Failed to create user");
+
     assert_eq!(created_user.id, "test-user-1");
     assert_eq!(created_user.github_user_id, "12345");
     assert_eq!(created_user.login, "testuser");
-    
+
     // Test finding user by GitHub ID
-    let found_user = repo.find_by_github_user_id("12345").await.expect("Failed to find user");
+    let found_user = repo
+        .find_by_github_user_id("12345")
+        .await
+        .expect("Failed to find user");
     assert!(found_user.is_some());
     let found_user = found_user.unwrap();
     assert_eq!(found_user.id, "test-user-1");
-    
+
     // Test finding non-existent user
-    let not_found = repo.find_by_github_user_id("99999").await.expect("Failed to query");
+    let not_found = repo
+        .find_by_github_user_id("99999")
+        .await
+        .expect("Failed to query");
     assert!(not_found.is_none());
-    
+
     // Test updating user
     let update_model = user::ActiveModel {
         id: Set("test-user-1".to_string()),
         name: Set(Some("Updated Test User".to_string())),
         ..Default::default()
     };
-    let updated_user = repo.update(update_model).await.expect("Failed to update user");
+    let updated_user = repo
+        .update(update_model)
+        .await
+        .expect("Failed to update user");
     assert_eq!(updated_user.name, Some("Updated Test User".to_string()));
-    
+
     // Test deleting user
-    let deleted = repo.delete("test-user-1").await.expect("Failed to delete user");
+    let deleted = repo
+        .delete("test-user-1")
+        .await
+        .expect("Failed to delete user");
     assert!(deleted);
-    
+
     // Verify user is deleted
-    let found_user = repo.find_by_github_user_id("12345").await.expect("Failed to query");
+    let found_user = repo
+        .find_by_github_user_id("12345")
+        .await
+        .expect("Failed to query");
     assert!(found_user.is_none());
 }
 
 /// Test suite for ServicePlan entity
 #[tokio::test]
 async fn test_service_plan_entity() {
-    let db = TestDatabase::new().await.expect("Failed to initialize test database");
+    let db = TestDatabase::new()
+        .await
+        .expect("Failed to initialize test database");
     let repo = SeaOrmServicePlanRepository::new(db.db.clone());
-    
+
     // Test creating a service plan
     let plan_model = TestData::create_test_service_plan();
-    let created_plan = repo.create(plan_model).await.expect("Failed to create service plan");
-    
+    let created_plan = repo
+        .create(plan_model)
+        .await
+        .expect("Failed to create service plan");
+
     assert_eq!(created_plan.id, "basic");
     assert_eq!(created_plan.name, "Basic Plan");
     assert_eq!(created_plan.api_rate_limit, 1000);
-    
+
     // Test finding service plan by ID
-    let found_plan = repo.find_by_id("basic").await.expect("Failed to find service plan");
+    let found_plan = repo
+        .find_by_id("basic")
+        .await
+        .expect("Failed to find service plan");
     assert!(found_plan.is_some());
     let found_plan = found_plan.unwrap();
     assert_eq!(found_plan.id, "basic");
-    
+
     // Test finding all service plans
-    let all_plans = repo.find_all().await.expect("Failed to find all service plans");
+    let all_plans = repo
+        .find_all()
+        .await
+        .expect("Failed to find all service plans");
     assert!(!all_plans.is_empty());
     assert!(all_plans.iter().any(|p| p.id == "basic"));
-    
+
     // Test updating service plan
     let update_model = service_plan::ActiveModel {
         id: Set("basic".to_string()),
         api_rate_limit: Set(2000),
         ..Default::default()
     };
-    let updated_plan = repo.update(update_model).await.expect("Failed to update service plan");
+    let updated_plan = repo
+        .update(update_model)
+        .await
+        .expect("Failed to update service plan");
     assert_eq!(updated_plan.api_rate_limit, 2000);
 }
 
 /// Test suite for Tunnel entity
 #[tokio::test]
 async fn test_tunnel_entity() {
-    let db = TestDatabase::new().await.expect("Failed to initialize test database");
+    let db = TestDatabase::new()
+        .await
+        .expect("Failed to initialize test database");
     let repo = SeaOrmTunnelRepository::new(db.db.clone());
-    
+
     // Create a user first (required for foreign key)
     let user_repo = SeaOrmUserRepository::new(db.db.clone());
     let user_model = TestData::create_test_user();
-    user_repo.create(user_model).await.expect("Failed to create user");
-    
+    user_repo
+        .create(user_model)
+        .await
+        .expect("Failed to create user");
+
     // Test creating a tunnel
     let tunnel_model = TestData::create_test_tunnel();
-    let created_tunnel = repo.create(tunnel_model).await.expect("Failed to create tunnel");
-    
+    let created_tunnel = repo
+        .create(tunnel_model)
+        .await
+        .expect("Failed to create tunnel");
+
     assert_eq!(created_tunnel.github_user_id, "12345");
     assert_eq!(created_tunnel.subdomain, "test-tunnel");
     assert_eq!(created_tunnel.status, "active");
-    
+
     // Test finding tunnel by ID
-    let found_tunnel = repo.find_by_id(created_tunnel.id).await.expect("Failed to find tunnel");
+    let found_tunnel = repo
+        .find_by_id(created_tunnel.id)
+        .await
+        .expect("Failed to find tunnel");
     assert!(found_tunnel.is_some());
     let found_tunnel = found_tunnel.unwrap();
     assert_eq!(found_tunnel.id, created_tunnel.id);
-    
+
     // Test finding tunnels by GitHub user ID
-    let user_tunnels = repo.find_by_github_user_id("12345").await.expect("Failed to find user tunnels");
+    let user_tunnels = repo
+        .find_by_github_user_id("12345")
+        .await
+        .expect("Failed to find user tunnels");
     assert!(!user_tunnels.is_empty());
     assert!(user_tunnels.iter().any(|t| t.id == created_tunnel.id));
-    
+
     // Test finding active tunnels
-    let active_tunnels = repo.find_active_by_github_user_id("12345").await.expect("Failed to find active tunnels");
+    let active_tunnels = repo
+        .find_active_by_github_user_id("12345")
+        .await
+        .expect("Failed to find active tunnels");
     assert!(!active_tunnels.is_empty());
     assert!(active_tunnels.iter().all(|t| t.status == "active"));
-    
+
     // Test updating tunnel
     let update_model = tunnel::ActiveModel {
         id: Set(created_tunnel.id),
         status: Set("inactive".to_string()),
         ..Default::default()
     };
-    let updated_tunnel = repo.update(update_model).await.expect("Failed to update tunnel");
+    let updated_tunnel = repo
+        .update(update_model)
+        .await
+        .expect("Failed to update tunnel");
     assert_eq!(updated_tunnel.status, "inactive");
-    
+
     // Test deleting tunnel
-    let deleted = repo.delete(created_tunnel.id).await.expect("Failed to delete tunnel");
+    let deleted = repo
+        .delete(created_tunnel.id)
+        .await
+        .expect("Failed to delete tunnel");
     assert!(deleted);
-    
+
     // Verify tunnel is deleted
-    let found_tunnel = repo.find_by_id(created_tunnel.id).await.expect("Failed to query");
+    let found_tunnel = repo
+        .find_by_id(created_tunnel.id)
+        .await
+        .expect("Failed to query");
     assert!(found_tunnel.is_none());
 }
 
 /// Test suite for AuthToken entity
 #[tokio::test]
 async fn test_auth_token_entity() {
-    let db = TestDatabase::new().await.expect("Failed to initialize test database");
-    
+    let db = TestDatabase::new()
+        .await
+        .expect("Failed to initialize test database");
+
     // Create a user first (required for foreign key)
     let user_repo = SeaOrmUserRepository::new(db.db.clone());
     let user_model = TestData::create_test_user();
-    user_repo.create(user_model).await.expect("Failed to create user");
-    
+    user_repo
+        .create(user_model)
+        .await
+        .expect("Failed to create user");
+
     // Test creating an auth token
     let token_model = TestData::create_test_auth_token();
-    let created_token = token_model.insert(&db.db).await.expect("Failed to create auth token");
-    
+    let created_token = token_model
+        .insert(&db.db)
+        .await
+        .expect("Failed to create auth token");
+
     assert_eq!(created_token.token, "test-token-123");
     assert_eq!(created_token.token_type, "Bearer");
     assert_eq!(created_token.user_id, "test-user-1");
-    
+
     // Test finding token
     let found_token = auth_token::Entity::find_by_id("test-token-123")
         .one(&db.db)
         .await
         .expect("Failed to find auth token")
         .expect("Auth token not found");
-    
+
     assert_eq!(found_token.token, "test-token-123");
-    
+
     // Test deleting token
     let deleted = auth_token::Entity::delete_by_id("test-token-123")
         .exec(&db.db)
         .await
         .expect("Failed to delete auth token");
-    
+
     assert_eq!(deleted.rows_affected, 1);
 }
 
 /// Test suite for relationships
 #[tokio::test]
 async fn test_entity_relationships() {
-    let db = TestDatabase::new().await.expect("Failed to initialize test database");
-    
+    let db = TestDatabase::new()
+        .await
+        .expect("Failed to initialize test database");
+
     // Create test data
     let user_repo = SeaOrmUserRepository::new(db.db.clone());
     let user_model = TestData::create_test_user();
-    let user = user_repo.create(user_model).await.expect("Failed to create user");
-    
+    let user = user_repo
+        .create(user_model)
+        .await
+        .expect("Failed to create user");
+
     let plan_repo = SeaOrmServicePlanRepository::new(db.db.clone());
     let plan_model = TestData::create_test_service_plan();
-    let plan = plan_repo.create(plan_model).await.expect("Failed to create service plan");
-    
+    let plan = plan_repo
+        .create(plan_model)
+        .await
+        .expect("Failed to create service plan");
+
     // Test user-service plan relationship
     let user_plan = user_service_plan::ActiveModel {
         id: Set(Uuid::new_v4()),
@@ -495,35 +574,42 @@ async fn test_entity_relationships() {
         created_at: Set(Utc::now()),
         ..Default::default()
     };
-    
-    let created_user_plan = user_plan.insert(&db.db).await.expect("Failed to create user service plan");
+
+    let created_user_plan = user_plan
+        .insert(&db.db)
+        .await
+        .expect("Failed to create user service plan");
     assert_eq!(created_user_plan.user_id, user.id);
     assert_eq!(created_user_plan.service_plan_id, plan.id);
-    
+
     // Test finding related data
     let user_with_plans = user::Entity::find_by_id(&user.id)
         .find_also_related(user_service_plan::Entity)
         .all(&db.db)
         .await
         .expect("Failed to find user with plans");
-    
+
     assert!(!user_with_plans.is_empty());
 }
 
 /// Test suite for error handling
 #[tokio::test]
 async fn test_error_handling() {
-    let db = TestDatabase::new().await.expect("Failed to initialize test database");
+    let db = TestDatabase::new()
+        .await
+        .expect("Failed to initialize test database");
     let repo = SeaOrmUserRepository::new(db.db.clone());
-    
+
     // Test creating user with duplicate ID
     let user1 = TestData::create_test_user();
-    repo.create(user1).await.expect("Failed to create first user");
-    
+    repo.create(user1)
+        .await
+        .expect("Failed to create first user");
+
     let user2 = TestData::create_test_user(); // Same ID
     let result = repo.create(user2).await;
     assert!(result.is_err()); // Should fail due to duplicate primary key
-    
+
     // Test finding non-existent user
     let result = repo.find_by_github_user_id("non-existent").await;
     assert!(result.is_ok());
@@ -534,8 +620,10 @@ async fn test_error_handling() {
 /// Test suite for data validation
 #[tokio::test]
 async fn test_data_validation() {
-    let db = TestDatabase::new().await.expect("Failed to initialize test database");
-    
+    let db = TestDatabase::new()
+        .await
+        .expect("Failed to initialize test database");
+
     // Test creating tunnel with invalid user ID
     let tunnel_model = tunnel::ActiveModel {
         id: Set(Uuid::new_v4()),
@@ -554,7 +642,7 @@ async fn test_data_validation() {
         request_count: Set(0),
         ..Default::default()
     };
-    
+
     let result = tunnel_model.insert(&db.db).await;
     assert!(result.is_err()); // Should fail due to foreign key constraint
 }
@@ -562,12 +650,14 @@ async fn test_data_validation() {
 /// Test suite for concurrent operations
 #[tokio::test]
 async fn test_concurrent_operations() {
-    let db = TestDatabase::new().await.expect("Failed to initialize test database");
+    let db = TestDatabase::new()
+        .await
+        .expect("Failed to initialize test database");
     let repo = SeaOrmUserRepository::new(db.db.clone());
-    
+
     // Create multiple users concurrently
     let mut handles = vec![];
-    
+
     for i in 1..=5 {
         let user_model = user::ActiveModel {
             id: Set(format!("concurrent-user-{}", i)),
@@ -584,22 +674,20 @@ async fn test_concurrent_operations() {
             created_at_db: Set(Utc::now()),
             ..Default::default()
         };
-        
+
         let repo_clone = SeaOrmUserRepository::new(db.db.clone());
-        let handle = tokio::spawn(async move {
-            repo_clone.create(user_model).await
-        });
+        let handle = tokio::spawn(async move { repo_clone.create(user_model).await });
         handles.push(handle);
     }
-    
+
     // Wait for all operations to complete
     let results = futures::future::join_all(handles).await;
-    
+
     // Verify all operations succeeded
     for result in results {
         assert!(result.unwrap().is_ok());
     }
-    
+
     // Verify all users were created
     let all_users = repo.find_all().await.expect("Failed to find all users");
     assert!(all_users.len() >= 5);
@@ -608,11 +696,13 @@ async fn test_concurrent_operations() {
 /// Test suite for performance
 #[tokio::test]
 async fn test_performance() {
-    let db = TestDatabase::new().await.expect("Failed to initialize test database");
+    let db = TestDatabase::new()
+        .await
+        .expect("Failed to initialize test database");
     let repo = SeaOrmUserRepository::new(db.db.clone());
-    
+
     let start = std::time::Instant::now();
-    
+
     // Create 100 users
     for i in 1..=100 {
         let user_model = user::ActiveModel {
@@ -630,13 +720,15 @@ async fn test_performance() {
             created_at_db: Set(Utc::now()),
             ..Default::default()
         };
-        
-        repo.create(user_model).await.expect(&format!("Failed to create user {}", i));
+
+        repo.create(user_model)
+            .await
+            .unwrap_or_else(|_| panic!("Failed to create user {}", i));
     }
-    
+
     let duration = start.elapsed();
     println!("Created 100 users in {:?}", duration);
-    
+
     // Performance should be reasonable (less than 10 seconds for 100 users)
     assert!(duration.as_secs() < 10);
 }
@@ -644,23 +736,37 @@ async fn test_performance() {
 /// Test suite for cleanup
 #[tokio::test]
 async fn test_cleanup() {
-    let db = TestDatabase::new().await.expect("Failed to initialize test database");
-    
+    let db = TestDatabase::new()
+        .await
+        .expect("Failed to initialize test database");
+
     // Create some test data
     let user_repo = SeaOrmUserRepository::new(db.db.clone());
     let user_model = TestData::create_test_user();
-    let user = user_repo.create(user_model).await.expect("Failed to create user");
-    
+    let user = user_repo
+        .create(user_model)
+        .await
+        .expect("Failed to create user");
+
     // Verify data exists
-    let found_user = user_repo.find_by_github_user_id("12345").await.expect("Failed to find user");
+    let found_user = user_repo
+        .find_by_github_user_id("12345")
+        .await
+        .expect("Failed to find user");
     assert!(found_user.is_some());
-    
+
     // Clean up
-    let deleted = user_repo.delete(&user.id).await.expect("Failed to delete user");
+    let deleted = user_repo
+        .delete(&user.id)
+        .await
+        .expect("Failed to delete user");
     assert!(deleted);
-    
+
     // Verify cleanup
-    let found_user = user_repo.find_by_github_user_id("12345").await.expect("Failed to query");
+    let found_user = user_repo
+        .find_by_github_user_id("12345")
+        .await
+        .expect("Failed to query");
     assert!(found_user.is_none());
 }
 
@@ -671,7 +777,7 @@ impl SeaOrmUserRepository {
             .all(&self.db)
             .await
             .map_err(|e| ModelError::DatabaseError(e.to_string()))?;
-        
+
         Ok(users)
     }
-} 
+}

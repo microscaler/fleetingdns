@@ -1,5 +1,19 @@
 # 📘 E3 – Edge Proxy (Design v0.1)
 
+> **⚠️ STATUS (2026-07-17): PARTIALLY DEPRECATED.** Authoritative stories now live in
+> `docs/engineering/stories_detailed/E2_E3_tunnel_data_plane_user_stories_v0.3.md`.
+> Divergences from the as-built system:
+>
+> - **E3-S1 is DEPRECATED (D-1)**: it specifies `direct-tcpip` — the local-forwarding
+>   primitive, and the root cause of the S1 reverse-tunnel outage (see
+>   `POSTMORTEM-reverse-tunnel-connectivity.md` §5). The live implementation uses
+>   `tcpip-forward` + `forwarded-tcpip` (story TDP-1). Do not implement from E3-S1.
+> - **E3-S2 is CORRECTED (D-2)**: no Unix sockets, no etcd. Routing is SNI (sniffed from
+>   the ClientHello before handshake) → Redis subdomain→slot → TCP splice to
+>   `127.0.0.1:<slot>` (story TDP-2).
+> - **E3-S3 is SUPERSEDED (D-5)** by session-grant cookie gating (FR-EDGE-3, story TDP-5).
+> - **E3-S4, E3-S5, E3-S6 remain valid** and are not started.
+
 ## 🧭 Overview
 
 The **Edge Proxy** (`edf-edge`) is responsible for accepting incoming traffic from the public internet over HTTPS and routing it to the correct tunnel slot within the `edf-hub`. It is designed to operate securely, efficiently, and with zero configuration for end users.
@@ -174,7 +188,11 @@ Edge Proxy is the **EdgeHub data‑plane module** that terminates client tunnels
 
 ---
 
-## E3-S1 — TLS‑SSH Handshake
+## ~~E3-S1 — TLS‑SSH Handshake~~ **DEPRECATED (D-1)**
+
+> Uses the wrong SSH primitive (`direct-tcpip`). Replaced by TDP-1 in
+> `stories_detailed/E2_E3_tunnel_data_plane_user_stories_v0.3.md`. Retained for history only.
+
 **Tasks**
 1. Implement listener on port 443 in `edge-hub/src/tls_ssh.rs`.
 2. Use `tokio-rustls` server config with **client‑cert auth required**.
@@ -190,7 +208,11 @@ Edge Proxy is the **EdgeHub data‑plane module** that terminates client tunnels
 
 ---
 
-## E3-S2 — Slot Router
+## E3-S2 — Slot Router **(CORRECTED — see D-2 / TDP-2)**
+
+> As built: SNI from ClientHello (not `:authority`), Redis tunnel record (no etcd), TCP splice
+> to `127.0.0.1:<slot>` (no Unix sockets). Task list below is historical.
+
 **Tasks**
 1. Parse incoming `:authority` / SNI host → label.
 2. Validate HMAC with shared key.

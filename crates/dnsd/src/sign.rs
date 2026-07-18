@@ -2,19 +2,20 @@ use std::collections::HashMap;
 use std::sync::{Arc, OnceLock, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use hickory_proto::rr::{
-    Name, RData, Record, RecordType,
-    dnssec::{
-        Algorithm,
-        rdata::{DNSSECRData, RRSIG},
-    },
+use hickory_proto::rr::{Name, RData, Record, RecordType};
+// hickory 0.26: DNSSEC types moved from `rr::dnssec` to the top-level
+// `hickory_proto::dnssec` module.
+use hickory_proto::dnssec::{
+    Algorithm,
+    rdata::{DNSSECRData, RRSIG, SigInput},
 };
+use hickory_proto::rr::SerialNumber;
 use hickory_proto::serialize::binary::BinEncodable;
 use ring::hmac;
 use ring::rand::{SecureRandom, SystemRandom};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 /// DNSSEC signing errors
 #[derive(Error, Debug)]
@@ -555,17 +556,18 @@ impl ProductionDnssecSigner {
         let signature = self.key_manager.sign(rrset, algorithm)?;
         let key = self.key_manager.get_active_key(algorithm)?;
 
-        let rrsig = RRSIG::new(
-            typ,
-            algorithm.to_hickory_algorithm(),
-            name.num_labels(),
-            ttl,
-            now + ttl,
-            now,
-            key.metadata.key_tag,
-            name.clone(),
-            signature,
-        );
+        // hickory 0.26: RRSIG is built from a SigInput + raw signature bytes.
+        let sig_input = SigInput {
+            type_covered: typ,
+            algorithm: algorithm.to_hickory_algorithm(),
+            num_labels: name.num_labels(),
+            original_ttl: ttl,
+            sig_expiration: SerialNumber::new(now + ttl),
+            sig_inception: SerialNumber::new(now),
+            key_tag: key.metadata.key_tag,
+            signer_name: name.clone(),
+        };
+        let rrsig = RRSIG::from_sig(sig_input, signature);
 
         Ok(Record::from_rdata(
             name.clone(),
@@ -634,17 +636,17 @@ impl HmacSigner {
             .unwrap()
             .as_secs() as u32;
         let sig = self.sign(rrset);
-        let rrsig = RRSIG::new(
-            typ,
-            Algorithm::Unknown(253),
-            name.num_labels(),
-            ttl,
-            now + ttl,
-            now,
-            0,
-            name.clone(),
-            sig,
-        );
+        let sig_input = SigInput {
+            type_covered: typ,
+            algorithm: Algorithm::Unknown(253),
+            num_labels: name.num_labels(),
+            original_ttl: ttl,
+            sig_expiration: SerialNumber::new(now + ttl),
+            sig_inception: SerialNumber::new(now),
+            key_tag: 0,
+            signer_name: name.clone(),
+        };
+        let rrsig = RRSIG::from_sig(sig_input, sig);
         Record::from_rdata(name.clone(), ttl, RData::DNSSEC(DNSSECRData::RRSIG(rrsig)))
     }
 }
@@ -759,7 +761,7 @@ impl DnssecValidator {
 
         // Find all RRSIG records in the message
         let rrsig_records: Vec<_> = message
-            .answers()
+            .answers
             .iter()
             .filter(|record| record.record_type() == RecordType::RRSIG)
             .collect();
@@ -771,12 +773,12 @@ impl DnssecValidator {
 
         // Validate each RRSIG
         for rrsig_record in rrsig_records {
-            if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data().unwrap() {
+            if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = &rrsig_record.data {
                 // Find the corresponding RRset
                 let covered_records: Vec<_> = message
-                    .answers()
+                    .answers
                     .iter()
-                    .filter(|record| record.record_type() == rrsig.type_covered())
+                    .filter(|record| record.record_type() == rrsig.input().type_covered)
                     .collect();
 
                 if !covered_records.is_empty() {
@@ -794,14 +796,15 @@ impl DnssecValidator {
                     }
 
                     // Determine algorithm from RRSIG
-                    let algorithm = match rrsig.algorithm() {
+                    let algorithm = match rrsig.input().algorithm {
                         Algorithm::Unknown(253) => DnssecAlgorithm::HmacSha256,
                         Algorithm::RSASHA256 => DnssecAlgorithm::RsaSha256,
                         Algorithm::ECDSAP256SHA256 => DnssecAlgorithm::EcdsaP256Sha256,
                         _ => {
-                            result
-                                .errors
-                                .push(format!("Unsupported algorithm: {:?}", rrsig.algorithm()));
+                            result.errors.push(format!(
+                                "Unsupported algorithm: {:?}",
+                                rrsig.input().algorithm
+                            ));
                             continue;
                         }
                     };
@@ -815,7 +818,7 @@ impl DnssecValidator {
                             result.invalid_signatures += 1;
                             result.errors.push(format!(
                                 "Invalid signature for {:?} record",
-                                rrsig.type_covered()
+                                rrsig.input().type_covered
                             ));
                         }
                         Err(e) => {
@@ -858,10 +861,10 @@ impl DnssecValidator {
     fn update_timing_stats(&self, elapsed: Duration) {
         if let Ok(mut stats) = self.validation_stats.write() {
             let elapsed_us = elapsed.as_micros() as u64;
-            if stats.total_validations > 0 {
-                stats.average_validation_time_us =
-                    (stats.average_validation_time_us * (stats.total_validations - 1) + elapsed_us)
-                        / stats.total_validations;
+            if let Some(prev) = stats.total_validations.checked_sub(1) {
+                stats.average_validation_time_us = (stats.average_validation_time_us * prev
+                    + elapsed_us)
+                    / stats.total_validations;
             } else {
                 stats.average_validation_time_us = elapsed_us;
             }
@@ -949,10 +952,10 @@ impl ProductionDnssecSigner {
         let rrsig_record = self.rrsig_record(name, typ, ttl, rrset)?;
 
         // Extract the RRSIG
-        if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data().unwrap() {
+        if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data {
             // Validate the signature
             let validator = self.create_validator();
-            validator.validate_rrsig(rrsig, rrset, self.config.default_algorithm)
+            validator.validate_rrsig(&rrsig, rrset, self.config.default_algorithm)
         } else {
             Err(DnssecError::SigningFailed(
                 "Failed to extract RRSIG".to_string(),
@@ -1425,9 +1428,9 @@ mod tests {
         assert!(rrsig_record.is_ok());
 
         let rrsig_record = rrsig_record.unwrap();
-        assert_eq!(rrsig_record.name(), &name);
+        assert_eq!(&rrsig_record.name, &name);
         assert_eq!(rrsig_record.record_type(), RecordType::RRSIG);
-        assert_eq!(rrsig_record.ttl(), ttl);
+        assert_eq!(rrsig_record.ttl, ttl);
     }
 
     #[test]
@@ -1449,8 +1452,8 @@ mod tests {
 
             match rrsig_record {
                 Ok(record) => {
-                    if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = record.data().unwrap() {
-                        assert_eq!(rrsig.algorithm(), algorithm.to_hickory_algorithm());
+                    if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = record.data {
+                        assert_eq!(rrsig.input().algorithm, algorithm.to_hickory_algorithm());
                     } else {
                         panic!("Expected RRSIG record data");
                     }
@@ -1498,17 +1501,17 @@ mod tests {
         let rrsig_record = signer.rrsig_record(&name, record_type, ttl, rrset_data);
 
         // Verify the record properties
-        assert_eq!(rrsig_record.name(), &name);
+        assert_eq!(&rrsig_record.name, &name);
         assert_eq!(rrsig_record.record_type(), RecordType::RRSIG);
-        assert_eq!(rrsig_record.ttl(), ttl);
+        assert_eq!(rrsig_record.ttl, ttl);
 
         // Verify the RRSIG data
-        if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data().unwrap() {
-            assert_eq!(rrsig.type_covered(), record_type);
-            assert_eq!(rrsig.algorithm(), Algorithm::Unknown(253));
-            assert_eq!(rrsig.num_labels(), name.num_labels());
-            assert_eq!(rrsig.original_ttl(), ttl);
-            assert_eq!(rrsig.signer_name(), &name);
+        if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data {
+            assert_eq!(rrsig.input().type_covered, record_type);
+            assert_eq!(rrsig.input().algorithm, Algorithm::Unknown(253));
+            assert_eq!(rrsig.input().num_labels, name.num_labels());
+            assert_eq!(rrsig.input().original_ttl, ttl);
+            assert_eq!((&rrsig.input().signer_name), &name);
             assert!(!rrsig.sig().is_empty());
 
             // Verify signature validity
@@ -1572,17 +1575,17 @@ mod tests {
         let rrsig_record = signer.rrsig_record(&name, record_type, ttl, rrset_data);
 
         // Verify the record properties
-        assert_eq!(rrsig_record.name(), &name);
+        assert_eq!(&rrsig_record.name, &name);
         assert_eq!(rrsig_record.record_type(), RecordType::RRSIG);
-        assert_eq!(rrsig_record.ttl(), ttl);
+        assert_eq!(rrsig_record.ttl, ttl);
 
         // Verify the RRSIG data
-        if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data().unwrap() {
-            assert_eq!(rrsig.type_covered(), record_type);
-            assert_eq!(rrsig.algorithm(), Algorithm::Unknown(253));
-            assert_eq!(rrsig.num_labels(), name.num_labels());
-            assert_eq!(rrsig.original_ttl(), ttl);
-            assert_eq!(rrsig.signer_name(), &name);
+        if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data {
+            assert_eq!(rrsig.input().type_covered, record_type);
+            assert_eq!(rrsig.input().algorithm, Algorithm::Unknown(253));
+            assert_eq!(rrsig.input().num_labels, name.num_labels());
+            assert_eq!(rrsig.input().original_ttl, ttl);
+            assert_eq!((&rrsig.input().signer_name), &name);
             assert!(!rrsig.sig().is_empty());
 
             // Verify signature validity
@@ -1610,8 +1613,8 @@ mod tests {
         for record_type in record_types {
             let rrsig_record = signer.rrsig_record(&name, record_type, ttl, rrset_data);
 
-            if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data().unwrap() {
-                assert_eq!(rrsig.type_covered(), record_type);
+            if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data {
+                assert_eq!(rrsig.input().type_covered, record_type);
             } else {
                 panic!("Expected RRSIG record data for {record_type:?}");
             }
@@ -1636,11 +1639,11 @@ mod tests {
             let name = Name::from_ascii(name_str).unwrap();
             let rrsig_record = signer.rrsig_record(&name, record_type, ttl, rrset_data);
 
-            assert_eq!(rrsig_record.name(), &name);
+            assert_eq!(&rrsig_record.name, &name);
 
-            if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data().unwrap() {
-                assert_eq!(rrsig.signer_name(), &name);
-                assert_eq!(rrsig.num_labels(), name.num_labels());
+            if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data {
+                assert_eq!((&rrsig.input().signer_name), &name);
+                assert_eq!(rrsig.input().num_labels, name.num_labels());
             } else {
                 panic!("Expected RRSIG record data for {name_str}");
             }
@@ -1667,16 +1670,19 @@ mod tests {
             .unwrap()
             .as_secs() as u32;
 
-        if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data().unwrap() {
+        if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data {
             // Check signature inception time
-            assert!(rrsig.sig_inception() >= before_creation);
-            assert!(rrsig.sig_inception() <= after_creation);
+            assert!(rrsig.input().sig_inception.get() >= before_creation);
+            assert!(rrsig.input().sig_inception.get() <= after_creation);
 
             // Check signature expiration time
-            assert_eq!(rrsig.sig_expiration(), rrsig.sig_inception() + ttl);
+            assert_eq!(
+                rrsig.input().sig_expiration.get(),
+                rrsig.input().sig_inception.get() + ttl
+            );
 
             // Check original TTL
-            assert_eq!(rrsig.original_ttl(), ttl);
+            assert_eq!(rrsig.input().original_ttl, ttl);
         } else {
             panic!("Expected RRSIG record data");
         }
@@ -1694,11 +1700,14 @@ mod tests {
         for ttl in ttls {
             let rrsig_record = signer.rrsig_record(&name, record_type, ttl, rrset_data);
 
-            assert_eq!(rrsig_record.ttl(), ttl);
+            assert_eq!(rrsig_record.ttl, ttl);
 
-            if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data().unwrap() {
-                assert_eq!(rrsig.original_ttl(), ttl);
-                assert_eq!(rrsig.sig_expiration(), rrsig.sig_inception() + ttl);
+            if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data {
+                assert_eq!(rrsig.input().original_ttl, ttl);
+                assert_eq!(
+                    rrsig.input().sig_expiration.get(),
+                    rrsig.input().sig_inception.get() + ttl
+                );
             } else {
                 panic!("Expected RRSIG record data for TTL {ttl}");
             }
@@ -1717,13 +1726,13 @@ mod tests {
         let rrsig2 = signer.rrsig_record(&name, record_type, ttl, rrset_data);
 
         // Extract signatures from both records
-        let sig1 = if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig1.data().unwrap() {
+        let sig1 = if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig1.data {
             rrsig.sig().to_vec()
         } else {
             panic!("Expected RRSIG record data");
         };
 
-        let sig2 = if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig2.data().unwrap() {
+        let sig2 = if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig2.data {
             rrsig.sig().to_vec()
         } else {
             panic!("Expected RRSIG record data");
@@ -1746,7 +1755,7 @@ mod tests {
         // Should still create a valid RRSIG even with empty data
         assert_eq!(rrsig_record.record_type(), RecordType::RRSIG);
 
-        if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data().unwrap() {
+        if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig_record.data {
             assert!(!rrsig.sig().is_empty()); // HMAC should still produce output
         } else {
             panic!("Expected RRSIG record data");
@@ -1767,13 +1776,13 @@ mod tests {
         let rrsig2 = signer2.rrsig_record(&name, record_type, ttl, rrset_data);
 
         // Both signers should produce equivalent signatures
-        let sig1 = if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig1.data().unwrap() {
+        let sig1 = if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig1.data {
             rrsig.sig().to_vec()
         } else {
             panic!("Expected RRSIG record data");
         };
 
-        let sig2 = if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig2.data().unwrap() {
+        let sig2 = if let RData::DNSSEC(DNSSECRData::RRSIG(rrsig)) = rrsig2.data {
             rrsig.sig().to_vec()
         } else {
             panic!("Expected RRSIG record data");
@@ -1878,17 +1887,17 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs() as u32;
-        let rrsig = RRSIG::new(
-            RecordType::A,
-            Algorithm::Unknown(253),
-            name.num_labels(),
-            300,
-            now + 300,
-            now,
-            0,
-            name.clone(),
-            signature,
-        );
+        let sig_input = SigInput {
+            type_covered: RecordType::A,
+            algorithm: Algorithm::Unknown(253),
+            num_labels: name.num_labels(),
+            original_ttl: 300,
+            sig_expiration: SerialNumber::new(now + 300),
+            sig_inception: SerialNumber::new(now),
+            key_tag: 0,
+            signer_name: name.clone(),
+        };
+        let rrsig = RRSIG::from_sig(sig_input, signature);
 
         // Validate the signature
         let is_valid = validator
@@ -1918,17 +1927,17 @@ mod tests {
             .unwrap()
             .as_secs() as u32;
         let wrong_signature = vec![0u8; 32]; // Wrong signature
-        let rrsig = RRSIG::new(
-            RecordType::A,
-            Algorithm::Unknown(253),
-            name.num_labels(),
-            300,
-            now + 300,
-            now,
-            0,
-            name.clone(),
-            wrong_signature,
-        );
+        let sig_input = SigInput {
+            type_covered: RecordType::A,
+            algorithm: Algorithm::Unknown(253),
+            num_labels: name.num_labels(),
+            original_ttl: 300,
+            sig_expiration: SerialNumber::new(now + 300),
+            sig_inception: SerialNumber::new(now),
+            key_tag: 0,
+            signer_name: name.clone(),
+        };
+        let rrsig = RRSIG::from_sig(sig_input, wrong_signature);
 
         // Validate the signature
         let test_data = b"test_validation_data";

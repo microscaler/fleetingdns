@@ -25,6 +25,29 @@ This PRD addresses the critical production readiness gaps identified in the Flee
 
 ## Epic 1: Critical Infrastructure Completion
 
+### 🚨 **CRITICAL-0: CLI Production Readiness (Current Focus)**
+
+**Problem Statement**: While the CLI has basic functionality and endpoint overrides with feature flag protection, it lacks production-grade error handling, user experience, and development conveniences needed for enterprise use.
+
+**User Story**:
+> As a developer and operator, I need a robust, user-friendly CLI that provides clear feedback, handles errors gracefully, and offers development conveniences while maintaining security.
+
+**Current Status**:
+- ✅ Basic CLI functionality with endpoint overrides
+- ✅ Feature flag protection for development overrides
+- ✅ SSH key management and tunnel creation via API
+- ❌ **MISSING**: Production-grade error handling and user feedback
+- ❌ **MISSING**: Development mode conveniences and shortcuts
+- ❌ **MISSING**: Configuration validation and management
+- ❌ **MISSING**: Comprehensive help and documentation
+
+**Immediate Next Steps**:
+1. **Polish CLI (Current Focus)**: Improve error handling, user experience, and development conveniences
+2. **Complete T-26b**: Implement actual SSH connection and dynamic reverse proxy functionality
+3. **Production Hardening**: Add comprehensive validation, logging, and monitoring
+
+---
+
 ### 🚨 **CRITICAL-1: End-to-End Testing Infrastructure**
 
 **Original Epic Reference**: [E6-CI_Integration_GitHub_Action_(Design_v0.1).md](../docs/engineering/Epic_highlevel/E6-CI_Integration_GitHub_Action_(Design_v0.1).md)
@@ -150,6 +173,60 @@ This PRD addresses the critical production readiness gaps identified in the Flee
    - Create alerts for certificate validation failures
 
 **Definition of Done**: Secure certificate-based authentication with zero security vulnerabilities in penetration testing
+
+---
+
+### 🚨 **CRITICAL-4: Dynamic Reverse Proxy Implementation (T-26b)**
+
+**Original Epic Reference**: [E2-Tunnel_Server_&_CLI_(Design_v0.2).md](../docs/engineering/Epic_highlevel/E2-Tunnel_Server_&_CLI_(Design_v0.2).md)
+
+**Problem Statement**: The CLI can create tunnels via the API, but the actual SSH connection to EdgeHub and dynamic reverse proxy functionality is not implemented, making the core T-26b feature non-operational.
+
+**User Story**:
+> As a developer, I need functional dynamic reverse proxy tunnels that automatically route HTTP requests from public endpoints to my local services through EdgeHub.
+
+**Acceptance Criteria**:
+- [ ] Complete SSH connection establishment from CLI to EdgeHub
+- [ ] Dynamic reverse proxy port allocation and management
+- [ ] HTTP request routing through established tunnels
+- [ ] Support for multiple concurrent tunnels with unique subdomains
+- [ ] Automatic cleanup and resource deallocation on tunnel closure
+
+**Technical Tasks**:
+1. **SSH Connection Implementation** (5 days)
+   - Implement SSH client connection logic in CLI using `russh` crate
+   - Establish TLS-wrapped SSH connection to EdgeHub (port 8443)
+   - Handle SSH authentication using ephemeral certificates from API
+   - Implement connection retry and error handling
+
+2. **Reverse Tunnel Establishment** (4 days)
+   - Implement `tcpip-forward` channel setup for reverse tunnels
+   - Handle port allocation and management in EdgeHub
+   - Establish bidirectional data forwarding between SSH channel and local service
+   - Support for custom subdomain routing
+
+3. **Dynamic Reverse Proxy Integration** (3 days)
+   - Integrate with EdgeHub's `ReverseProxyState` for port allocation
+   - Implement subdomain-to-port mapping and routing
+   - Handle HTTP request forwarding through allocated proxy ports
+   - Support for concurrent tunnel management
+
+4. **End-to-End Testing** (3 days)
+   - Test complete tunnel lifecycle: creation → SSH connection → proxy setup → HTTP routing
+   - Validate multiple concurrent tunnels with different subdomains
+   - Test tunnel cleanup and resource deallocation
+   - Performance testing for concurrent connections
+
+**Current Implementation Status**:
+- ✅ CLI endpoint overrides with feature flag protection
+- ✅ API tunnel creation and SSH key management
+- ✅ EdgeHub SSH server with basic reverse proxy infrastructure
+- ❌ **MISSING**: CLI SSH connection to EdgeHub
+- ❌ **MISSING**: Actual tunnel establishment and data forwarding
+- ❌ **MISSING**: Dynamic reverse proxy port allocation and routing
+- ❌ **MISSING**: End-to-end tunnel functionality testing
+
+**Definition of Done**: Functional dynamic reverse proxy tunnels that can handle 10+ concurrent connections with automatic HTTP routing and <2 second tunnel establishment time
 
 ---
 
@@ -510,15 +587,15 @@ This PRD addresses the critical production readiness gaps identified in the Flee
 
 ### Phase 1: Critical Infrastructure (Weeks 1-4)
 - **Week 1-2**: CRITICAL-1 (E2E Testing), CRITICAL-2 (SSH Tunnels)
-- **Week 3-4**: CRITICAL-3 (Certificate Authority), HIGH-1 (DoT Hardening)
+- **Week 3-4**: CRITICAL-3 (Certificate Authority), CRITICAL-4 (T-26b Dynamic Reverse Proxy)
 
 ### Phase 2: Production Infrastructure (Weeks 5-8)
-- **Week 5-6**: HIGH-2 (Redis Scalability), HIGH-3 (DNSSEC)
-- **Week 7-8**: HIGH-4 (OTLP Metrics), HIGH-5 (Rate Limiting)
+- **Week 5-6**: HIGH-1 (DoT Hardening), HIGH-2 (Redis Scalability)
+- **Week 7-8**: HIGH-3 (DNSSEC), HIGH-4 (OTLP Metrics)
 
 ### Phase 3: Security and Operations (Weeks 9-12)
-- **Week 9-10**: HIGH-6 (Security Hardening), MEDIUM-1 (CI/CD)
-- **Week 11-12**: MEDIUM-2 (Performance), Integration Testing
+- **Week 9-10**: HIGH-5 (Rate Limiting), HIGH-6 (Security Hardening)
+- **Week 11-12**: MEDIUM-1 (CI/CD), MEDIUM-2 (Performance)
 
 ---
 
@@ -526,8 +603,8 @@ This PRD addresses the critical production readiness gaps identified in the Flee
 
 ### Technical Metrics
 - **Availability**: 99.9% uptime SLA
-- **Performance**: <50ms DNS response, <2s tunnel establishment
-- **Scale**: 10k+ concurrent tunnels, 100k+ DNS QPS
+- **Performance**: <50ms DNS response, <2s tunnel establishment, <100ms reverse proxy routing
+- **Scale**: 10k+ concurrent tunnels, 100k+ DNS QPS, 100+ concurrent reverse proxy connections
 - **Security**: Zero critical vulnerabilities, SOC 2 compliance ready
 
 ### Operational Metrics
@@ -574,7 +651,8 @@ The timeline is aggressive but achievable with dedicated engineering resources a
 1. Review and approve this PRD with stakeholders
 2. Assign engineering resources to critical path items
 3. Begin implementation with CRITICAL-1 (E2E Testing Infrastructure)
-4. Establish weekly progress reviews and risk assessments
+4. **Immediate Priority**: Complete T-26b (CRITICAL-4) Dynamic Reverse Proxy implementation
+5. Establish weekly progress reviews and risk assessments
 
 ---
 

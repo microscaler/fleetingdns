@@ -43,10 +43,21 @@ pub struct Tunnel {
 
     /// Number of requests processed
     pub request_count: u64,
+
+    /// When true the edge requires a valid session grant cookie before
+    /// forwarding any bytes (FR-EDGE-3). serde(default) keeps older Redis
+    /// records deserializable (and public).
+    #[serde(default)]
+    pub protected: bool,
+
+    /// Teardown lifecycle policy (FR-HUB-2): `ttl_only` (default —
+    /// deterministic for automation) or `viewer_idle` (human portal tabs).
+    #[serde(default)]
+    pub teardown_policy: common::redis::TeardownPolicy,
 }
 
 /// Tunnel status enumeration
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 #[derive(Default)]
 pub enum TunnelStatus {
@@ -205,6 +216,8 @@ impl Tunnel {
             status: TunnelStatus::Creating,
             bytes_transferred: 0,
             request_count: 0,
+            protected: false,
+            teardown_policy: common::redis::TeardownPolicy::default(),
         }
     }
 

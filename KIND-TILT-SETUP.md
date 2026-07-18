@@ -1,6 +1,105 @@
 # FleetingDNS Kind + Tilt Development Environment
 
-This document describes the new Kubernetes-based development environment for FleetingDNS using Kind (Kubernetes in Docker) and Tilt for local development.
+> **New default (2026-04):** The dev/test stack now runs against the **shared
+> Kind cluster on the `ms02` dev host** provisioned by cylon-local-infra. Do
+> not create a laptop-local Kind cluster unless you are explicitly working
+> offline. See the next section for the ms02 workflow; the rest of this
+> document is retained for the legacy laptop-local flow (now exposed under
+> `just local-*`).
+
+## 🌐 Shared Kind on ms02 (default)
+
+The ms02 dev host runs a long-lived Kind cluster (name `kind`, context
+`kind-kind`, image `kindest/node:v1.34.3`) created by the
+`cylon-local-infra` Ansible `kind` role. Its apiserver and kind-registry
+listen on ms02-local loopback addresses, so the Mac reaches them through an
+SSH tunnel that the helper script manages for you.
+
+### One-time setup
+
+```bash
+# 1. Fetch kubeconfig from ms02 + open SSH tunnels (apiserver + registry).
+just setup            # == python3 scripts/kubeconfig_sync.py setup
+
+# 2. Start Tilt against kind-kind on ms02.
+just up               # opens tunnels if needed and runs `tilt up`
+
+# 3. Shut down (keeps the tunnels closed and kubeconfig on disk).
+just down
+just tunnel-down
+```
+
+Repository-scoped kubeconfig:
+
+```text
+.kube/fleetingdns.kubeconfig    # fetched from ms02, mode 0600
+.kube/tunnel.pid                # SSH tunnel pid (managed by kubeconfig_sync.py)
+.kube/tunnel.log                # SSH tunnel stderr/stdout
+```
+
+Every `just` recipe that touches Kubernetes exports
+`KUBECONFIG=.kube/fleetingdns.kubeconfig` so your personal `~/.kube/config`
+is never clobbered.
+
+### What the tunnel exposes
+
+| Local port            | ms02 port           | Purpose                                   |
+|-----------------------|---------------------|-------------------------------------------|
+| `127.0.0.1:38839`     | `127.0.0.1:38839`   | `kind-kind` kube-apiserver                |
+| `127.0.0.1:5001`      | `127.0.0.1:5001`    | `kind-registry` (Tilt image push target)  |
+
+The apiserver TLS cert's SAN list includes `127.0.0.1`, so the kubeconfig
+server URL `https://127.0.0.1:38839` works verbatim over the tunnel — no
+URL rewriting or `insecure-skip-tls-verify` required.
+
+Other service endpoints are exposed directly on `ms02` via **NodePort**
+(see `kind-config.yaml`):
+
+| Service      | URL                          | NodePort |
+|--------------|------------------------------|----------|
+| Backend API  | `http://ms02:8880`           | 31080    |
+| Grafana      | `http://ms02:3000`           | 31300    |
+| Prometheus   | `http://ms02:9090`           | 31090    |
+| Loki         | `http://ms02:3100`           | 31310    |
+| OTEL gRPC    | `ms02:4317`                  | 31417    |
+| OTEL HTTP    | `ms02:4318`                  | 31418    |
+| Redis        | `ms02:6379`                  | 30379    |
+| Postgres     | `ms02:5433`                  | 30432    |
+
+For services without a NodePort (EdgeHub SSH on 2222, dnsd UDP 5353), Tilt
+uses `kubectl port-forward` through the tunnel — no extra configuration
+needed.
+
+### Overriding host / user / paths
+
+```bash
+export MS02_HOST=ms02.lan             # defaults to `ms02`
+export MS02_SSH_USER=root             # defaults to `root`
+export KIND_CONTEXT=kind-kind         # matches `kind get kubeconfig --name kind`
+export KUBECONFIG_PATH=./.kube/fleetingdns.kubeconfig
+```
+
+### Rebuilding the cluster on ms02
+
+If the ms02 cluster is ever destroyed, re-run the cylon-local-infra role
+(binary install + optional cluster create):
+
+```bash
+cd /Users/casibbald/Workspace/remote/microscaler/cylon-local-infra
+ansible-playbook playbooks/dev_hosts.yml -l ms02
+```
+
+Then recreate the cluster with the repo's authoritative spec:
+
+```bash
+scp kind-config.yaml root@ms02:/tmp/kind-config.yaml
+ssh root@ms02 'kind delete cluster --name kind || true; kind create cluster --config /tmp/kind-config.yaml --wait 120s'
+```
+
+After that, `just setup` on the laptop re-fetches the kubeconfig and the
+workflow continues as normal.
+
+---
 
 ## 🎯 Why Kind + Tilt?
 
@@ -55,7 +154,8 @@ This document describes the new Kubernetes-based development environment for Fle
 - **Memory**: 8GB+ RAM (16GB recommended)
 - **CPU**: 4+ cores
 - **Disk**: 10GB+ free space
-- **Ports**: 2222, 3000, 4317, 4318, 5353, 6379, 8080, 9090
+- **Ports**: 2222, 3000, 4317, 4318, 5353, 6379, 8880, 9090
+  (the API uses 8880 — 8080 is chronically contested on shared dev hosts)
 
 ## 🚀 Quick Start
 
@@ -81,7 +181,7 @@ This script will:
 tilt up
 
 # Open Tilt UI (optional)
-open http://localhost:10350
+open http://localhost:10654
 ```
 
 ### 3. Access Services
@@ -92,7 +192,7 @@ Once Tilt shows all services as "Ready":
 |---------|-----|-------------|
 | **DNS Server** | `localhost:5353` (UDP) | DNS queries and tunnel registration |
 | **EdgeHub** | `localhost:2222` (TCP) | Tunnel server for client connections |
-| **Backend API** | `localhost:8080` (HTTP) | REST API for management |
+| **Backend API** | `localhost:8880` (HTTP) | REST API for management |
 | **Grafana** | `localhost:3000` (HTTP) | Observability dashboard |
 | **Prometheus** | `localhost:9090` (HTTP) | Metrics collection |
 | **Redis** | `localhost:6379` (TCP) | Cache and session storage |
@@ -166,8 +266,8 @@ kubectl exec -it <pod-name> -n fleetingdns -- /bin/sh
 # View pod logs
 kubectl logs <pod-name> -n fleetingdns -f
 
-# Port forward for debugging
-kubectl port-forward -n fleetingdns svc/dnsd 8080:8080
+# Port forward for debugging (api serves HTTP on 8880)
+kubectl port-forward -n fleetingdns svc/api 8880:8880
 ```
 
 ## 🔄 Migration from Docker Compose
@@ -233,7 +333,8 @@ The environment includes a complete observability stack:
 
 ### Adding Metrics
 
-Services expose metrics on port 8080 (or 8081 for some services):
+Services export metrics via OTLP to the shared otel-collector (no
+scrape ports on the pods themselves):
 
 ```rust
 // In your service code

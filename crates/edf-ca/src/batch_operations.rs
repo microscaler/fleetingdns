@@ -57,6 +57,7 @@ pub struct CertificateBatch {
 }
 
 /// Batch processor for certificate operations
+#[allow(dead_code)] // TODO: wire into CA request path (batch issuance backlog)
 pub struct CertificateBatchProcessor {
     config: BatchConfig,
     ca: Arc<CertificateAuthority>,
@@ -107,6 +108,7 @@ impl CertificateBatchProcessor {
     }
 
     /// Process a batch of certificate operations
+    #[allow(dead_code)] // TODO: wire into CA request path (batch issuance backlog)
     async fn process_batch(&mut self) -> CaResult<()> {
         if self.pending_operations.is_empty() {
             return Ok(());
@@ -229,7 +231,7 @@ impl CertificateBatchProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{CaConfig, IssuanceRequest};
+    use crate::CaConfig;
 
     #[test]
     fn test_batch_config_default() {
@@ -237,7 +239,7 @@ mod tests {
         assert_eq!(config.max_batch_size, 10);
         assert_eq!(config.max_batch_wait_ms, 100);
         assert_eq!(config.max_processing_time_ms, 500);
-        assert_eq!(config.enable_stats, true);
+        assert!(config.enable_stats);
     }
 
     #[tokio::test]

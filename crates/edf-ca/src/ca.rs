@@ -33,7 +33,9 @@ impl CertificateAuthority {
     pub async fn new(config: CaConfig) -> CaResult<Self> {
         let ca_certificate = Self::load_or_generate_ca_certificate(&config).await?;
         let registry = CertificateRegistry::new();
-        let rate_limiter = Arc::new(Mutex::new(RateLimiter::new()));
+        let rate_limiter = Arc::new(Mutex::new(RateLimiter::new(
+            config.certs_per_hour_per_client,
+        )));
 
         info!(
             ca_name = %config.ca_name,
@@ -151,15 +153,15 @@ impl CertificateAuthority {
     pub async fn get_certificate_info(&self, serial_number: &str) -> CaResult<ActiveCertificate> {
         counter!("certificate_operations_total", "operation" => "get_info", "status" => "requested").increment(1);
 
-        match self.registry.get_certificate(serial_number).await {
-            Some(cert) => {
-                counter!("certificate_operations_total", "operation" => "get_info", "status" => "success").increment(1);
-                Ok(cert)
-            }
-            None => {
-                counter!("certificate_operations_total", "operation" => "get_info", "status" => "not_found").increment(1);
-                Err(CaError::NotFound(format!("Certificate not found: serial {}", serial_number)))
-            }
+        if let Some(cert) = self.registry.get_certificate(serial_number).await {
+            counter!("certificate_operations_total", "operation" => "get_info", "status" => "success").increment(1);
+            Ok(cert)
+        } else {
+            counter!("certificate_operations_total", "operation" => "get_info", "status" => "not_found").increment(1);
+            Err(CaError::NotFound(format!(
+                "Certificate not found: serial {}",
+                serial_number
+            )))
         }
     }
 
@@ -177,7 +179,10 @@ impl CertificateAuthority {
             Ok(())
         } else {
             counter!("certificate_operations_total", "operation" => "revoke", "status" => "not_found").increment(1);
-            Err(CaError::NotFound(format!("Certificate not found: serial {}", serial_number)))
+            Err(CaError::NotFound(format!(
+                "Certificate not found: serial {}",
+                serial_number
+            )))
         }
     }
 
@@ -217,8 +222,9 @@ impl CertificateAuthority {
         request: CertificateRequest,
     ) -> CaResult<EphemeralCertificate> {
         // Generate key pair for the certificate
-        let key_pair = KeyPair::generate(&rcgen::PKCS_ED25519)
-            .map_err(|e| CaError::CertificateError(format!("Certificate generation failed: {}", e)))?;
+        let key_pair = KeyPair::generate(&rcgen::PKCS_ED25519).map_err(|e| {
+            CaError::CertificateError(format!("Certificate generation failed: {}", e))
+        })?;
 
         // Build certificate
         let cert = CertificateBuilder::new()
@@ -232,7 +238,9 @@ impl CertificateAuthority {
         // Sign with CA
         let cert_pem = cert
             .serialize_pem_with_signer(&self.ca_certificate)
-            .map_err(|e| CaError::CertificateError(format!("Certificate generation failed: {}", e)))?;
+            .map_err(|e| {
+                CaError::CertificateError(format!("Certificate generation failed: {}", e))
+            })?;
 
         let private_key_pem = key_pair.serialize_pem();
 
@@ -309,7 +317,8 @@ impl CertificateAuthority {
         params.not_before = now;
         params.not_after = now + time::Duration::days(3650);
 
-        Certificate::from_params(params).map_err(|e| CaError::CertificateError(format!("Certificate generation failed: {}", e)))
+        Certificate::from_params(params)
+            .map_err(|e| CaError::CertificateError(format!("Certificate generation failed: {}", e)))
     }
 
     /// Load CA certificate from files
@@ -326,9 +335,9 @@ impl CertificateAuthority {
         cert_path: &str,
         key_path: &str,
     ) -> CaResult<()> {
-        let cert_pem = cert
-            .serialize_pem()
-            .map_err(|e| CaError::CertificateError(format!("Certificate generation failed: {}", e)))?;
+        let cert_pem = cert.serialize_pem().map_err(|e| {
+            CaError::CertificateError(format!("Certificate generation failed: {}", e))
+        })?;
 
         let key_pem = cert.get_key_pair().serialize_pem();
 
@@ -343,7 +352,9 @@ impl CertificateAuthority {
     /// Validate certificate issuance request
     async fn validate_request(&self, request: &IssuanceRequest) -> CaResult<()> {
         if request.common_name.is_empty() {
-            return Err(CaError::BadRequest("Common name cannot be empty".to_string()));
+            return Err(CaError::BadRequest(
+                "Common name cannot be empty".to_string(),
+            ));
         }
 
         if request.client_id.is_empty() {
@@ -388,9 +399,9 @@ struct RateLimiter {
 }
 
 impl RateLimiter {
-    fn new() -> Self {
+    fn new(limit: u32) -> Self {
         Self {
-            limit: 10, // 10 certificates per hour per client
+            limit,
             client_counts: std::collections::HashMap::new(),
             total_issued: 0,
         }

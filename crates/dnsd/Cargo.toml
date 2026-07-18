@@ -8,7 +8,7 @@ common = { path = "../common" }
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
 metrics = { workspace = true }
-hickory-proto = { version = "0.24", features = ["dnssec", "dnssec-ring"] }
+hickory-proto = { version = "0.26", features = ["dnssec-ring"] }
 tokio-rustls = { workspace = true, optional = true }
 rustls = { workspace = true, optional = true }
 thiserror = { workspace = true }
@@ -43,3 +43,6 @@ redis = { workspace = true } # For direct Redis client in tests
 
 [features]
 dot = ["tokio-rustls", "rustls"]
+
+[lints]
+workspace = true

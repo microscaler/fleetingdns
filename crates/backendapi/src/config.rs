@@ -45,7 +45,8 @@ pub struct ApiConfig {
 impl Default for ApiConfig {
     fn default() -> Self {
         Self {
-            bind_address: "0.0.0.0:8080".parse().unwrap(),
+            // 8880: 8080 is chronically contested on shared dev hosts.
+            bind_address: "0.0.0.0:8880".parse().unwrap(),
             github_client_id: "your-github-client-id".to_string(),
             github_client_secret: "your-github-client-secret".to_string(),
             redis_url: "redis://localhost:6379".to_string(),
@@ -55,7 +56,7 @@ impl Default for ApiConfig {
             edgehub_address: "edgehub.fleetingdns.com:443".to_string(),
             jwt_secret: "your-jwt-secret-key".to_string(),
             database_url: "postgres://postgres:postgres@localhost:5432/fleetingdns".to_string(),
-            base_url: "http://localhost:8080".to_string(),
+            base_url: "http://localhost:8880".to_string(),
             development_mode: false,
         }
     }
@@ -64,10 +65,11 @@ impl Default for ApiConfig {
 impl ApiConfig {
     /// Load configuration from environment variables
     pub fn from_env() -> Result<Self, Box<dyn std::error::Error>> {
-        let bind_addr_str = env::var("API_BIND_ADDRESS")
-            .unwrap_or_else(|_| "0.0.0.0:8080".to_string());
-        
-        let bind_address = bind_addr_str.parse()
+        let bind_addr_str =
+            env::var("API_BIND_ADDRESS").unwrap_or_else(|_| "0.0.0.0:8880".to_string());
+
+        let bind_address = bind_addr_str
+            .parse()
             .map_err(|e| format!("Invalid API bind address '{}': {}", bind_addr_str, e))?;
 
         Ok(Self {
@@ -92,7 +94,7 @@ impl ApiConfig {
             database_url: env::var("DATABASE_URL").unwrap_or_else(|_| {
                 "postgres://postgres:postgres@localhost:5432/fleetingdns".to_string()
             }),
-            base_url: env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8080".to_string()),
+            base_url: env::var("BASE_URL").unwrap_or_else(|_| "http://localhost:8880".to_string()),
             development_mode: env::var("DEVELOPMENT_MODE")
                 .unwrap_or_else(|_| "false".to_string())
                 .parse()

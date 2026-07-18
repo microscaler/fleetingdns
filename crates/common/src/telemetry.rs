@@ -186,7 +186,12 @@ pub fn record_db_metrics(operation: &str, table: &str, response_time_ms: u64, su
 }
 
 /// Record tunnel operation metrics
-pub fn record_tunnel_metrics(operation: &str, tunnel_id: &str, response_time_ms: u64, success: bool) {
+pub fn record_tunnel_metrics(
+    operation: &str,
+    tunnel_id: &str,
+    response_time_ms: u64,
+    success: bool,
+) {
     metrics::counter!("tunnel_operations_total", "operation" => operation.to_string(), "tunnel_id" => tunnel_id.to_string(), "success" => success.to_string()).increment(1);
     metrics::histogram!("tunnel_response_time_ms", "operation" => operation.to_string(), "tunnel_id" => tunnel_id.to_string()).record(response_time_ms as f64);
 }
@@ -194,7 +199,8 @@ pub fn record_tunnel_metrics(operation: &str, tunnel_id: &str, response_time_ms:
 /// Record DNS response delivery metrics
 pub fn record_dns_delivery_metrics(protocol: &str, response_size: usize, success: bool) {
     metrics::counter!("dns_delivery_total", "protocol" => protocol.to_string(), "success" => success.to_string()).increment(1);
-    metrics::histogram!("dns_response_size_bytes", "protocol" => protocol.to_string()).record(response_size as f64);
+    metrics::histogram!("dns_response_size_bytes", "protocol" => protocol.to_string())
+        .record(response_size as f64);
 }
 
 /// Record TLS connection metrics

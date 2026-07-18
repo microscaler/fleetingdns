@@ -28,3 +28,6 @@ common = { path = "../common" }
 [dev-dependencies]
 tokio-test = "0.4"
 tempfile = "3.0" 
+
+[lints]
+workspace = true

@@ -1,0 +1,72 @@
+# ===========================================================================
+# FleetingDNS shared Kind cluster — authoritative spec
+# ===========================================================================
+# This file is the source-of-truth for the shared kind cluster used by the
+# FleetingDNS dev/test stack. The cluster is materialised on the `ms02` dev
+# host by the cylon-local-infra Ansible `kind` role (playbooks/dev_hosts.yml
+# with `kind_create_cluster: true`, node image `kindest/node:v1.34.3`).
+#
+# Developers do NOT run `kind create cluster` on their laptop. Instead:
+#   1.  `just kubeconfig-sync` — pulls the ms02 kubeconfig into
+#       ./.kube/fleetingdns.kubeconfig
+#   2.  `just tunnel-up`       — opens SSH tunnels from the laptop to ms02:
+#           127.0.0.1:38839  -> ms02 127.0.0.1:38839   (kube-apiserver)
+#           127.0.0.1:5001   -> ms02 127.0.0.1:5001    (kind-registry)
+#   3.  `just up`              — launches Tilt against context `kind-kind`.
+#
+# If the ms02 cluster is ever rebuilt from scratch, apply this file with
+# `kind create cluster --config kind-config.yaml` on ms02 (NOT locally) so
+# the NodePort allocation, control-plane extra ports, and registry mirrors
+# stay in lock-step with the Tiltfile and k8s-tilt manifests.
+# ---------------------------------------------------------------------------
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: kind
+# kindest/node image must match roles/kind/defaults/main.yml in cylon-local-infra.
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.34.3
+    # NodePort -> host port mappings observed on ms02 (docker ps --filter name=kind).
+    # Keep this list in sync with k8s-tilt/** NodePort Services.
+    extraPortMappings:
+      # Backend API (api-bin)                 31080 -> 8880
+      # (8880: 8080 is chronically contested on shared dev hosts)
+      - { containerPort: 31080, hostPort: 8880, protocol: TCP }
+      # Prometheus                            31090 -> 9090
+      - { containerPort: 31090, hostPort: 9090, protocol: TCP }
+      # Grafana                               31300 -> 3000
+      - { containerPort: 31300, hostPort: 3000, protocol: TCP }
+      # Loki                                  31310 -> 3100
+      - { containerPort: 31310, hostPort: 3100, protocol: TCP }
+      # OTEL collector gRPC                   31417 -> 4317
+      - { containerPort: 31417, hostPort: 4317, protocol: TCP }
+      # OTEL collector HTTP                   31418 -> 4318
+      - { containerPort: 31418, hostPort: 4318, protocol: TCP }
+      # Jaeger UI                             31166 -> 16686
+      - { containerPort: 31166, hostPort: 16686, protocol: TCP }
+      # Pyroscope                             31404 -> 4040
+      - { containerPort: 31404, hostPort: 4040, protocol: TCP }
+      # OTEL health / internal metrics        31889 -> 8889
+      - { containerPort: 31889, hostPort: 8889, protocol: TCP }
+      # Redis                                 30379 -> 6379
+      - { containerPort: 30379, hostPort: 6379, protocol: TCP }
+      # Postgres                              30432 -> 5433  (5432 taken on dev hosts)
+      - { containerPort: 30432, hostPort: 5433, protocol: TCP }
+      # Generic HTTP ingress / smoke          30080 -> 8000
+      - { containerPort: 30080, hostPort: 8000, protocol: TCP }
+      # Extra reserved slots for EdgeHub SNI / DNS-over-TLS experiments.
+      - { containerPort: 30002, hostPort: 3002, protocol: TCP }
+      - { containerPort: 30091, hostPort: 9091, protocol: TCP }
+      - { containerPort: 30497, hostPort: 7497, protocol: TCP }
+      - { containerPort: 30900, hostPort: 9000, protocol: TCP }
+      - { containerPort: 30901, hostPort: 9001, protocol: TCP }
+      - { containerPort: 30929, hostPort: 9292, protocol: TCP }
+      - { containerPort: 30999, hostPort: 9999, protocol: TCP }
+
+# Wire the local-registry-hosting contract: images pushed to localhost:5001
+# (reachable from the laptop over the SSH tunnel) are pulled by kubelet via
+# the kind-registry container joined to the `kind` docker network.
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:5001"]
+      endpoint = ["http://kind-registry:5000"]

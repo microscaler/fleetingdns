@@ -244,7 +244,7 @@ def main():
         print("  2. Access services at:")
         print("     • DNS Server: localhost:5353 (UDP)")
         print("     • EdgeHub: localhost:2222 (TCP)")
-        print("     • Backend API: localhost:8080 (HTTP)")
+        print("     • Backend API: localhost:8880 (HTTP)")
         print("     • Grafana: localhost:3000 (HTTP)")
         print("     • Prometheus: localhost:9090 (HTTP)")
         print("")

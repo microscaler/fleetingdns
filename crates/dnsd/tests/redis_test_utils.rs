@@ -1,7 +1,5 @@
 use bb8_redis::RedisConnectionManager;
 use common::redis::RedisPool;
-use once_cell::sync::Lazy;
-use std::sync::Arc;
 use testcontainers::{ImageExt, runners::AsyncRunner};
 use testcontainers_modules::redis::Redis;
 
@@ -56,26 +54,26 @@ impl RedisTestFixture {
     /// Wait for Redis to be ready
     async fn wait_for_redis_ready(pool: &RedisPool) -> Result<(), Box<dyn std::error::Error>> {
         for i in 0..30 {
-            match pool.get().await {
-                Ok(conn) => {
-                    // Test the connection with a simple PING
-                    let mut conn = conn;
-                    match bb8_redis::redis::cmd("PING").query_async::<String>(&mut *conn).await {
-                        Ok(pong) if pong == "PONG" => {
-                            return Ok(());
-                        }
-                        _ => {
-                            // Connection works but PING failed, wait a bit more
-                            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                        }
+            if let Ok(conn) = pool.get().await {
+                // Test the connection with a simple PING
+                let mut conn = conn;
+                match bb8_redis::redis::cmd("PING")
+                    .query_async::<String>(&mut *conn)
+                    .await
+                {
+                    Ok(pong) if pong == "PONG" => {
+                        return Ok(());
+                    }
+                    _ => {
+                        // Connection works but PING failed, wait a bit more
+                        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                     }
                 }
-                Err(_) => {
-                    if i == 29 {
-                        return Err("Redis failed to start within 3 seconds".into());
-                    }
-                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            } else {
+                if i == 29 {
+                    return Err("Redis failed to start within 3 seconds".into());
                 }
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
             }
         }
         Err("Redis failed to start within 3 seconds".into())
@@ -87,6 +85,7 @@ impl RedisTestFixture {
     }
 
     /// Get container info for debugging
+    #[allow(dead_code)] // debugging helper for test authors
     pub async fn get_container_info(&self) -> String {
         let port = self.container.get_host_port_ipv4(6379).await.unwrap_or(0);
         format!("Redis container running on port {}", port)
@@ -137,7 +136,7 @@ mod tests {
 
         // Test basic Redis operations
         let mut conn = conn.unwrap();
-                  let result: Result<String, _> = bb8_redis::redis::cmd("PING").query_async(&mut *conn).await;
+        let result: Result<String, _> = bb8_redis::redis::cmd("PING").query_async(&mut *conn).await;
         assert_eq!(result.unwrap(), "PONG");
     }
 
@@ -149,14 +148,14 @@ mod tests {
 
             // Test basic operations
             let mut conn = conn.unwrap();
-                          let result: Result<String, _> = bb8_redis::redis::cmd("SET")
+            let result: Result<String, _> = bb8_redis::redis::cmd("SET")
                 .arg("test_key")
                 .arg("test_value")
                 .query_async(&mut *conn)
                 .await;
             assert!(result.is_ok());
 
-                          let result: Result<String, _> = bb8_redis::redis::cmd("GET")
+            let result: Result<String, _> = bb8_redis::redis::cmd("GET")
                 .arg("test_key")
                 .query_async(&mut *conn)
                 .await;
@@ -176,25 +175,25 @@ mod tests {
             let mut conn = pool.get().await.unwrap();
 
             // Test various Redis operations
-                          let _: () = bb8_redis::redis::cmd("SET")
+            let _: () = bb8_redis::redis::cmd("SET")
                 .arg("key1")
                 .arg("value1")
                 .query_async(&mut *conn)
                 .await
                 .unwrap();
-                          let _: () = bb8_redis::redis::cmd("SET")
+            let _: () = bb8_redis::redis::cmd("SET")
                 .arg("key2")
                 .arg("value2")
                 .query_async(&mut *conn)
                 .await
                 .unwrap();
 
-                          let value1: String = bb8_redis::redis::cmd("GET")
+            let value1: String = bb8_redis::redis::cmd("GET")
                 .arg("key1")
                 .query_async(&mut *conn)
                 .await
                 .unwrap();
-                          let value2: String = bb8_redis::redis::cmd("GET")
+            let value2: String = bb8_redis::redis::cmd("GET")
                 .arg("key2")
                 .query_async(&mut *conn)
                 .await

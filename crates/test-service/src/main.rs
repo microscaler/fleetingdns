@@ -14,8 +14,6 @@ use tower_http::cors::CorsLayer;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-
-
 // Types
 #[derive(Debug, Serialize, Deserialize)]
 struct LoginRequest {
@@ -31,8 +29,10 @@ struct LoginResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[allow(dead_code)] // response payload; fields serialized, not read
 struct UserInfo {
     username: String,
+    #[allow(dead_code)] // serialized for clients; not read server-side
     authenticated_at: DateTime<Utc>,
     session_id: String,
 }
@@ -74,8 +74,6 @@ struct LogoutResponse {
     message: String,
 }
 
-
-
 // Session storage
 type Sessions = Arc<TokioRwLock<HashMap<String, SessionData>>>;
 
@@ -83,6 +81,7 @@ type Sessions = Arc<TokioRwLock<HashMap<String, SessionData>>>;
 struct SessionData {
     username: String,
     session_id: String,
+    #[allow(dead_code)] // recorded for auditability; not read yet
     authenticated_at: DateTime<Utc>,
     expires_at: DateTime<Utc>,
 }
@@ -115,12 +114,16 @@ async fn main() {
         .with_state(state);
 
     // Get port from environment or default
-    let bind_address = std::env::var("SERVICE_BIND_ADDRESS")
-        .unwrap_or_else(|_| "0.0.0.0:8001".to_string());
-    
+    let bind_address =
+        std::env::var("SERVICE_BIND_ADDRESS").unwrap_or_else(|_| "0.0.0.0:8001".to_string());
+
     let parts: Vec<&str> = bind_address.split(':').collect();
     let host = parts.first().unwrap_or(&"0.0.0.0");
-    let port = parts.get(1).unwrap_or(&"8001").parse::<u16>().unwrap_or(8001);
+    let port = parts
+        .get(1)
+        .unwrap_or(&"8001")
+        .parse::<u16>()
+        .unwrap_or(8001);
 
     info!("Starting FleetingDNS Test Service on {}:{}", host, port);
 
@@ -166,7 +169,7 @@ async fn status_endpoint(State(state): State<AppState>) -> Json<StatusResponse> 
     let sessions = state.sessions.read().await;
     let active_sessions = sessions.len();
     info!("Status check - active sessions: {}", active_sessions);
-    
+
     Json(StatusResponse {
         status: "running".to_string(),
         active_sessions,
@@ -197,7 +200,11 @@ async fn login(
         };
 
         // Store session
-        state.sessions.write().await.insert(token.clone(), session_data);
+        state
+            .sessions
+            .write()
+            .await
+            .insert(token.clone(), session_data);
 
         info!("Login successful for user: {}", payload.username);
         Ok(Json(LoginResponse {
@@ -216,7 +223,7 @@ async fn logout(
     headers: HeaderMap,
 ) -> Result<Json<LogoutResponse>, StatusCode> {
     let token = extract_token(&headers)?;
-    
+
     // Find and remove session
     let mut sessions = state.sessions.write().await;
     if let Some(session) = sessions.remove(&token) {
@@ -233,20 +240,21 @@ async fn hello_authenticated(
     headers: HeaderMap,
 ) -> Result<Json<HelloResponse>, StatusCode> {
     let token = extract_token(&headers)?;
-    
+
     // Validate session
     let sessions = state.sessions.read().await;
-    let session = sessions
-        .get(&token)
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let session = sessions.get(&token).ok_or(StatusCode::UNAUTHORIZED)?;
 
     if Utc::now() > session.expires_at {
         // Session expired
         return Err(StatusCode::UNAUTHORIZED);
     }
 
-    info!("Authenticated hello requested by user: {}", session.username);
-    
+    info!(
+        "Authenticated hello requested by user: {}",
+        session.username
+    );
+
     Ok(Json(HelloResponse {
         message: format!("Hello, {}!", session.username),
         authenticated: true,
@@ -268,5 +276,3 @@ fn extract_token(headers: &HeaderMap) -> Result<String, StatusCode> {
 
     Ok(auth_header[7..].to_string())
 }
-
- 

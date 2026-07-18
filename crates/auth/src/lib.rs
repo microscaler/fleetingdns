@@ -12,7 +12,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
-use tracing::{debug, info, warn};
+use tracing::debug;
 
 /// Authentication errors
 #[derive(Debug, Error)]
@@ -110,7 +110,9 @@ pub struct TokenResponse {
 #[derive(Debug, Deserialize)]
 struct GitHubTokenResponse {
     access_token: String,
+    #[allow(dead_code)] // deserialized for API fidelity; not read
     token_type: String,
+    #[allow(dead_code)] // deserialized for API fidelity; not read
     scope: String,
 }
 
@@ -150,15 +152,13 @@ pub fn extract_bearer_token_with_dev_bypass(
     development_mode: bool,
 ) -> AuthResult<String> {
     // Check for development bypass header when in development mode
-    if development_mode {
-        if let Some(bypass_header) = headers.get("x-development-bypass") {
-            if let Ok(bypass_value) = bypass_header.to_str() {
-                if bypass_value == "true" {
-                    debug!("Using development bypass token");
-                    return Ok("dev-bypass-token".to_string());
-                }
-            }
-        }
+    if development_mode
+        && let Some(bypass_header) = headers.get("x-development-bypass")
+        && let Ok(bypass_value) = bypass_header.to_str()
+        && bypass_value == "true"
+    {
+        debug!("Using development bypass token");
+        return Ok("dev-bypass-token".to_string());
     }
 
     // Fall back to normal authentication
@@ -173,6 +173,15 @@ pub fn extract_bearer_token_with_dev_bypass(
     if !auth_str.starts_with("Bearer ") {
         return Err(AuthError::AuthenticationFailed(
             "Authorization header must start with 'Bearer '".to_string(),
+        ));
+    }
+
+    // SECURITY: `validate_jwt_token` accepts the literal dev-bypass token,
+    // so a client presenting it as a Bearer credential would authenticate
+    // as dev-user in production. Only development mode may mint it.
+    if !development_mode && auth_str[7..].trim() == "dev-bypass-token" {
+        return Err(AuthError::AuthenticationFailed(
+            "Development bypass token is not accepted".to_string(),
         ));
     }
 
@@ -202,15 +211,15 @@ pub async fn validate_github_token(
     }
 
     // Check granted scopes from response headers
-    if let Some(scopes_header) = response.headers().get("x-oauth-scopes") {
-        if let Ok(scopes_str) = scopes_header.to_str() {
-            let granted_scopes: Vec<&str> = scopes_str.split(", ").collect();
-            if !has_required_scopes(&granted_scopes) {
-                return Err(AuthError::InsufficientScopes {
-                    required: REQUIRED_SCOPES.join(", "),
-                    granted: granted_scopes.join(", "),
-                });
-            }
+    if let Some(scopes_header) = response.headers().get("x-oauth-scopes")
+        && let Ok(scopes_str) = scopes_header.to_str()
+    {
+        let granted_scopes: Vec<&str> = scopes_str.split(", ").collect();
+        if !has_required_scopes(&granted_scopes) {
+            return Err(AuthError::InsufficientScopes {
+                required: REQUIRED_SCOPES.join(", "),
+                granted: granted_scopes.join(", "),
+            });
         }
     }
 
@@ -242,10 +251,10 @@ fn has_required_scopes(granted_scopes: &[&str]) -> bool {
             // Hierarchical match (e.g., "user" grants "user:email")
             (required_scope.contains(':') && scope == &required_scope.split(':').next().unwrap()) ||
             // Broader scope (e.g., "user" grants "read:user")
-            (scope.contains(':') && required_scope.contains(':') && 
+            (scope.contains(':') && required_scope.contains(':') &&
              scope.split(':').next() == required_scope.split(':').next())
         });
-        
+
         if !has_scope {
             return false;
         }
@@ -438,22 +447,29 @@ pub fn is_public_endpoint(path: &str) -> bool {
         "/openapi.json",
     ];
 
-    public_paths.iter().any(|public_path| path.starts_with(public_path))
+    public_paths
+        .iter()
+        .any(|public_path| path.starts_with(public_path))
 }
 
 /// Generate GitHub OAuth authorization URL
-pub fn generate_github_oauth_url(client_id: &str, redirect_uri: &str, state: Option<&str>) -> String {
+pub fn generate_github_oauth_url(
+    client_id: &str,
+    redirect_uri: &str,
+    state: Option<&str>,
+) -> String {
     let mut url = format!(
         "https://github.com/login/oauth/authorize?client_id={}&redirect_uri={}&scope={}",
         client_id,
         redirect_uri,
         REQUIRED_SCOPES.join("%20")
     );
-    
+
     if let Some(state_param) = state {
-        url.push_str(&format!("&state={}", state_param));
+        use std::fmt::Write as _;
+        let _ = write!(url, "&state={state_param}");
     }
-    
+
     url
 }
 
@@ -494,8 +510,11 @@ mod tests {
     #[test]
     fn test_extract_bearer_token() {
         let mut headers = HeaderMap::new();
-        headers.insert("authorization", HeaderValue::from_static("Bearer test-token"));
-        
+        headers.insert(
+            "authorization",
+            HeaderValue::from_static("Bearer test-token"),
+        );
+
         let result = extract_bearer_token_with_dev_bypass(&headers, false);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "test-token");
@@ -505,9 +524,33 @@ mod tests {
     fn test_extract_bearer_token_with_dev_bypass() {
         let mut headers = HeaderMap::new();
         headers.insert("x-development-bypass", HeaderValue::from_static("true"));
-        
+
         let result = extract_bearer_token_with_dev_bypass(&headers, true);
         assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "dev-bypass-token");
+    }
+
+    /// SECURITY: the literal dev-bypass token authenticates as dev-user in
+    /// `validate_jwt_token`, so it must never survive extraction when
+    /// development mode is off — neither via the bypass header nor when
+    /// smuggled in as a Bearer credential.
+    #[test]
+    fn test_dev_bypass_rejected_in_production_mode() {
+        // Bypass header alone is ignored outside development mode.
+        let mut headers = HeaderMap::new();
+        headers.insert("x-development-bypass", HeaderValue::from_static("true"));
+        assert!(extract_bearer_token_with_dev_bypass(&headers, false).is_err());
+
+        // The literal token as a Bearer credential is rejected outright.
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "authorization",
+            HeaderValue::from_static("Bearer dev-bypass-token"),
+        );
+        assert!(extract_bearer_token_with_dev_bypass(&headers, false).is_err());
+
+        // ...but still accepted while in development mode.
+        let result = extract_bearer_token_with_dev_bypass(&headers, true);
         assert_eq!(result.unwrap(), "dev-bypass-token");
     }
 
@@ -535,12 +578,17 @@ mod tests {
 
     #[test]
     fn test_generate_github_oauth_url() {
-        let url = generate_github_oauth_url("test_client_id", "http://localhost:8080/callback", None);
+        let url =
+            generate_github_oauth_url("test_client_id", "http://localhost:8080/callback", None);
         assert!(url.contains("client_id=test_client_id"));
         assert!(url.contains("redirect_uri=http://localhost:8080/callback"));
         assert!(url.contains("scope=user:email%20read:user"));
 
-        let url = generate_github_oauth_url("test_client_id", "http://localhost:8080/callback", Some("test_state"));
+        let url = generate_github_oauth_url(
+            "test_client_id",
+            "http://localhost:8080/callback",
+            Some("test_state"),
+        );
         assert!(url.contains("state=test_state"));
     }
 }

@@ -196,8 +196,7 @@ impl DdosProtection {
                 // Check if still blocked
                 let is_still_blocked = info
                     .blocked_until
-                    .map(|blocked_until| now < blocked_until)
-                    .unwrap_or(false);
+                    .is_some_and(|blocked_until| now < blocked_until);
 
                 // Keep only if there's recent activity or still blocked
                 has_recent_activity || is_still_blocked
