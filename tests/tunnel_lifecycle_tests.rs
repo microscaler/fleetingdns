@@ -368,6 +368,7 @@ mod tests {
     use super::*;
     
     #[tokio::test]
+    #[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
     async fn test_complete_tunnel_lifecycle() {
         let result = test_complete_tunnel_lifecycle().await;
         if let Err(e) = result {
@@ -376,6 +377,7 @@ mod tests {
     }
     
     #[tokio::test]
+    #[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
     async fn test_tunnel_creation_scenarios() {
         let result = test_tunnel_creation_scenarios().await;
         if let Err(e) = result {
@@ -384,6 +386,7 @@ mod tests {
     }
     
     #[tokio::test]
+    #[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
     async fn test_tunnel_health_scenarios() {
         let result = test_tunnel_health_scenarios().await;
         if let Err(e) = result {
@@ -392,6 +395,7 @@ mod tests {
     }
     
     #[tokio::test]
+    #[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
     async fn test_tunnel_error_scenarios() {
         let result = test_tunnel_error_scenarios().await;
         if let Err(e) = result {
@@ -400,6 +404,7 @@ mod tests {
     }
     
     #[tokio::test]
+    #[ignore = "requires a running FleetingDNS stack (localhost:8880); run via the integration-deploy job or `cargo test -- --ignored` against a live stack"]
     async fn test_tunnel_performance_load() {
         let result = test_tunnel_performance_load().await;
         if let Err(e) = result {
