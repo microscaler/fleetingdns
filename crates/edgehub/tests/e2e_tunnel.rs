@@ -3,8 +3,7 @@
 
 use common::redis::cache as redis_cache;
 use common::shutdown::GracefulShutdown;
-use edgehub::{Config, ssh_server::SshConfig, ssh_server::SshServer};
-use hickory_resolver::TokioAsyncResolver;
+use edgehub::{ssh_server::SshConfig, ssh_server::SshServer};
 use migration::Migrator;
 use redis::AsyncCommands;
 use sea_orm::{ConnectionTrait, Database, DatabaseConnection};
@@ -397,7 +396,9 @@ async fn start_edgehub_server(_redis_pool: redis_cache::RedisPool) -> SocketAddr
 
 /// Test DNS resolution functionality
 async fn test_dns_resolution(dns_addr: &SocketAddr, redis_pool: &redis_cache::RedisPool) {
-    use hickory_resolver::config::{NameServerConfig, Protocol, ResolverConfig, ResolverOpts};
+    use hickory_resolver::TokioResolver;
+    use hickory_resolver::config::{ConnectionConfig, NameServerConfig, ResolverConfig};
+    use hickory_resolver::net::runtime::TokioRuntimeProvider;
 
     // Set up a test slot in Redis
     let slot = "test123";
@@ -409,11 +410,16 @@ async fn test_dns_resolution(dns_addr: &SocketAddr, redis_pool: &redis_cache::Re
         return; // Skip DNS resolution test if Redis is not working
     }
 
-    // Configure resolver to use our test DNS server
-    let mut config = ResolverConfig::new();
-    config.add_name_server(NameServerConfig::new(*dns_addr, Protocol::Udp));
+    // Point a single UDP nameserver at our ephemeral test DNS server, preserving
+    // its custom port (ConnectionConfig::udp defaults to :53).
+    let mut udp = ConnectionConfig::udp();
+    udp.port = dns_addr.port();
+    let ns = NameServerConfig::new(dns_addr.ip(), true, vec![udp]);
+    let config = ResolverConfig::from_parts(None, vec![], vec![ns]);
 
-    let resolver = TokioAsyncResolver::tokio(config, ResolverOpts::default());
+    let resolver = TokioResolver::builder_with_config(config, TokioRuntimeProvider::default())
+        .build()
+        .expect("failed to build test resolver");
 
     // Test DNS resolution
     let query_name = format!("{slot}.fleetingdns.run");

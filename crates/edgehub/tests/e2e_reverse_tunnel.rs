@@ -229,13 +229,11 @@ async fn e2e_reverse_tunnel_data_plane() -> Result<()> {
         info!("SSH client connected");
 
         // Request tcpip_forward (port 0 = auto-allocate)
+        // russh 0.60: tcpip_forward returns the allocated port (u32) on success;
+        // a rejected request now surfaces as Err, not Ok(false).
         match timeout(Duration::from_secs(10), session.tcpip_forward("0.0.0.0", 0)).await {
-            Ok(Ok(true)) => {
-                info!("tcpip_forward requested successfully");
-            }
-            Ok(Ok(false)) => {
-                error!("tcpip_forward was rejected by server");
-                return Err(anyhow::anyhow!("tcpip_forward rejected"));
+            Ok(Ok(allocated)) => {
+                info!("tcpip_forward requested successfully (allocated port {allocated})");
             }
             Ok(Err(e)) => {
                 error!("tcpip_forward request failed: {}", e);
