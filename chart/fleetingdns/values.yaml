@@ -17,7 +17,7 @@ config:
 # SOPS-encrypted deployment-configuration runtime profile).
 database:
   urlSecret:
-    name: fleetingdns-db-credentials
+    name: db-credentials
     key: DATABASE_URL
 
 api:
