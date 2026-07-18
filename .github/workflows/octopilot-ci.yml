@@ -1,10 +1,9 @@
 name: Octopilot CI
 
-# Octopilot-driven pipeline. The application "shape" is auto-detected from
-# skaffold.yaml (source of truth): 3 container services (api/dnsd/edgehub) via
-# the octopilot/rust buildpack, plus the fleetingdns Helm chart. CLI tools
-# (edf-cli, fleetingdns-ctl, slot-setter) are NOT containers — they ship as
-# GitHub Release binaries via the release-binaries job on tags.
+# The generic build DAG (detect → lint → test → integration-validate →
+# integration-artifacts) comes from the shared reusable pipeline in
+# octopilot/actions — this repo only declares its app-specific deploy + release.
+# Adopting the build DAG in a new repo is just the `build` job below.
 
 on:
   push:
@@ -14,106 +13,18 @@ on:
     branches: [main]
   workflow_dispatch:
 
-env:
-  CARGO_TERM_COLOR: always
-  RUST_BACKTRACE: 1
-
 jobs:
-  # ── 1. Auto-detect languages and versions from skaffold.yaml ───────────────
-  detect:
-    name: Detect Contexts
-    runs-on: ubuntu-latest
-    outputs:
-      pipeline-context: ${{ steps.detect.outputs.pipeline-context }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Detect Contexts
-        id: detect
-        uses: octopilot/actions/detect-contexts@main
+  # ── Generic Octopilot build DAG (reusable; renders nested in the graph) ─────
+  build:
+    uses: octopilot/actions/.github/workflows/pipeline.yml@main
+    secrets: inherit
 
-  # ── 2. Lint (pre-commit, language-aware) ───────────────────────────────────
-  lint:
-    needs: detect
-    if: toJSON(fromJson(needs.detect.outputs.pipeline-context).languages) != '[]'
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: octopilot/actions/lint@main
-        with:
-          pipeline-context: ${{ needs.detect.outputs.pipeline-context }}
-
-  # ── 3. Test (matrix per detected language context) ─────────────────────────
-  test:
-    needs: detect
-    if: toJSON(fromJson(needs.detect.outputs.pipeline-context).matrix) != '[]'
-    name: Test
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJson(needs.detect.outputs.pipeline-context).matrix }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: octopilot/actions/test@main
-        with:
-          pipeline-context: ${{ toJson(matrix) }}
-
-  # ── 4a. Integration validate (release build + UUID for ttl.sh artifacts) ───
-  integration-validate:
-    name: Integration (validate)
-    needs: [detect, lint, test]
-    runs-on: ubuntu-latest
-    outputs:
-      uuid: ${{ steps.validate.outputs.uuid }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate primary build and generate UUID
-        id: validate
-        uses: octopilot/actions/integration-validate@main
-        with:
-          pipeline-context: ${{ needs.detect.outputs.pipeline-context }}
-          # Smoke run omitted: the primary artifacts are long-running servers
-          # (they block waiting on Redis/Postgres), so a no-arg smoke would hang.
-          # The release build itself is the compile gate.
-
-  # ── 4b. Integration artifacts (matrix from skaffold build.artifacts + chart) ─
-  integration-artifacts:
-    name: Integration (${{ matrix.suffix || matrix.output_key }})
-    needs: [detect, integration-validate]
-    if: toJSON(fromJson(needs.detect.outputs.pipeline-context).integration_matrix) != '[]'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJson(needs.detect.outputs.pipeline-context).integration_matrix }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build and push artifact
-        id: build
-        uses: octopilot/actions/integration-build-artifact@main
-        with:
-          artifact: ${{ toJson(matrix) }}
-          ttl-uuid: ${{ needs.integration-validate.outputs.uuid }}
-          op_version: v1.0.17
-
-      - name: Upload artifact outputs
-        run: |
-          mkdir -p artifact-out
-          mv outputs.txt "artifact-out/${{ matrix.output_key }}.txt" 2>/dev/null || true
-          [ -f build_result.json ] && cp build_result.json artifact-out/ || true
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: integration-${{ matrix.output_key }}
-          path: artifact-out
-          retention-days: 1
-
-  # ── 4c. Integration deploy (Kind + SOPS secret + ci-deps + Flux HelmRelease) ─
+  # ── Integration deploy (Kind + SOPS secret + ci-deps + Flux HelmRelease) ────
+  # App-specific: consumes the integration-* artifacts the reusable build
+  # uploaded (build_result.json) and stands the stack up in Kind.
   integration-deploy:
     name: Integration (deploy)
-    needs: integration-artifacts
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -258,11 +169,7 @@ jobs:
             exit 1
           fi
 
-  # ── 5. Release binaries (CLI tools → GitHub Release; tags only) ─────────────
-  # Octopilot has no first-class "release binary" concept — it treats every
-  # skaffold artifact as a container. The CLIs (edf-cli, fleetingdns-ctl,
-  # slot-setter) are deliberately excluded from skaffold.yaml and shipped here
-  # as attached release assets alongside the container images.
+  # ── Release binaries (CLI tools → GitHub Release; tags only) ────────────────
   release-binaries:
     name: Release CLI Binaries
     needs: [integration-deploy]
@@ -294,7 +201,7 @@ jobs:
             dist/*.tar.gz
             dist/SHA256SUMS.txt
 
-  # ── 6. Release notes (on tag: generate and publish to GitHub Release) ──────
+  # ── Release notes (on tag: generate and publish to GitHub Release) ──────────
   release-notes:
     name: Release Notes
     needs: [integration-deploy]
