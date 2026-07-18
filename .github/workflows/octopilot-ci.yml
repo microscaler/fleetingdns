@@ -15,7 +15,10 @@ on:
 
 jobs:
   # ── Generic Octopilot build DAG (reusable; renders nested in the graph) ─────
+  # The job's display name becomes the prefix on every nested job in the graph,
+  # so they read "Octopilot / Detect Contexts", "Octopilot / Test", etc.
   build:
+    name: Octopilot
     uses: octopilot/actions/.github/workflows/pipeline.yml@main
     secrets: inherit
 
