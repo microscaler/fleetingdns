@@ -12,8 +12,6 @@ use dnsd::dns_handler;
 use dnsd::sign;
 use dnsd::{Config, serve};
 
-#[cfg(feature = "dot")]
-use common::tls;
 use hickory_proto::op::{Message, Query};
 use hickory_proto::rr::{Name, RecordType};
 use hickory_proto::serialize::binary::{BinEncodable, BinEncoder};
@@ -53,15 +51,6 @@ async fn rrsig_validates() {
     drop(std_sock);
 
     unsafe { std::env::set_var("FDNS_HMAC_KEY", "secret") };
-
-    #[cfg(feature = "dot")]
-    let tcp = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    #[cfg(feature = "dot")]
-    let dot_addr = tcp.local_addr().unwrap();
-    #[cfg(feature = "dot")]
-    drop(tcp);
-    #[cfg(feature = "dot")]
-    let (tls_config, _) = tls::generate_tls_config(&["dot"]).unwrap();
 
     let cfg = Config {
         addr,

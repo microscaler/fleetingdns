@@ -184,9 +184,8 @@ mod tests {
 }
 
 #[cfg(feature = "dot")]
-mod dot {
+pub mod dot {
     use super::dns_handler::DnsHandler;
-    use super::redis_cache;
     use common::AppResult;
     use rustls::ServerConfig;
     use std::sync::Arc;
@@ -275,7 +274,7 @@ mod dot {
         let listener = TcpListener::bind(addr).await?;
         info!(addr=%listener.local_addr()?, "DoT server listening with graceful shutdown support");
         let acceptor = TlsAcceptor::from(Arc::new(cfg));
-        let dns_handler = dns_handler::DnsHandler::new(dns_handler::PerformanceConfig::default());
+        let dns_handler = DnsHandler::new(super::dns_handler::PerformanceConfig::default());
 
         loop {
             tokio::select! {
@@ -285,6 +284,7 @@ mod dot {
                         Ok((stream, peer)) => {
                             let acceptor = acceptor.clone();
                             let pool = pool.clone();
+                            let dns_handler = dns_handler.clone();
                             tokio::spawn(async move {
                                 if let Ok(mut tls) = acceptor.accept(stream).await {
                                     let mut len_buf = [0u8; 2];
