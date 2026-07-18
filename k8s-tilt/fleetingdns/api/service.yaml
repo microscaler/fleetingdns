@@ -9,13 +9,12 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-    - port: 8080
-      targetPort: 8080
+    # 8880: 8080 is chronically contested on shared dev hosts.
+    # Single port: the API serves app routes, /health and /metrics all
+    # on 8880 — there is no separate metrics listener in api-bin.
+    - port: 8880
+      targetPort: 8880
       protocol: TCP
       name: http
-    - port: 8081
-      targetPort: 8081
-      protocol: TCP
-      name: metrics
   selector:
     app: api 

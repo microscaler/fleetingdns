@@ -1,6 +1,6 @@
+use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
 
 /// Service plan entity for different subscription tiers
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: String,
-    
+
     pub name: String,
     pub api_rate_limit: i32,
     pub tunnel_creation_limit: i32,
@@ -22,7 +22,7 @@ pub struct Model {
 pub enum Relation {
     #[sea_orm(has_many = "super::user_service_plan::Entity")]
     UserServicePlan,
-    
+
     #[sea_orm(has_many = "super::billing_event::Entity")]
     BillingEvent,
 }
@@ -39,4 +39,4 @@ impl Related<super::billing_event::Entity> for Entity {
     }
 }
 
-impl ActiveModelBehavior for ActiveModel {} 
+impl ActiveModelBehavior for ActiveModel {}

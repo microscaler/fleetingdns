@@ -22,6 +22,7 @@ mod test_utils;
 pub use config::ApiConfig;
 pub use error::{ApiError, ApiResult};
 pub use models::*;
+pub use storage::TunnelStorage;
 // Do not re-export UserTier from rate_limiting
 pub use middleware::{
     CircuitBreaker, error_handler_middleware, error_recovery_middleware, request_size_middleware,
@@ -52,7 +53,13 @@ pub async fn run_with_config(config: ApiConfig) -> ApiResult<()> {
     info!("Starting FleetingDNS API server on {}", config.bind_address);
 
     // Initialize certificate authority
-    let ca_config = edf_ca::CaConfig::default();
+    let mut ca_config = edf_ca::CaConfig::default();
+    if config.development_mode {
+        // Every tunnel create issues a cert for the same dev-bypass user,
+        // so the production per-client cap (10/hour) would starve the
+        // integration suite after ten tunnels.
+        ca_config.certs_per_hour_per_client = 10_000;
+    }
     let ca = Arc::new(edf_ca::CertificateAuthority::new(ca_config).await?);
 
     // Initialize storage
@@ -64,6 +71,12 @@ pub async fn run_with_config(config: ApiConfig) -> ApiResult<()> {
     // Initialize rate limiting
     let rate_limit_config = RateLimitConfig::default(); // TODO: Load from config
     let rate_limiter = Arc::new(RateLimitState::new(rate_limit_config));
+    if config.development_mode {
+        // Dev clusters run the integration suite against a live API; the
+        // suite authenticates as the dev-bypass user and must not fight
+        // the per-token buckets. No effect in production (flag is off).
+        rate_limiter.add_bypass_token("dev-bypass-token");
+    }
 
     // Initialize database connection
     let db = sea_orm::Database::connect(&config.database_url).await?;
@@ -105,12 +118,27 @@ fn create_router(state: ApiState) -> Router {
         // Authentication endpoints
         .route("/v1/auth/github", post(handlers::auth::github_oauth))
         .route("/v1/auth/token", post(handlers::auth::exchange_token))
-        .route("/v1/auth/github/url", get(handlers::auth::get_github_oauth_url))
+        .route(
+            "/v1/auth/github/url",
+            get(handlers::auth::get_github_oauth_url),
+        )
         // Tunnel management endpoints
         .route("/v1/tunnels", post(handlers::tunnels::create_tunnel))
         .route("/v1/tunnels/{id}", get(handlers::tunnels::get_tunnel))
         .route("/v1/tunnels/{id}", delete(handlers::tunnels::delete_tunnel))
         .route("/v1/tunnels", get(handlers::tunnels::list_tunnels))
+        .route(
+            "/v1/tunnels/{id}/session",
+            post(handlers::tunnels::create_tunnel_session),
+        )
+        .route(
+            "/v1/tunnels/{id}/health",
+            get(handlers::tunnels::get_tunnel_health),
+        )
+        .route(
+            "/v1/tunnels/health/bulk",
+            post(handlers::tunnels::get_bulk_tunnel_health),
+        )
         // Certificate management
         .route(
             "/v1/certificates",
@@ -283,7 +311,7 @@ mod tests {
     #[test]
     fn test_api_config_default_values() {
         let config = ApiConfig::default();
-        assert_eq!(config.bind_address, "0.0.0.0:8080".parse().unwrap());
+        assert_eq!(config.bind_address, "0.0.0.0:8880".parse().unwrap());
         assert_eq!(config.redis_url, "redis://localhost:6379");
         assert_eq!(config.base_domain, "fleetingdns.run");
         assert_eq!(config.edgehub_address, "edgehub.fleetingdns.com:443");

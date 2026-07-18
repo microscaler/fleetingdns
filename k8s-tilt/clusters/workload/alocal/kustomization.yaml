@@ -15,6 +15,21 @@ patches:
   - path: patches/remove-crossplane-flux-healthchecks.yaml
   - path: patches/remove-crossplane-flux-components.yaml
 
+  # Remove Flux HelmReleases/HelmRepositories — the shared kind cluster
+  # has no Flux CRDs, and external-dns / external-secrets are not part of
+  # FleetingDNS core functionality for local dev.
+  - path: patches/remove-external-dns-helmrelease.yaml
+  - path: patches/remove-external-dns-helmrepository.yaml
+  - path: patches/remove-external-secrets-helmrelease.yaml
+  - path: patches/remove-external-secrets-helmrepository.yaml
+
+  # Remove Flux Kustomization CRs (flux-system) — no Flux on the shared
+  # kind cluster; Tilt applies the workloads directly.
+  - path: patches/remove-flux-ks-control-plane-components.yaml
+  - path: patches/remove-flux-ks-namespaces.yaml
+  - path: patches/remove-flux-ks-workload-components.yaml
+  - path: patches/remove-flux-ks-workload-namespaces.yaml
+
   # Infrastructure NodePort patches for Kind
   - path: patches/redis.patch.yaml
     target:
@@ -47,6 +62,13 @@ patches:
       kind: Service
       name: otel-collector
   
+  # Point core services at the shared-kind-cluster infra:
+  # redis + postgres live in the `data` namespace, otel-collector in
+  # `observability` (deployed by tilt-shared-kind, port 10348).
+  - path: patches/api-shared-services.patch.yaml
+  - path: patches/dnsd-shared-services.patch.yaml
+  - path: patches/edgehub-shared-services.patch.yaml
+
   # FleetingDNS service NodePort patches for Kind
   - path: patches/dnsd.patch.yaml
     target:

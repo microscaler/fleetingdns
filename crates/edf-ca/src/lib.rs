@@ -44,6 +44,8 @@ pub struct CaConfig {
     pub ca_key_path: Option<String>,
     /// CA certificate file path (optional, will generate if not provided)
     pub ca_cert_path: Option<String>,
+    /// Maximum certificates issued per hour per client (abuse guard).
+    pub certs_per_hour_per_client: u32,
 }
 
 impl Default for CaConfig {
@@ -56,6 +58,7 @@ impl Default for CaConfig {
             max_ttl: MAX_CERT_TTL,
             ca_key_path: None,
             ca_cert_path: None,
+            certs_per_hour_per_client: 10,
         }
     }
 }

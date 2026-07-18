@@ -9,13 +9,12 @@ use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
 use dnsd::dns_handler;
-use common::redis;
 use dnsd::sign;
 use dnsd::{Config, serve};
 
 #[cfg(feature = "dot")]
 use common::tls;
-use hickory_proto::op::{Message, MessageType, OpCode, Query};
+use hickory_proto::op::{Message, Query};
 use hickory_proto::rr::{Name, RecordType};
 use hickory_proto::serialize::binary::{BinEncodable, BinEncoder};
 use ring::hmac;
@@ -75,10 +74,9 @@ async fn rrsig_validates() {
     let handle = tokio::spawn(async move { serve(cfg).await.unwrap() });
     sleep(Duration::from_millis(50)).await;
 
-    let mut query = Message::new();
-    query.set_id(1);
-    query.set_message_type(MessageType::Query);
-    query.set_op_code(OpCode::Query);
+    // hickory 0.26: build a query Message with explicit metadata.
+    let mut query = Message::query();
+    query.metadata.id = 1;
     query.add_query(Query::query(
         Name::from_ascii("demo.fdns.run.").unwrap(),
         RecordType::A,
@@ -95,7 +93,7 @@ async fn rrsig_validates() {
     redis_handle.abort();
 
     let resp = Message::from_vec(&resp_buf[..len]).unwrap();
-    let answers = resp.answers();
+    let answers = &resp.answers;
     assert!(answers.iter().any(|r| r.record_type() == RecordType::RRSIG));
 
     let mut set_bytes = Vec::new();
@@ -109,10 +107,8 @@ async fn rrsig_validates() {
         .iter()
         .find(|r| r.record_type() == RecordType::RRSIG)
         .unwrap();
-    let sig_data = match sig_rec.data().unwrap() {
-        hickory_proto::rr::RData::DNSSEC(hickory_proto::rr::dnssec::rdata::DNSSECRData::RRSIG(
-            s,
-        )) => s,
+    let sig_data = match &sig_rec.data {
+        hickory_proto::rr::RData::DNSSEC(hickory_proto::dnssec::rdata::DNSSECRData::RRSIG(s)) => s,
         _ => panic!("unexpected rdata"),
     };
     let key = hmac::Key::new(hmac::HMAC_SHA256, b"secret");

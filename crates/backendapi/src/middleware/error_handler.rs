@@ -71,7 +71,7 @@ fn extract_request_context(request: &Request, request_id: &str) -> ErrorContext 
     let user_agent = headers
         .get("user-agent")
         .and_then(|h| h.to_str().ok())
-        .map(|ua| ua.to_string());
+        .map(std::string::ToString::to_string);
 
     ErrorContext {
         request_id: Some(request_id.to_string()),
@@ -207,13 +207,12 @@ impl CircuitBreaker {
 pub async fn timeout_middleware(request: Request, next: Next) -> Result<Response, Response> {
     let timeout_duration = std::time::Duration::from_secs(30);
 
-    match tokio::time::timeout(timeout_duration, next.run(request)).await {
-        Ok(response) => Ok(response),
-        Err(_) => {
-            let error = ApiError::RequestTimeout("Request timed out after 30 seconds".to_string());
-            let context = ErrorContext::default();
-            Ok(error.into_response_with_context(context))
-        }
+    if let Ok(response) = tokio::time::timeout(timeout_duration, next.run(request)).await {
+        Ok(response)
+    } else {
+        let error = ApiError::RequestTimeout("Request timed out after 30 seconds".to_string());
+        let context = ErrorContext::default();
+        Ok(error.into_response_with_context(context))
     }
 }
 

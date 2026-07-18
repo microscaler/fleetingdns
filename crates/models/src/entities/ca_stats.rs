@@ -1,7 +1,7 @@
 use sea_orm::entity::prelude::*;
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Certificate Authority statistics entity
@@ -10,7 +10,7 @@ use uuid::Uuid;
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: Uuid,
-    
+
     pub certificates_issued: i32,
     pub active_certificates: i32,
     pub expired_certificates: i32,
@@ -30,4 +30,4 @@ impl Related<super::api_stats::Entity> for Entity {
     }
 }
 
-impl ActiveModelBehavior for ActiveModel {} 
+impl ActiveModelBehavior for ActiveModel {}

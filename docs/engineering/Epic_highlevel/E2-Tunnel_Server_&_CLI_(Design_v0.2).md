@@ -1,5 +1,17 @@
 # 📘 E2 – Tunnel Server & CLI (Design v0.2)
 
+> **⚠️ STATUS (2026-07-17): PARTIALLY DEPRECATED.** The tunnel data-plane stories are now
+> maintained in `docs/engineering/stories_detailed/E2_E3_tunnel_data_plane_user_stories_v0.3.md`,
+> which is authoritative. Known divergences between this design and the as-built system:
+>
+> - **No TLS-wrapped SSH**: the hub accepts plain SSH on :2222. TLS wrapping is backlog (D-7).
+> - **No HTTP2 edge→hub stream**: the edge raw-splices TCP to `127.0.0.1:<slot>` (D-3).
+> - **No GitHub OAuth, no ephemeral client cert on the TLS handshake, no SSH compression**
+>   in the live path (D-7). The "Security Guarantees" section below does NOT hold today.
+> - **Keep-alive is unimplemented** and the current CLI self-disconnects idle sessions after
+>   30 s — see story TDP-11 (D-6).
+> - The control-plane story list (E2-S1…S7) at the bottom of this file remains valid.
+
 ## 🧭 Overview
 
 This document defines the design of the **Tunnel Server and CLI** for FleetingDNS. It establishes the secure reverse tunnel layer between the developer’s local machine or CI job and the cloud edge infrastructure, using **TLS-wrapped SSH with compression**, entirely implemented in **Rust** using `russh`, `tokio`, and `rustls`.

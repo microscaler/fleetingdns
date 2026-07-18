@@ -21,12 +21,11 @@ spec:
         - name: api
           image: fleetingdns/api:dev
           ports:
-            - containerPort: 8080
+            # 8880: 8080 is chronically contested on shared dev hosts.
+            # Single port: /health and /metrics are served on 8880 too.
+            - containerPort: 8880
               protocol: TCP
               name: http
-            - containerPort: 8081
-              protocol: TCP
-              name: metrics
           env:
             - name: DATABASE_URL
               value: "postgresql://fdns:fdns@postgres:5432/fdns"
@@ -48,12 +47,15 @@ spec:
           livenessProbe:
             httpGet:
               path: /health
-              port: 8080
+              port: 8880
             initialDelaySeconds: 30
             periodSeconds: 10
+          # NOTE: /ready sits behind the auth middleware (returns 401 without
+          # an Authorization header), so probing it never succeeds. Use
+          # /health until the app exempts /ready from auth.
           readinessProbe:
             httpGet:
-              path: /ready
-              port: 8080
+              path: /health
+              port: 8880
             initialDelaySeconds: 5
             periodSeconds: 5 

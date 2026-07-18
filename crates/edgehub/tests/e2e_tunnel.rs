@@ -1,11 +1,12 @@
 #![cfg(all(feature = "e2e", test))]
 #![allow(unused_imports, dead_code)]
 
+use common::redis::cache as redis_cache;
 use common::shutdown::GracefulShutdown;
-use dnsd::redis_cache;
 use edgehub::{Config, ssh_server::SshConfig, ssh_server::SshServer};
 use hickory_resolver::TokioAsyncResolver;
 use migration::Migrator;
+use redis::AsyncCommands;
 use sea_orm::{ConnectionTrait, Database, DatabaseConnection};
 use sea_orm_migration::MigratorTrait;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -553,10 +554,7 @@ async fn test_graceful_cleanup() {
 
         // Simulate cleanup by deleting the slot
         eprintln!("Cleaning up slot...");
-        if let Ok(mut conn) = redis_pool.get().await {
-            use redis::AsyncCommands;
-            let _: Result<(), _> = conn.del(slot).await;
-        }
+        let _: Result<(), _> = redis_cache::del_slot(&redis_pool, slot).await;
 
         // Verify slot is cleaned up
         eprintln!("Verifying slot cleanup...");
@@ -608,6 +606,10 @@ async fn test_certificate_authentication() {
         certificate_pinning_enabled: true,
         max_auth_attempts: 3,
         auth_lockout_duration: std::time::Duration::from_secs(300),
+        // NEW: Redis-based authentication configuration
+        redis_url: None,
+        redis_auth_enabled: false,
+        redis_key_prefix: "session".to_string(),
     };
 
     // Create SSH server

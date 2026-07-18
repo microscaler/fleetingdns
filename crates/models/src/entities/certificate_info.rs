@@ -1,7 +1,7 @@
 use sea_orm::entity::prelude::*;
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// Certificate information entity
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
@@ -9,7 +9,7 @@ use chrono::{DateTime, Utc};
 pub struct Model {
     #[sea_orm(primary_key)]
     pub serial: String,
-    
+
     pub certificate: String,
     pub private_key: String,
     pub fingerprint: String,
@@ -30,4 +30,4 @@ impl Related<super::tunnel::Entity> for Entity {
     }
 }
 
-impl ActiveModelBehavior for ActiveModel {} 
+impl ActiveModelBehavior for ActiveModel {}

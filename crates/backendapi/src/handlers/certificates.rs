@@ -1,9 +1,12 @@
 use crate::{ApiError, ApiResult, ApiState};
-use auth::{extract_bearer_token, validate_jwt_token};
-use axum::{Json, extract::{Path, State}, http::HeaderMap};
+use auth::{extract_bearer_token_with_dev_bypass, validate_jwt_token};
+use axum::{
+    Json,
+    extract::{Path, State},
+    http::HeaderMap,
+};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
-use uuid::Uuid;
 
 /// Certificate issuance request
 #[derive(Debug, Deserialize)]
@@ -49,7 +52,7 @@ pub async fn issue_certificate(
     Json(request): Json<IssueCertificateRequest>,
 ) -> ApiResult<Json<IssueCertificateResponse>> {
     // Authenticate user
-    let token = extract_bearer_token(&headers)?;
+    let token = extract_bearer_token_with_dev_bypass(&headers, state.config.development_mode)?;
     let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
 
     debug!(
@@ -93,7 +96,7 @@ pub async fn get_certificate(
     Path(serial): Path<String>,
 ) -> ApiResult<Json<CertificateInfoResponse>> {
     // Authenticate user
-    let token = extract_bearer_token(&headers)?;
+    let token = extract_bearer_token_with_dev_bypass(&headers, state.config.development_mode)?;
     let _user = validate_jwt_token(&token, &state.config.jwt_secret)?;
 
     // Get certificate information from CA

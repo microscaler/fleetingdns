@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: fleetingdns
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://postgres:postgres@postgres.data.svc.cluster.local:5432/fdns"
+            - name: REDIS_URL
+              value: "redis://redis.data.svc.cluster.local:6379"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector.observability.svc.cluster.local:4317"
+            # Local dev cluster only: lets the integration test suite
+            # (tests/integration) authenticate via x-development-bypass.
+            - name: DEVELOPMENT_MODE
+              value: "true"

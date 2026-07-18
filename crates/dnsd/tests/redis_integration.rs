@@ -1,5 +1,4 @@
 use dnsd::dns_handler::{DnsHandler, PerformanceConfig};
-use common::redis::RedisPool;
 mod redis_test_utils;
 use redis_test_utils::{with_redis_container, with_shared_redis_container};
 
@@ -9,7 +8,7 @@ async fn test_invalid_data_handling() {
         let handler = DnsHandler::new(PerformanceConfig::default());
 
         // Test empty domain
-        let result = handler.lookup_slot_in_redis("".to_string(), &pool).await;
+        let result = handler.lookup_slot_in_redis(String::new(), &pool).await;
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
 
@@ -112,13 +111,13 @@ async fn test_redis_test_utils() {
         let mut conn = pool.get().await.unwrap();
 
         // Test basic Redis operations
-                  let _: () = bb8_redis::redis::cmd("SET")
+        let _: () = bb8_redis::redis::cmd("SET")
             .arg("shared_test_key")
             .arg("shared_test_value")
             .query_async(&mut *conn)
             .await
             .unwrap();
-                  let result: String = bb8_redis::redis::cmd("GET")
+        let result: String = bb8_redis::redis::cmd("GET")
             .arg("shared_test_key")
             .query_async(&mut *conn)
             .await

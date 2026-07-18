@@ -302,7 +302,7 @@ async fn test_performance_client_integration() {
                 .set_slot_optimized("test-slot", "127.0.0.1".parse().unwrap(), 3600)
                 .await;
             match result {
-                Ok(_) => println!("Single operation successful"),
+                Ok(()) => println!("Single operation successful"),
                 Err(e) => println!("Single operation failed: {e}"),
             }
 
@@ -414,16 +414,15 @@ async fn test_timeout_configurations() {
 
     // Should fail quickly due to short timeouts
     let start = std::time::Instant::now();
-    match RedisPerformanceClient::new(config).await {
-        Ok(_) => panic!("Expected failure with invalid host"),
-        Err(_) => {
-            let elapsed = start.elapsed();
-            // Should fail quickly (within a reasonable time)
-            assert!(
-                elapsed < Duration::from_secs(5),
-                "Took too long to fail: {elapsed:?}"
-            );
-        }
+    if RedisPerformanceClient::new(config).await.is_ok() {
+        panic!("Expected failure with invalid host")
+    } else {
+        let elapsed = start.elapsed();
+        // Should fail quickly (within a reasonable time)
+        assert!(
+            elapsed < Duration::from_secs(5),
+            "Took too long to fail: {elapsed:?}"
+        );
     }
 }
 

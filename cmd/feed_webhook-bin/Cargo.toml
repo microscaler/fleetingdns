@@ -8,3 +8,6 @@ edition = "2024"
 
 [dependencies]
 feed_webhook = { path = "../../crates/feed_webhook" }
+
+[lints]
+workspace = true

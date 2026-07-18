@@ -4,13 +4,13 @@
 //! allowing dynamic management of authorized keys without server restarts.
 
 use anyhow::{Context, Result};
-use chrono::{DateTime, Utc};
 use bb8_redis::redis::AsyncCommands;
-use russh_keys::key::PublicKey;
+use chrono::{DateTime, Utc};
+use russh::keys::PublicKey;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
-use super::cache::{new_pool, RedisPool};
+use super::cache::{RedisPool, new_pool};
 
 /// Session data stored in Redis for SSH authentication
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,7 +35,7 @@ impl RedisAuthHandler {
         let redis_pool = new_pool(redis_url)
             .await
             .context("Failed to create Redis pool for authentication")?;
-        
+
         Ok(Self {
             redis_pool,
             key_prefix: key_prefix.to_string(),
@@ -57,57 +57,64 @@ impl RedisAuthHandler {
 
         // Get session data from Redis
         let session_key = format!("{}:{}", self.key_prefix, session_id);
-        let mut conn = self.redis_pool.get().await
+        let mut conn = self
+            .redis_pool
+            .get()
+            .await
             .context("Failed to get Redis connection")?;
 
-        let session_data: Option<String> = conn.get(&session_key).await
+        let session_data: Option<String> = conn
+            .get(&session_key)
+            .await
             .context("Failed to get session data from Redis")?;
 
-        match session_data {
-            Some(data) => {
-                let session: SessionData = serde_json::from_str(&data)
-                    .context("Failed to deserialize session data")?;
-                
-                // Check if session is expired
-                if session.expires_at < Utc::now() {
-                    warn!(
-                        session_id = %session_id,
-                        expires_at = %session.expires_at,
-                        "Session has expired"
-                    );
-                    return Ok(false);
-                }
+        if let Some(data) = session_data {
+            let session: SessionData =
+                serde_json::from_str(&data).context("Failed to deserialize session data")?;
 
-                // Validate public key fingerprint
-                let provided_fingerprint = self.compute_fingerprint(public_key)?;
-                let is_valid = provided_fingerprint == session.fingerprint;
-
-                info!(
-                    session_id = %session_id,
-                    github_user_id = %session.github_user_id,
-                    is_valid = %is_valid,
-                    "SSH key validation completed"
-                );
-
-                Ok(is_valid)
-            }
-            None => {
+            // Check if session is expired
+            if session.expires_at < Utc::now() {
                 warn!(
                     session_id = %session_id,
-                    "Session not found in Redis"
+                    expires_at = %session.expires_at,
+                    "Session has expired"
                 );
-                Ok(false)
+                return Ok(false);
             }
+
+            // Validate public key fingerprint
+            let provided_fingerprint = self.compute_fingerprint(public_key)?;
+            let is_valid = provided_fingerprint == session.fingerprint;
+
+            info!(
+                session_id = %session_id,
+                github_user_id = %session.github_user_id,
+                is_valid = %is_valid,
+                "SSH key validation completed"
+            );
+
+            Ok(is_valid)
+        } else {
+            warn!(
+                session_id = %session_id,
+                "Session not found in Redis"
+            );
+            Ok(false)
         }
     }
 
     /// Get all active sessions for a user
     pub async fn get_user_sessions(&self, github_user_id: &str) -> Result<Vec<String>> {
         let user_key = format!("user:{}:sessions", github_user_id);
-        let mut conn = self.redis_pool.get().await
+        let mut conn = self
+            .redis_pool
+            .get()
+            .await
             .context("Failed to get Redis connection")?;
 
-        let sessions: Vec<String> = conn.smembers(&user_key).await
+        let sessions: Vec<String> = conn
+            .smembers(&user_key)
+            .await
             .context("Failed to get user sessions from Redis")?;
 
         Ok(sessions)
@@ -116,17 +123,22 @@ impl RedisAuthHandler {
     /// Check if a session exists and is valid
     pub async fn is_session_valid(&self, session_id: &str) -> Result<bool> {
         let session_key = format!("{}:{}", self.key_prefix, session_id);
-        let mut conn = self.redis_pool.get().await
+        let mut conn = self
+            .redis_pool
+            .get()
+            .await
             .context("Failed to get Redis connection")?;
 
-        let session_data: Option<String> = conn.get(&session_key).await
+        let session_data: Option<String> = conn
+            .get(&session_key)
+            .await
             .context("Failed to get session data from Redis")?;
 
         match session_data {
             Some(data) => {
-                let session: SessionData = serde_json::from_str(&data)
-                    .context("Failed to deserialize session data")?;
-                
+                let session: SessionData =
+                    serde_json::from_str(&data).context("Failed to deserialize session data")?;
+
                 Ok(session.expires_at >= Utc::now())
             }
             None => Ok(false),
@@ -135,40 +147,50 @@ impl RedisAuthHandler {
 
     /// Clean up expired sessions
     pub async fn cleanup_expired_sessions(&self) -> Result<u32> {
-        let mut conn = self.redis_pool.get().await
+        let mut conn = self
+            .redis_pool
+            .get()
+            .await
             .context("Failed to get Redis connection")?;
 
         // Get all session keys
         let pattern = format!("{}:*", self.key_prefix);
-        let keys: Vec<String> = conn.keys(&pattern).await
+        let keys: Vec<String> = conn
+            .keys(&pattern)
+            .await
             .context("Failed to get session keys from Redis")?;
 
         let mut cleaned_count = 0;
 
         for key in keys {
-            let session_data: Option<String> = conn.get(&key).await
+            let session_data: Option<String> = conn
+                .get(&key)
+                .await
                 .context("Failed to get session data from Redis")?;
 
-            if let Some(data) = session_data {
-                if let Ok(session) = serde_json::from_str::<SessionData>(&data) {
-                    if session.expires_at < Utc::now() {
-                        // Remove expired session
-                        let _: () = conn.del(&key).await
-                            .context("Failed to delete expired session")?;
-                        
-                        // Remove from user's session list
-                        let user_key = format!("user:{}:sessions", session.github_user_id);
-                        let _: () = conn.srem(&user_key, &session.session_id).await
-                            .context("Failed to remove session from user list")?;
-                        
-                        cleaned_count += 1;
-                        
-                        debug!(
-                            session_id = %session.session_id,
-                            "Cleaned up expired session"
-                        );
-                    }
-                }
+            if let Some(data) = session_data
+                && let Ok(session) = serde_json::from_str::<SessionData>(&data)
+                && session.expires_at < Utc::now()
+            {
+                // Remove expired session
+                let _: () = conn
+                    .del(&key)
+                    .await
+                    .context("Failed to delete expired session")?;
+
+                // Remove from user's session list
+                let user_key = format!("user:{}:sessions", session.github_user_id);
+                let _: () = conn
+                    .srem(&user_key, &session.session_id)
+                    .await
+                    .context("Failed to remove session from user list")?;
+
+                cleaned_count += 1;
+
+                debug!(
+                    session_id = %session.session_id,
+                    "Cleaned up expired session"
+                );
             }
         }
 
@@ -176,36 +198,47 @@ impl RedisAuthHandler {
         Ok(cleaned_count)
     }
 
-    /// Compute fingerprint for a public key
-    fn compute_fingerprint(&self, _public_key: &PublicKey) -> Result<String> {
-        // TODO: Implement proper fingerprint computation
-        // For now, use a placeholder that matches the expected format
-        // In production, this should compute the actual SHA-256 fingerprint
-        // This would require accessing the key's raw bytes and computing SHA-256
-        Ok("SHA256:placeholder-fingerprint-1234567890".to_string())
+    /// Compute the SHA-256 fingerprint of a public key.
+    ///
+    /// russh 0.60 exposes `ssh-key` types, so this is now a real fingerprint
+    /// ("SHA256:...") instead of the former placeholder — a prerequisite for
+    /// wiring genuine key validation (TDP-13).
+    fn compute_fingerprint(&self, public_key: &PublicKey) -> Result<String> {
+        Ok(public_key
+            .fingerprint(russh::keys::HashAlg::Sha256)
+            .to_string())
     }
 
     /// Add a new authorized key to Redis
     pub async fn add_authorized_key(&self, session_data: &SessionData) -> Result<()> {
-        let mut conn = self.redis_pool.get().await
+        let mut conn = self
+            .redis_pool
+            .get()
+            .await
             .context("Failed to get Redis connection")?;
 
         let session_key = format!("{}:{}", self.key_prefix, session_data.session_id);
-        let session_json = serde_json::to_string(session_data)
-            .context("Failed to serialize session data")?;
+        let session_json =
+            serde_json::to_string(session_data).context("Failed to serialize session data")?;
 
         // Store session data with TTL
         let ttl = (session_data.expires_at - Utc::now()).num_seconds() as u64;
-        let _: () = conn.set_ex(&session_key, &session_json, ttl).await
+        let _: () = conn
+            .set_ex(&session_key, &session_json, ttl)
+            .await
             .context("Failed to store session data in Redis")?;
 
         // Add to user's session list
         let user_key = format!("user:{}:sessions", session_data.github_user_id);
-        let _: () = conn.sadd(&user_key, &session_data.session_id).await
+        let _: () = conn
+            .sadd(&user_key, &session_data.session_id)
+            .await
             .context("Failed to add session to user list")?;
 
         // Set TTL on user list (longer than session to allow cleanup)
-        let _: () = conn.expire(&user_key, (ttl + 300) as i64).await
+        let _: () = conn
+            .expire(&user_key, (ttl + 300) as i64)
+            .await
             .context("Failed to set TTL on user session list")?;
 
         info!(
@@ -220,34 +253,43 @@ impl RedisAuthHandler {
 
     /// Remove an authorized key from Redis
     pub async fn remove_authorized_key(&self, session_id: &str) -> Result<bool> {
-        let mut conn = self.redis_pool.get().await
+        let mut conn = self
+            .redis_pool
+            .get()
+            .await
             .context("Failed to get Redis connection")?;
 
         let session_key = format!("{}:{}", self.key_prefix, session_id);
-        
+
         // Get session data before deletion
-        let session_data: Option<String> = conn.get(&session_key).await
+        let session_data: Option<String> = conn
+            .get(&session_key)
+            .await
             .context("Failed to get session data from Redis")?;
 
-        if let Some(data) = session_data {
-            if let Ok(session) = serde_json::from_str::<SessionData>(&data) {
-                // Remove session data
-                let _: () = conn.del(&session_key).await
-                    .context("Failed to delete session data from Redis")?;
+        if let Some(data) = session_data
+            && let Ok(session) = serde_json::from_str::<SessionData>(&data)
+        {
+            // Remove session data
+            let _: () = conn
+                .del(&session_key)
+                .await
+                .context("Failed to delete session data from Redis")?;
 
-                // Remove from user's session list
-                let user_key = format!("user:{}:sessions", session.github_user_id);
-                let _: () = conn.srem(&user_key, &session_id).await
-                    .context("Failed to remove session from user list")?;
+            // Remove from user's session list
+            let user_key = format!("user:{}:sessions", session.github_user_id);
+            let _: () = conn
+                .srem(&user_key, session_id)
+                .await
+                .context("Failed to remove session from user list")?;
 
-                info!(
-                    session_id = %session_id,
-                    github_user_id = %session.github_user_id,
-                    "Removed authorized key from Redis"
-                );
+            info!(
+                session_id = %session_id,
+                github_user_id = %session.github_user_id,
+                "Removed authorized key from Redis"
+            );
 
-                return Ok(true);
-            }
+            return Ok(true);
         }
 
         Ok(false)
@@ -257,8 +299,8 @@ impl RedisAuthHandler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use russh_keys::key::KeyPair;
     use chrono::Duration;
+    use russh::keys::{Algorithm, PrivateKey};
 
     #[tokio::test]
     async fn test_redis_auth_handler_creation() {
@@ -268,7 +310,7 @@ mod tests {
             redis_pool: new_pool("redis://localhost:6379").await.unwrap(),
             key_prefix: "session".to_string(),
         };
-        
+
         assert_eq!(handler.key_prefix, "session");
     }
 
@@ -296,12 +338,12 @@ mod tests {
             key_prefix: "session".to_string(),
         };
 
-        // Generate a test key pair
-        let key_pair = KeyPair::generate_ed25519().unwrap();
-        let public_key = key_pair.clone_public_key().unwrap();
+        // Generate a test key pair (russh 0.60 / ssh-key API)
+        let key_pair = PrivateKey::random(&mut rand_key::rng(), Algorithm::Ed25519).unwrap();
+        let public_key = key_pair.public_key().clone();
 
         let fingerprint = handler.compute_fingerprint(&public_key).unwrap();
-        
+
         // Fingerprint should start with SHA256:
         assert!(fingerprint.starts_with("SHA256:"));
         assert!(fingerprint.len() > 10);
@@ -322,4 +364,4 @@ mod tests {
         assert!(session.public_key.starts_with("ssh-ed25519"));
         assert!(session.fingerprint.starts_with("SHA256:"));
     }
-} 
+}

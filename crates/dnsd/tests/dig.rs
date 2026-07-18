@@ -11,7 +11,6 @@ use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
 use dnsd::dns_handler;
-use common::redis;
 use dnsd::sign;
 use dnsd::{Config, serve};
 

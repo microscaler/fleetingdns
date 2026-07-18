@@ -18,3 +18,6 @@ testcontainers-modules = { workspace = true }
 tokio-postgres = "0.7"
 
 # If a rust-toolchain.toml is needed for nightly, create it in this directory. 
+
+[lints]
+workspace = true

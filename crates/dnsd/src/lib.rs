@@ -76,10 +76,10 @@ pub async fn serve(cfg: Config) -> AppResult<()> {
                 match result {
                     Ok((len, peer)) => {
                         info!("Received DNS packet from {}: {} bytes", peer, len);
-                        
+
                         // Increment DNS query counter for UDP protocol
                         metrics::counter!("dns_queries_total", "protocol" => "udp").increment(1);
-                        
+
                         // Use unified DNS handler
                         match dns_handler.handle_packet(&buf[..len], &cfg.redis_pool).await {
                             Ok(resp) => {
@@ -175,7 +175,6 @@ pub async fn serve_with_shutdown(cfg: Config, shutdown: GracefulShutdown) -> App
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     // Configure tests to run sequentially to avoid race conditions with global singleton
     #[test]
@@ -239,10 +238,10 @@ mod dot {
                         if tls.read_exact(&mut buf).await.is_err() {
                             break;
                         }
-                        
+
                         // Increment DNS query counter for DoT protocol
                         metrics::counter!("dns_queries_total", "protocol" => "dot").increment(1);
-                        
+
                         if let Ok(resp) = dns_handler.handle_packet(&buf, &pool).await {
                             let resp_len = (resp.len() as u16).to_be_bytes();
                             if tls.write_all(&resp_len).await.is_err() {
@@ -298,10 +297,10 @@ mod dot {
                                         if tls.read_exact(&mut buf).await.is_err() {
                                             break;
                                         }
-                                        
+
                                         // Increment DNS query counter for DoT protocol
                                         metrics::counter!("dns_queries_total", "protocol" => "dot").increment(1);
-                                        
+
                                         if let Ok(resp) = dns_handler.handle_packet(&buf, &pool).await {
                                             let resp_len = (resp.len() as u16).to_be_bytes();
                                             if tls.write_all(&resp_len).await.is_err() {

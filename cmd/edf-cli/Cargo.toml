@@ -3,6 +3,12 @@ name = "edf-cli"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+# Enable CLI endpoint override flags for development/testing
+# Usage: cargo run --features dev-overrides -- --api-url http://localhost:8880 --hub-url localhost:2222
+dev-overrides = []
+
 [dependencies]
 # Core dependencies
 tokio = { version = "1", features = ["full"] }
@@ -10,6 +16,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 anyhow = "1.0"
 thiserror = "2.0"
+async-trait = "0.1"
 
 # Common utilities
 common = { path = "../../crates/common" }
@@ -21,8 +28,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 # SSH and TLS
-russh = "0.40"
-russh-keys = "0.40"
+russh = "0.60"
 rustls = "0.23"
 tokio-rustls = "0.26"
 rustls-pemfile = "1"
@@ -37,4 +43,10 @@ base64 = "0.22"
 
 # SSH key generation
 tempfile = "3.0"
-dirs = "5.0" 
+dirs = "5.0"
+
+[dev-dependencies]
+rand_key = { package = "rand", version = "0.10", features = ["thread_rng"] }
+
+[lints]
+workspace = true

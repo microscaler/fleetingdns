@@ -1,7 +1,7 @@
 use crate::{ApiResult, ApiState};
 use auth::{
-    exchange_github_code, generate_jwt_token, validate_github_token, generate_github_oauth_url,
-    GitHubOAuthRequest, GitHubOAuthResponse, TokenRequest, TokenResponse, GitHubUser
+    GitHubOAuthRequest, GitHubOAuthResponse, TokenRequest, TokenResponse, exchange_github_code,
+    generate_github_oauth_url, generate_jwt_token, validate_github_token,
 };
 use axum::{Json, extract::State};
 use chrono::Utc;
@@ -13,11 +13,11 @@ pub async fn github_oauth(
     Json(request): Json<GitHubOAuthRequest>,
 ) -> ApiResult<Json<GitHubOAuthResponse>> {
     let start_time = std::time::Instant::now();
-    
+
     // Create auth span for tracing
     let span = common::telemetry::auth_span("github_oauth");
     let _enter = span.enter();
-    
+
     debug!("Processing GitHub OAuth request");
 
     // Exchange code for GitHub access token
@@ -53,7 +53,10 @@ pub async fn github_oauth(
         token: jwt_token,
         expires_at: expires_at.to_rfc3339(),
         user,
-        scopes: auth::REQUIRED_SCOPES.iter().map(|s| s.to_string()).collect(),
+        scopes: auth::REQUIRED_SCOPES
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect(),
     }))
 }
 
@@ -63,11 +66,11 @@ pub async fn exchange_token(
     Json(request): Json<TokenRequest>,
 ) -> ApiResult<Json<TokenResponse>> {
     let start_time = std::time::Instant::now();
-    
+
     // Create auth span for tracing
     let span = common::telemetry::auth_span("token_exchange");
     let _enter = span.enter();
-    
+
     debug!("Processing token exchange request");
 
     // Validate GitHub token and get user info with scope validation
@@ -101,7 +104,7 @@ pub async fn get_github_oauth_url(
 ) -> ApiResult<Json<serde_json::Value>> {
     let redirect_uri = format!("{}/v1/auth/github", state.config.base_url);
     let state_param = uuid::Uuid::new_v4().to_string();
-    
+
     let auth_url = generate_github_oauth_url(
         &state.config.github_client_id,
         &redirect_uri,

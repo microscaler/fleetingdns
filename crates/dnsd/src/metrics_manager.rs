@@ -103,8 +103,8 @@ impl MetricsManager {
 }
 
 /// Global singleton instance
-static METRICS_MANAGER: once_cell::sync::Lazy<Arc<RwLock<MetricsManager>>> =
-    once_cell::sync::Lazy::new(|| {
+static METRICS_MANAGER: std::sync::LazyLock<Arc<RwLock<MetricsManager>>> =
+    std::sync::LazyLock::new(|| {
         Arc::new(RwLock::new(MetricsManager::new(50))) // Default 50ms threshold
     });
 

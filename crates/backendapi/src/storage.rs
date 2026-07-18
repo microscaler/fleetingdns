@@ -1,9 +1,11 @@
-use crate::{ApiError, ApiResult, models::*};
+use crate::{
+    ApiError, ApiResult,
+    models::{Tunnel, TunnelStatus},
+};
 use bb8::{Pool, PooledConnection};
 use bb8_redis::{RedisConnectionManager, redis::AsyncCommands};
 use tracing::{debug, info};
 use uuid::Uuid;
-use chrono;
 
 /// User tunnel lookup data structure
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -53,28 +55,31 @@ impl TunnelStorage {
             tracing::error!(error = %e, "Failed to serialize tunnel data");
             ApiError::StorageError(format!("Failed to serialize tunnel data: {e}"))
         })?;
-        
+
         // Calculate TTL from expires_at
         let ttl = {
             let now = chrono::Utc::now();
             let duration = tunnel.expires_at - now;
             duration.num_seconds() as u64
         };
-        
-        let _: () = conn.set_ex(&tunnel_key, &tunnel_data, ttl).await.map_err(|e| {
-            tracing::error!(error = %e, "Failed to store tunnel data in Redis");
-            ApiError::StorageError(format!("Failed to store tunnel data in Redis: {e}"))
-        })?;
-        
+
+        let _: () = conn
+            .set_ex(&tunnel_key, &tunnel_data, ttl)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to store tunnel data in Redis");
+                ApiError::StorageError(format!("Failed to store tunnel data in Redis: {e}"))
+            })?;
+
         // Store user tunnel lookup (no TTL - persistent)
         let user_key = format!("tunnel_lookup:{}", tunnel.github_user_id);
-        
+
         // Get existing user data or create new
         let existing_data: Option<String> = conn.get(&user_key).await.map_err(|e| {
             tracing::error!(error = %e, "Failed to get existing user tunnel lookup");
             ApiError::StorageError(format!("Failed to get existing user tunnel lookup: {e}"))
         })?;
-        
+
         let mut user_lookup = if let Some(data) = existing_data {
             serde_json::from_str::<UserTunnelLookup>(&data).unwrap_or_else(|_| UserTunnelLookup {
                 github_user_id: tunnel.github_user_id.clone(),
@@ -88,33 +93,96 @@ impl TunnelStorage {
                 tunnels: Vec::new(),
             }
         };
-        
+
         // Add tunnel ID if not already present
         if !user_lookup.tunnels.contains(&tunnel.id.to_string()) {
             user_lookup.tunnels.push(tunnel.id.to_string());
         }
-        
+
         // Store back to Redis (no TTL for user lookup)
         let user_data = serde_json::to_string(&user_lookup).map_err(|e| {
             tracing::error!(error = %e, "Failed to serialize user tunnel lookup");
             ApiError::StorageError(format!("Failed to serialize user tunnel lookup: {e}"))
         })?;
-        
+
         let _: () = conn.set(&user_key, user_data).await.map_err(|e| {
             tracing::error!(error = %e, "Failed to store user tunnel lookup in Redis");
             ApiError::StorageError(format!("Failed to store user tunnel lookup in Redis: {e}"))
         })?;
-        
+
+        // Subdomain index: subdomain:{name} → tunnel id. This is what
+        // get_tunnel_by_subdomain / is_subdomain_available read — it was
+        // never written before (only deleted), so the uniqueness check was
+        // a no-op. SET NX EX makes the claim atomic: even two concurrent
+        // creates racing past the handler's pre-check cannot both own the
+        // routing key (cross-tunnel isolation depends on this).
+        let subdomain_key = format!("subdomain:{}", tunnel.subdomain);
+        let tunnel_id_str = tunnel.id.to_string();
+        let claimed: Option<String> = bb8_redis::redis::cmd("SET")
+            .arg(&subdomain_key)
+            .arg(&tunnel_id_str)
+            .arg("NX")
+            .arg("EX")
+            .arg(ttl)
+            .query_async(&mut *conn)
+            .await
+            .map_err(|e| ApiError::StorageError(format!("Failed to claim subdomain: {e}")))?;
+        if claimed.is_none() {
+            let holder: Option<String> = conn.get(&subdomain_key).await.map_err(|e| {
+                ApiError::StorageError(format!("Failed to read subdomain holder: {e}"))
+            })?;
+            if holder.as_deref() != Some(tunnel_id_str.as_str()) {
+                return Err(ApiError::BadRequest(format!(
+                    "Subdomain '{}' is already in use by an active tunnel",
+                    tunnel.subdomain
+                )));
+            }
+            // Re-store of the same tunnel (e.g. status update): refresh TTL.
+            let _: () = conn.expire(&subdomain_key, ttl as i64).await.map_err(|e| {
+                ApiError::StorageError(format!("Failed to refresh subdomain TTL: {e}"))
+            })?;
+        }
+
         tracing::info!(tunnel_id = %tunnel.id, github_user_id = %tunnel.github_user_id, "Stored tunnel in Redis with new structure");
 
-        // Create DNS slot mapping for tunnel FQDN
+        // Create DNS slot mapping for tunnel FQDN. dnsd answers external
+        // callers with this IP, so it MUST be the edge's publicly reachable
+        // address, not loopback. Configurable via EDGE_PUBLIC_IP; defaults
+        // to 127.0.0.1 only for single-host local dev where edge, hub and
+        // caller share a loopback.
+        let edge_ip = std::env::var("EDGE_PUBLIC_IP").unwrap_or_else(|_| "127.0.0.1".to_string());
         let slot_key = format!("slot:{}", tunnel.fqdn);
-        let _: () = conn
-            .set_ex(&slot_key, "127.0.0.1", ttl)
-            .await
-            .map_err(|e| ApiError::StorageError(format!("Failed to create DNS slot mapping: {e}")))?;
+        let _: () = conn.set_ex(&slot_key, edge_ip, ttl).await.map_err(|e| {
+            ApiError::StorageError(format!("Failed to create DNS slot mapping: {e}"))
+        })?;
 
         debug!("Stored tunnel {} with TTL {} seconds", tunnel.id, ttl);
+        Ok(())
+    }
+
+    /// Store an edge session grant for a protected tunnel (FR-EDGE-3).
+    ///
+    /// The edge router checks `session_grant:{subdomain}:{token}` before
+    /// forwarding any bytes; the TTL enforces expiry.
+    pub async fn store_session_grant(
+        &self,
+        subdomain: &str,
+        token: &str,
+        github_user_id: &str,
+        ttl_seconds: u64,
+    ) -> ApiResult<()> {
+        let mut conn = self.get_connection().await?;
+        let key = common::redis::session_grant_key(subdomain, token);
+        let value = serde_json::json!({
+            "github_user_id": github_user_id,
+            "granted_at": chrono::Utc::now().to_rfc3339(),
+        })
+        .to_string();
+        let _: () = conn
+            .set_ex(&key, value, ttl_seconds)
+            .await
+            .map_err(|e| ApiError::StorageError(format!("Failed to store session grant: {e}")))?;
+        debug!("Stored session grant for subdomain {subdomain} (ttl {ttl_seconds}s)");
         Ok(())
     }
 
@@ -165,10 +233,9 @@ impl TunnelStorage {
         let mut conn = self.get_connection().await?;
 
         let user_key = format!("tunnel_lookup:{}", github_user_id);
-        let user_data: Option<String> = conn
-            .get(&user_key)
-            .await
-            .map_err(|e| ApiError::StorageError(format!("Failed to get user tunnel lookup: {e}")))?;
+        let user_data: Option<String> = conn.get(&user_key).await.map_err(|e| {
+            ApiError::StorageError(format!("Failed to get user tunnel lookup: {e}"))
+        })?;
 
         let mut tunnels = Vec::new();
 
@@ -178,10 +245,10 @@ impl TunnelStorage {
             })?;
 
             for tunnel_id in user_lookup.tunnels {
-                if let Ok(uuid) = Uuid::parse_str(&tunnel_id) {
-                    if let Ok(Some(tunnel)) = self.get_tunnel(&uuid).await {
-                        tunnels.push(tunnel);
-                    }
+                if let Ok(uuid) = Uuid::parse_str(&tunnel_id)
+                    && let Ok(Some(tunnel)) = self.get_tunnel(&uuid).await
+                {
+                    tunnels.push(tunnel);
                 }
             }
         }
@@ -241,13 +308,31 @@ impl TunnelStorage {
             ApiError::StorageError(format!("Failed to delete subdomain mapping: {e}"))
         })?;
 
-        // Remove from user's tunnel list
-        let _: () = conn
-            .srem(&user_key, tunnel_id.to_string())
-            .await
-            .map_err(|e| {
+        // Delete the DNS slot mapping so dnsd stops resolving the FQDN
+        // immediately (rather than waiting out the key TTL).
+        let slot_key = format!("slot:{}", tunnel.fqdn);
+        let _: () = conn.del(&slot_key).await.map_err(|e| {
+            ApiError::StorageError(format!("Failed to delete DNS slot mapping: {e}"))
+        })?;
+
+        // Remove from the user's tunnel list. The lookup is stored as a
+        // JSON-serialised UserTunnelLookup string (see store_tunnel), NOT a
+        // Redis set — SREM on it fails with WRONGTYPE.
+        let existing: Option<String> = conn.get(&user_key).await.map_err(|e| {
+            ApiError::StorageError(format!("Failed to read user tunnel lookup: {e}"))
+        })?;
+        if let Some(data) = existing
+            && let Ok(mut lookup) = serde_json::from_str::<UserTunnelLookup>(&data)
+        {
+            let id_str = tunnel_id.to_string();
+            lookup.tunnels.retain(|t| t != &id_str);
+            let updated = serde_json::to_string(&lookup).map_err(|e| {
+                ApiError::StorageError(format!("Failed to serialize user tunnel lookup: {e}"))
+            })?;
+            let _: () = conn.set(&user_key, updated).await.map_err(|e| {
                 ApiError::StorageError(format!("Failed to remove from user tunnels: {e}"))
             })?;
+        }
 
         debug!("Deleted tunnel {}", tunnel_id);
         Ok(true)
@@ -303,64 +388,69 @@ impl TunnelStorage {
     /// Allocate an available port for a tunnel with certificate TTL
     pub async fn allocate_port(&self, tunnel_id: &str, certificate_ttl: u64) -> ApiResult<u16> {
         let mut conn = self.get_connection().await?;
-        
+
         // Port allocation range: 10000-65535 (55,535 available ports per host)
         const PORT_RANGE_START: u16 = 10000;
         const PORT_RANGE_END: u16 = 65535;
-        
+
         // Use a more efficient allocation strategy - start from a random position
         // to avoid clustering and improve distribution
         use rand::Rng;
         let start_port = rand::thread_rng().gen_range(PORT_RANGE_START..PORT_RANGE_END);
-        
+
         // Try ports starting from random position, then wrap around
         let mut port = start_port;
         let mut attempts = 0;
         const MAX_ATTEMPTS: u16 = 1000; // Limit attempts to avoid infinite loops
-        
+
         while attempts < MAX_ATTEMPTS {
             let port_key = format!("port:{}", port);
-            
-            // Check if port is available (not in use)
-            let is_available: Option<String> = conn
-                .get(&port_key)
+
+            // Atomically claim the port with SET NX EX. The previous
+            // GET-then-SET pair was a TOCTOU race: two concurrent
+            // create_tunnel calls could both see the port as free and both
+            // "reserve" it, wiring two tunnels to one slot (cross-tunnel
+            // traffic). NX makes exactly one caller win.
+            let claimed: Option<String> = bb8_redis::redis::cmd("SET")
+                .arg(&port_key)
+                .arg(tunnel_id)
+                .arg("NX")
+                .arg("EX")
+                .arg(certificate_ttl)
+                .query_async(&mut *conn)
                 .await
-                .map_err(|e| ApiError::StorageError(format!("Failed to check port availability: {e}")))?;
-            
-            if is_available.is_none() {
-                // Reserve the port for this tunnel with certificate TTL
-                let _: () = conn
-                    .set_ex(&port_key, tunnel_id, certificate_ttl)
-                    .await
-                    .map_err(|e| ApiError::StorageError(format!("Failed to reserve port: {e}")))?;
-                
+                .map_err(|e| ApiError::StorageError(format!("Failed to reserve port: {e}")))?;
+
+            if claimed.is_some() {
                 info!("Allocated port {} for tunnel {}", port, tunnel_id);
                 return Ok(port);
             }
-            
+
             // Move to next port, wrap around if needed
-            port = if port >= PORT_RANGE_END {
+            port = if port == PORT_RANGE_END {
                 PORT_RANGE_START
             } else {
                 port + 1
             };
-            
+
             attempts += 1;
         }
-        
-        Err(ApiError::StorageError("No available ports found after 1000 attempts".to_string()))
+
+        Err(ApiError::StorageError(
+            "No available ports found after 1000 attempts".to_string(),
+        ))
     }
 
     /// Release a port when tunnel is deleted
     pub async fn release_port(&self, port: u16) -> ApiResult<()> {
         let mut conn = self.get_connection().await?;
-        
+
         let port_key = format!("port:{}", port);
         let _: () = conn
             .del(&port_key)
             .await
             .map_err(|e| ApiError::StorageError(format!("Failed to release port: {e}")))?;
-        
+
         info!("Released port {}", port);
         Ok(())
     }
@@ -368,17 +458,16 @@ impl TunnelStorage {
     /// Get port allocation statistics
     pub async fn get_port_stats(&self) -> ApiResult<(u16, u16, u16)> {
         let mut conn = self.get_connection().await?;
-        
+
         const PORT_RANGE_START: u16 = 10000;
         const PORT_RANGE_END: u16 = 65535;
-        
+
         // For efficiency, sample a subset of ports rather than checking all 55,535
         const SAMPLE_SIZE: u16 = 1000;
         let mut allocated = 0;
-        let mut available = 0;
-        
+
         use rand::Rng;
-        
+
         for _ in 0..SAMPLE_SIZE {
             let port = rand::thread_rng().gen_range(PORT_RANGE_START..PORT_RANGE_END);
             let port_key = format!("port:{}", port);
@@ -386,20 +475,18 @@ impl TunnelStorage {
                 .get(&port_key)
                 .await
                 .map_err(|e| ApiError::StorageError(format!("Failed to check port: {e}")))?;
-            
+
             if is_allocated.is_some() {
                 allocated += 1;
-            } else {
-                available += 1;
             }
         }
-        
+
         // Estimate total based on sample
         let total_ports = PORT_RANGE_END - PORT_RANGE_START + 1;
         let sample_ratio = SAMPLE_SIZE as f64 / total_ports as f64;
         let estimated_allocated = (allocated as f64 / sample_ratio) as u16;
         let estimated_available = total_ports - estimated_allocated;
-        
+
         Ok((estimated_allocated, estimated_available, total_ports))
     }
 }

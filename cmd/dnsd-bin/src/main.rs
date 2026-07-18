@@ -4,10 +4,9 @@ use std::path::PathBuf;
 use clap::Parser;
 use tracing::info;
 
+use common::shutdown::GracefulShutdown;
 #[cfg(feature = "dot")]
 use common::tls;
-use common::shutdown::GracefulShutdown;
-use common::redis;
 
 #[derive(Parser)]
 #[command(name = "dnsd-bin")]

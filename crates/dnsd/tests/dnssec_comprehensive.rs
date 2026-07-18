@@ -1,6 +1,4 @@
-use dnsd::dns_handler::{DnsHandler, PerformanceConfig};
 use dnsd::sign::{AlertType, DnssecAlgorithm, DnssecConfig, ProductionDnssecSigner};
-use hickory_proto::op::{Message, MessageType, ResponseCode};
 use hickory_proto::rr::rdata::A;
 use hickory_proto::rr::{Name, Record, RecordType};
 use std::net::Ipv4Addr;
@@ -45,7 +43,7 @@ fn test_alert_types() {
     ];
 
     for alert_type in &alert_types {
-        assert!(format!("{:?}", alert_type).len() > 0);
+        assert!(!format!("{:?}", alert_type).is_empty());
     }
 }
 
@@ -65,7 +63,7 @@ fn test_dnssec_signature_generation() {
 
     // Create a test record
     let name = Name::from_ascii("test.example.com.").unwrap();
-    let record = Record::from_rdata(name.clone(), 300, A(Ipv4Addr::new(192, 168, 1, 1)));
+    let _record = Record::from_rdata(name.clone(), 300, A(Ipv4Addr::new(192, 168, 1, 1)));
 
     // Create a simple rrset for testing
     let rrset = b"test_rrset_data";
@@ -89,9 +87,11 @@ fn test_dnssec_key_rotation() {
 /// Test DNSSEC signature caching
 #[test]
 fn test_dnssec_signature_caching() {
-    let mut config = DnssecConfig::default();
-    config.enable_signature_cache = true;
-    config.signature_cache_ttl = 3600;
+    let config = DnssecConfig {
+        enable_signature_cache: true,
+        signature_cache_ttl: 3600,
+        ..DnssecConfig::default()
+    };
 
     let signer = ProductionDnssecSigner::new(config).unwrap();
 
@@ -121,7 +121,8 @@ fn test_dnssec_monitoring() {
 
     // Check for alerts
     let alerts = monitor.check_alerts();
-    assert!(alerts.len() >= 0); // Should have some alerts
+    // Alert count is inherently non-negative; just exercise the call path.
+    let _ = alerts.len();
 }
 
 /// Test DNSSEC performance under load
@@ -134,7 +135,7 @@ fn test_dnssec_performance_load() {
 
     // Sign multiple records
     for i in 0..10 {
-        let name = Name::from_ascii(&format!("load{}.example.com.", i)).unwrap();
+        let name = Name::from_ascii(format!("load{}.example.com.", i)).unwrap();
         let rrset = b"test_rrset_data";
         let result = signer.rrsig_record(&name, RecordType::A, 300, rrset);
         assert!(result.is_ok());
@@ -153,7 +154,7 @@ fn test_dnssec_error_handling() {
     // Test with a valid domain name but expect the signer to handle errors gracefully
     let valid_name = Name::from_ascii("test.example.com.").unwrap();
     let invalid_rrset = b"invalid_data";
-    let result = signer.rrsig_record(&valid_name, RecordType::A, 300, invalid_rrset);
+    let _result = signer.rrsig_record(&valid_name, RecordType::A, 300, invalid_rrset);
     // The signer should handle this gracefully, either succeed or fail cleanly
     // We don't assert on the result since it depends on the implementation
 }

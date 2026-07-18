@@ -12,3 +12,6 @@ clap = { version = "4.0", features = ["derive"] }
 
 [features]
 dot = ["dnsd/dot"]
+
+[lints]
+workspace = true

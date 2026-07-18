@@ -247,10 +247,10 @@ mod tests {
     #[test]
     fn test_compression_config_default() {
         let config = CompressionConfig::default();
-        assert_eq!(config.enable_compression, false);
+        assert!(!config.enable_compression);
         assert_eq!(config.min_compress_size, 512);
         assert_eq!(config.compression_level, 6);
-        assert_eq!(config.enable_stats, true);
+        assert!(config.enable_stats);
     }
 
     #[tokio::test]

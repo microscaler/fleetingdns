@@ -1,7 +1,7 @@
 use sea_orm::entity::prelude::*;
 
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// User service plan assignment entity
@@ -10,7 +10,7 @@ use uuid::Uuid;
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: Uuid,
-    
+
     pub user_id: String,
     pub service_plan_id: String,
     pub start_date: DateTime<Utc>,
@@ -27,7 +27,7 @@ pub enum Relation {
         to = "super::user::Column::Id"
     )]
     User,
-    
+
     #[sea_orm(
         belongs_to = "super::service_plan::Entity",
         from = "Column::ServicePlanId",
@@ -48,4 +48,4 @@ impl Related<super::service_plan::Entity> for Entity {
     }
 }
 
-impl ActiveModelBehavior for ActiveModel {} 
+impl ActiveModelBehavior for ActiveModel {}

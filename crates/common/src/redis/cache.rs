@@ -1,9 +1,9 @@
 use std::net::Ipv4Addr;
 
+use crate::error::{CommonResult, FleetingDnsError};
 use bb8::Pool;
 use bb8_redis::RedisConnectionManager;
 use bb8_redis::redis::AsyncCommands;
-use crate::error::{FleetingDnsError, CommonResult};
 
 /// Connection pool type for Redis.
 pub type RedisPool = Pool<RedisConnectionManager>;
@@ -25,14 +25,19 @@ pub async fn new_pool(url: &str) -> Result<RedisPool, bb8_redis::redis::RedisErr
 ///
 /// Returns [`FleetingDnsError::NotFound`] if the key does not exist.
 pub async fn get_slot(pool: &RedisPool, slot: &str) -> Result<Ipv4Addr, CacheError> {
-    let mut conn = pool.get().await
+    let mut conn = pool
+        .get()
+        .await
         .map_err(|e| FleetingDnsError::ConnectionError(e.to_string()))?;
     let val: Option<String> = conn.get(slot).await?;
     match val {
-        Some(v) => v
-            .parse()
-            .map_err(|_| FleetingDnsError::ValidationError("Invalid IP address format".to_string())),
-        None => Err(FleetingDnsError::NotFound(format!("DNS record not found for slot: {}", slot))),
+        Some(v) => v.parse().map_err(|_| {
+            FleetingDnsError::ValidationError("Invalid IP address format".to_string())
+        }),
+        None => Err(FleetingDnsError::NotFound(format!(
+            "DNS record not found for slot: {}",
+            slot
+        ))),
     }
 }
 
@@ -43,7 +48,9 @@ pub async fn set_slot(
     ip: Ipv4Addr,
     ttl: u64,
 ) -> Result<(), CacheError> {
-    let mut conn = pool.get().await
+    let mut conn = pool
+        .get()
+        .await
         .map_err(|e| FleetingDnsError::ConnectionError(e.to_string()))?;
     let _: () = bb8_redis::redis::cmd("SET")
         .arg(slot)
@@ -56,13 +63,12 @@ pub async fn set_slot(
 }
 
 /// Delete a slot from Redis.
-/// 
+///
 /// This is a legacy compatibility function for existing code.
-pub async fn del_slot(
-    pool: &RedisPool,
-    slot: &str,
-) -> Result<(), CacheError> {
-    let mut conn = pool.get().await
+pub async fn del_slot(pool: &RedisPool, slot: &str) -> Result<(), CacheError> {
+    let mut conn = pool
+        .get()
+        .await
         .map_err(|e| FleetingDnsError::ConnectionError(e.to_string()))?;
     let _: () = bb8_redis::redis::cmd("DEL")
         .arg(slot)

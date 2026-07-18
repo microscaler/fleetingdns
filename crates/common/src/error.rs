@@ -201,56 +201,57 @@ impl FleetingDnsError {
     pub fn category(&self) -> ErrorCategory {
         match self {
             // Authentication & Authorization
-            FleetingDnsError::AuthenticationFailed(_) |
-            FleetingDnsError::TokenExpired(_) |
-            FleetingDnsError::InvalidToken(_) => ErrorCategory::Authentication,
+            FleetingDnsError::AuthenticationFailed(_)
+            | FleetingDnsError::TokenExpired(_)
+            | FleetingDnsError::InvalidToken(_) => ErrorCategory::Authentication,
 
-            FleetingDnsError::AuthorizationFailed(_) |
-            FleetingDnsError::Unauthorized(_) |
-            FleetingDnsError::Forbidden(_) => ErrorCategory::Authorization,
+            FleetingDnsError::AuthorizationFailed(_)
+            | FleetingDnsError::Unauthorized(_)
+            | FleetingDnsError::Forbidden(_) => ErrorCategory::Authorization,
 
             // Rate Limiting
-            FleetingDnsError::RateLimitExceeded(_) |
-            FleetingDnsError::QuotaExceeded(_) |
-            FleetingDnsError::TooManyRequests(_) => ErrorCategory::RateLimit,
+            FleetingDnsError::RateLimitExceeded(_)
+            | FleetingDnsError::QuotaExceeded(_)
+            | FleetingDnsError::TooManyRequests(_) => ErrorCategory::RateLimit,
 
             // Resource Issues
-            FleetingDnsError::ResourceExhausted(_) |
-            FleetingDnsError::PayloadTooLarge(_) => ErrorCategory::Resource,
+            FleetingDnsError::ResourceExhausted(_) | FleetingDnsError::PayloadTooLarge(_) => {
+                ErrorCategory::Resource
+            }
 
             // Client Errors
-            FleetingDnsError::BadRequest(_) |
-            FleetingDnsError::ValidationError(_) |
-            FleetingDnsError::UnsupportedMediaType(_) => ErrorCategory::Client,
+            FleetingDnsError::BadRequest(_)
+            | FleetingDnsError::ValidationError(_)
+            | FleetingDnsError::UnsupportedMediaType(_) => ErrorCategory::Client,
 
             // Network Issues
-            FleetingDnsError::NetworkError(_) |
-            FleetingDnsError::ConnectionRefused(_) |
-            FleetingDnsError::RequestTimeout(_) |
-            FleetingDnsError::ConnectionError(_) => ErrorCategory::Network,
+            FleetingDnsError::NetworkError(_)
+            | FleetingDnsError::ConnectionRefused(_)
+            | FleetingDnsError::RequestTimeout(_)
+            | FleetingDnsError::ConnectionError(_) => ErrorCategory::Network,
 
             // Service Issues
-            FleetingDnsError::InternalError(_) |
-            FleetingDnsError::ServiceUnavailable(_) |
-            FleetingDnsError::CircuitBreakerOpen(_) |
-            FleetingDnsError::ExternalService(_) |
-            FleetingDnsError::GitHubApiError(_) |
-            FleetingDnsError::CertificateError(_) |
-            FleetingDnsError::DnsError(_) |
-            FleetingDnsError::SshError(_) |
-            FleetingDnsError::TlsError(_) |
-            FleetingDnsError::StorageError(_) |
-            FleetingDnsError::DatabaseError(_) |
-            FleetingDnsError::RedisError(_) |
-            FleetingDnsError::TimeoutError(_) |
-            FleetingDnsError::ConfigurationError(_) |
-            FleetingDnsError::SerializationError(_) |
-            FleetingDnsError::DeserializationError(_) |
-            FleetingDnsError::EncodingError(_) |
-            FleetingDnsError::DecodingError(_) |
-            FleetingDnsError::Io(_) |
-            FleetingDnsError::Json(_) |
-            FleetingDnsError::Generic(_) => ErrorCategory::Service,
+            FleetingDnsError::InternalError(_)
+            | FleetingDnsError::ServiceUnavailable(_)
+            | FleetingDnsError::CircuitBreakerOpen(_)
+            | FleetingDnsError::ExternalService(_)
+            | FleetingDnsError::GitHubApiError(_)
+            | FleetingDnsError::CertificateError(_)
+            | FleetingDnsError::DnsError(_)
+            | FleetingDnsError::SshError(_)
+            | FleetingDnsError::TlsError(_)
+            | FleetingDnsError::StorageError(_)
+            | FleetingDnsError::DatabaseError(_)
+            | FleetingDnsError::RedisError(_)
+            | FleetingDnsError::TimeoutError(_)
+            | FleetingDnsError::ConfigurationError(_)
+            | FleetingDnsError::SerializationError(_)
+            | FleetingDnsError::DeserializationError(_)
+            | FleetingDnsError::EncodingError(_)
+            | FleetingDnsError::DecodingError(_)
+            | FleetingDnsError::Io(_)
+            | FleetingDnsError::Json(_)
+            | FleetingDnsError::Generic(_) => ErrorCategory::Service,
 
             // Default to Client for unknown errors
             _ => ErrorCategory::Client,
@@ -316,12 +317,12 @@ impl FleetingDnsError {
     pub fn retry_after(&self) -> Option<u64> {
         match self {
             FleetingDnsError::RateLimitExceeded(_) => Some(60), // 1 minute
-            FleetingDnsError::TooManyRequests(_) => Some(60), // 1 minute
-            FleetingDnsError::QuotaExceeded(_) => Some(3600), // 1 hour
+            FleetingDnsError::TooManyRequests(_) => Some(60),   // 1 minute
+            FleetingDnsError::QuotaExceeded(_) => Some(3600),   // 1 hour
             FleetingDnsError::ServiceUnavailable(_) => Some(30), // 30 seconds
             FleetingDnsError::CircuitBreakerOpen(_) => Some(300), // 5 minutes
-            FleetingDnsError::RequestTimeout(_) => Some(5), // 5 seconds
-            FleetingDnsError::TimeoutError(_) => Some(5), // 5 seconds
+            FleetingDnsError::RequestTimeout(_) => Some(5),     // 5 seconds
+            FleetingDnsError::TimeoutError(_) => Some(5),       // 5 seconds
             _ => None,
         }
     }
@@ -398,31 +399,55 @@ impl FleetingDnsError {
 
         // Add context information
         if let Some(user_id) = &context.user_id {
-            details.insert("user_id".to_string(), serde_json::Value::String(user_id.clone()));
+            details.insert(
+                "user_id".to_string(),
+                serde_json::Value::String(user_id.clone()),
+            );
         }
         if let Some(endpoint) = &context.endpoint {
-            details.insert("endpoint".to_string(), serde_json::Value::String(endpoint.clone()));
+            details.insert(
+                "endpoint".to_string(),
+                serde_json::Value::String(endpoint.clone()),
+            );
         }
         if let Some(method) = &context.method {
-            details.insert("method".to_string(), serde_json::Value::String(method.clone()));
+            details.insert(
+                "method".to_string(),
+                serde_json::Value::String(method.clone()),
+            );
         }
         if let Some(service_name) = &context.service_name {
-            details.insert("service".to_string(), serde_json::Value::String(service_name.clone()));
+            details.insert(
+                "service".to_string(),
+                serde_json::Value::String(service_name.clone()),
+            );
         }
         if let Some(operation) = &context.operation {
-            details.insert("operation".to_string(), serde_json::Value::String(operation.clone()));
+            details.insert(
+                "operation".to_string(),
+                serde_json::Value::String(operation.clone()),
+            );
         }
 
         // Add error-specific details
         match self {
             FleetingDnsError::ValidationError(msg) => {
-                details.insert("validation_message".to_string(), serde_json::Value::String(msg.clone()));
+                details.insert(
+                    "validation_message".to_string(),
+                    serde_json::Value::String(msg.clone()),
+                );
             }
             FleetingDnsError::RateLimitExceeded(msg) => {
-                details.insert("rate_limit_message".to_string(), serde_json::Value::String(msg.clone()));
+                details.insert(
+                    "rate_limit_message".to_string(),
+                    serde_json::Value::String(msg.clone()),
+                );
             }
             FleetingDnsError::QuotaExceeded(msg) => {
-                details.insert("quota_message".to_string(), serde_json::Value::String(msg.clone()));
+                details.insert(
+                    "quota_message".to_string(),
+                    serde_json::Value::String(msg.clone()),
+                );
             }
             _ => {}
         }
@@ -440,27 +465,29 @@ impl FleetingDnsError {
             ErrorCategory::Client | ErrorCategory::Validation => tracing::Level::WARN,
             ErrorCategory::Authentication | ErrorCategory::Authorization => tracing::Level::INFO,
             ErrorCategory::RateLimit => tracing::Level::INFO,
-            ErrorCategory::Resource | ErrorCategory::Service | ErrorCategory::Network => tracing::Level::ERROR,
+            ErrorCategory::Resource | ErrorCategory::Service | ErrorCategory::Network => {
+                tracing::Level::ERROR
+            }
         };
 
         let error_type = self.error_code();
         let category = self.category();
         let status_code = self.status_code();
 
-        let span = tracing::span!(tracing::Level::ERROR, "error", 
+        let span = tracing::span!(tracing::Level::ERROR, "error",
             error_type = %error_type,
             category = ?category,
             status_code = status_code,
         );
 
         if let Some(request_id) = &context.request_id {
-            span.record("request_id", &request_id);
+            span.record("request_id", request_id);
         }
         if let Some(user_id) = &context.user_id {
-            span.record("user_id", &user_id);
+            span.record("user_id", user_id);
         }
         if let Some(endpoint) = &context.endpoint {
-            span.record("endpoint", &endpoint);
+            span.record("endpoint", endpoint);
         }
 
         let _enter = span.enter();
@@ -510,8 +537,6 @@ impl From<anyhow::Error> for FleetingDnsError {
     }
 }
 
-
-
 // Result type alias for the common crate
 pub type CommonResult<T> = Result<T, FleetingDnsError>;
 
@@ -530,32 +555,74 @@ mod tests {
 
     #[test]
     fn test_error_categories() {
-        assert_eq!(FleetingDnsError::BadRequest("test".to_string()).category(), ErrorCategory::Client);
-        assert_eq!(FleetingDnsError::AuthenticationFailed("test".to_string()).category(), ErrorCategory::Authentication);
-        assert_eq!(FleetingDnsError::RateLimitExceeded("test".to_string()).category(), ErrorCategory::RateLimit);
-        assert_eq!(FleetingDnsError::InternalError("test".to_string()).category(), ErrorCategory::Service);
+        assert_eq!(
+            FleetingDnsError::BadRequest("test".to_string()).category(),
+            ErrorCategory::Client
+        );
+        assert_eq!(
+            FleetingDnsError::AuthenticationFailed("test".to_string()).category(),
+            ErrorCategory::Authentication
+        );
+        assert_eq!(
+            FleetingDnsError::RateLimitExceeded("test".to_string()).category(),
+            ErrorCategory::RateLimit
+        );
+        assert_eq!(
+            FleetingDnsError::InternalError("test".to_string()).category(),
+            ErrorCategory::Service
+        );
     }
 
     #[test]
     fn test_status_codes() {
-        assert_eq!(FleetingDnsError::BadRequest("test".to_string()).status_code(), 400);
-        assert_eq!(FleetingDnsError::Unauthorized("test".to_string()).status_code(), 401);
-        assert_eq!(FleetingDnsError::NotFound("test".to_string()).status_code(), 404);
-        assert_eq!(FleetingDnsError::InternalError("test".to_string()).status_code(), 500);
+        assert_eq!(
+            FleetingDnsError::BadRequest("test".to_string()).status_code(),
+            400
+        );
+        assert_eq!(
+            FleetingDnsError::Unauthorized("test".to_string()).status_code(),
+            401
+        );
+        assert_eq!(
+            FleetingDnsError::NotFound("test".to_string()).status_code(),
+            404
+        );
+        assert_eq!(
+            FleetingDnsError::InternalError("test".to_string()).status_code(),
+            500
+        );
     }
 
     #[test]
     fn test_retry_after() {
-        assert_eq!(FleetingDnsError::RateLimitExceeded("test".to_string()).retry_after(), Some(60));
-        assert_eq!(FleetingDnsError::ServiceUnavailable("test".to_string()).retry_after(), Some(30));
-        assert_eq!(FleetingDnsError::BadRequest("test".to_string()).retry_after(), None);
+        assert_eq!(
+            FleetingDnsError::RateLimitExceeded("test".to_string()).retry_after(),
+            Some(60)
+        );
+        assert_eq!(
+            FleetingDnsError::ServiceUnavailable("test".to_string()).retry_after(),
+            Some(30)
+        );
+        assert_eq!(
+            FleetingDnsError::BadRequest("test".to_string()).retry_after(),
+            None
+        );
     }
 
     #[test]
     fn test_error_codes() {
-        assert_eq!(FleetingDnsError::BadRequest("test".to_string()).error_code(), "BAD_REQUEST");
-        assert_eq!(FleetingDnsError::NotFound("test".to_string()).error_code(), "NOT_FOUND");
-        assert_eq!(FleetingDnsError::InternalError("test".to_string()).error_code(), "INTERNAL_ERROR");
+        assert_eq!(
+            FleetingDnsError::BadRequest("test".to_string()).error_code(),
+            "BAD_REQUEST"
+        );
+        assert_eq!(
+            FleetingDnsError::NotFound("test".to_string()).error_code(),
+            "NOT_FOUND"
+        );
+        assert_eq!(
+            FleetingDnsError::InternalError("test".to_string()).error_code(),
+            "INTERNAL_ERROR"
+        );
     }
 
     #[test]
@@ -573,12 +640,12 @@ mod tests {
         };
 
         let response = error.into_error_response(&context);
-        
+
         assert_eq!(response.error, "BAD_REQUEST");
         assert_eq!(response.code, 400);
         assert_eq!(response.category, ErrorCategory::Client);
-        assert!(response.error_id.len() > 0);
-        assert!(response.timestamp.len() > 0);
+        assert!(!response.error_id.is_empty());
+        assert!(!response.timestamp.is_empty());
     }
 
     #[test]
@@ -593,4 +660,172 @@ mod tests {
         let fleeting_error: FleetingDnsError = json_error.into();
         assert!(matches!(fleeting_error, FleetingDnsError::Json(_)));
     }
-} 
+}
+#[cfg(test)]
+mod exhaustive_tests {
+    use super::*;
+
+    /// Every variant, so mapping arms in category/status_code/error_code/
+    /// retry_after are all exercised and new variants can't dodge the table.
+    fn all_variants() -> Vec<FleetingDnsError> {
+        use FleetingDnsError as E;
+        let m = || "m".to_string();
+        vec![
+            E::AuthenticationFailed(m()),
+            E::AuthorizationFailed(m()),
+            E::Unauthorized(m()),
+            E::Forbidden(m()),
+            E::TokenExpired(m()),
+            E::InvalidToken(m()),
+            E::NotFound(m()),
+            E::AlreadyExists(m()),
+            E::Conflict(m()),
+            E::BadRequest(m()),
+            E::ValidationError(m()),
+            E::StorageError(m()),
+            E::DatabaseError(m()),
+            E::RedisError(m()),
+            E::ConnectionError(m()),
+            E::TimeoutError(m()),
+            E::ExternalService(m()),
+            E::GitHubApiError(m()),
+            E::CertificateError(m()),
+            E::DnsError(m()),
+            E::SshError(m()),
+            E::TlsError(m()),
+            E::RateLimitExceeded(m()),
+            E::QuotaExceeded(m()),
+            E::TooManyRequests(m()),
+            E::ResourceExhausted(m()),
+            E::ConfigurationError(m()),
+            E::InternalError(m()),
+            E::ServiceUnavailable(m()),
+            E::CircuitBreakerOpen(m()),
+            E::NetworkError(m()),
+            E::ConnectionRefused(m()),
+            E::RequestTimeout(m()),
+            E::PayloadTooLarge(m()),
+            E::UnsupportedMediaType(m()),
+            E::SerializationError(m()),
+            E::DeserializationError(m()),
+            E::EncodingError(m()),
+            E::DecodingError(m()),
+            E::Io(m()),
+            E::Json(m()),
+            E::Generic(m()),
+        ]
+    }
+
+    #[test]
+    fn every_variant_has_consistent_mappings() {
+        for e in all_variants() {
+            let code = e.status_code();
+            assert!(
+                (400..600).contains(&code),
+                "{e}: status {code} out of range"
+            );
+            assert!(!e.error_code().is_empty(), "{e}: empty error code");
+            assert!(!e.to_string().is_empty(), "{e}: empty display");
+            // Category must agree with status class for the obvious cases
+            match e.category() {
+                ErrorCategory::Authentication | ErrorCategory::Authorization => {
+                    assert!(
+                        code == 401 || code == 403,
+                        "{e}: auth category but status {code}"
+                    );
+                }
+                ErrorCategory::RateLimit => assert_eq!(code, 429, "{e}"),
+                _ => {}
+            }
+        }
+    }
+
+    #[test]
+    fn retry_after_only_for_retryable() {
+        use FleetingDnsError as E;
+        for e in all_variants() {
+            let retry = e.retry_after();
+            match e {
+                E::RateLimitExceeded(_) | E::TooManyRequests(_) => assert_eq!(retry, Some(60)),
+                E::QuotaExceeded(_) => assert_eq!(retry, Some(3600)),
+                E::ServiceUnavailable(_) => assert_eq!(retry, Some(30)),
+                E::CircuitBreakerOpen(_) => assert_eq!(retry, Some(300)),
+                E::RequestTimeout(_) | E::TimeoutError(_) => assert_eq!(retry, Some(5)),
+                _ => assert_eq!(retry, None, "{e}"),
+            }
+        }
+    }
+
+    #[test]
+    fn error_response_carries_context_and_details() {
+        let ctx = ErrorContext {
+            request_id: Some("req-1".to_string()),
+            user_id: Some("u-1".to_string()),
+            endpoint: Some("/v1/tunnels".to_string()),
+            method: Some("POST".to_string()),
+            client_ip: Some("203.0.113.7".to_string()),
+            user_agent: Some("edf-cli".to_string()),
+            service_name: Some("backendapi".to_string()),
+            operation: Some("create_tunnel".to_string()),
+        };
+        for e in [
+            FleetingDnsError::ValidationError("bad field".to_string()),
+            FleetingDnsError::RateLimitExceeded("slow down".to_string()),
+            FleetingDnsError::QuotaExceeded("cap hit".to_string()),
+        ] {
+            let r = e.into_error_response(&ctx);
+            assert_eq!(r.request_id.as_deref(), Some("req-1"));
+            let details = r.details.expect("details expected");
+            let obj = details.as_object().unwrap();
+            assert_eq!(obj["user_id"], "u-1");
+            assert_eq!(obj["endpoint"], "/v1/tunnels");
+            assert_eq!(obj["service"], "backendapi");
+        }
+        // No context, no error-specific details → None
+        let empty_ctx = ErrorContext {
+            request_id: None,
+            user_id: None,
+            endpoint: None,
+            method: None,
+            client_ip: None,
+            user_agent: None,
+            service_name: None,
+            operation: None,
+        };
+        let r = FleetingDnsError::NotFound("x".to_string()).into_error_response(&empty_ctx);
+        assert!(r.details.is_none());
+    }
+
+    #[test]
+    fn log_error_covers_every_level() {
+        let ctx = ErrorContext {
+            request_id: Some("req-log".to_string()),
+            user_id: Some("u-log".to_string()),
+            endpoint: Some("/log".to_string()),
+            method: None,
+            client_ip: None,
+            user_agent: None,
+            service_name: None,
+            operation: None,
+        };
+        // One error per log level branch (ERROR / WARN / INFO)
+        FleetingDnsError::InternalError("boom".to_string()).log_error(&ctx);
+        FleetingDnsError::BadRequest("bad".to_string()).log_error(&ctx);
+        FleetingDnsError::Unauthorized("who".to_string()).log_error(&ctx);
+        FleetingDnsError::RateLimitExceeded("rl".to_string()).log_error(&ctx);
+    }
+
+    #[test]
+    fn remaining_from_conversions() {
+        let e: FleetingDnsError = anyhow::anyhow!("wrapped").into();
+        assert!(matches!(e, FleetingDnsError::Generic(_)));
+        assert!(matches!(
+            FleetingDnsError::from(redis::RedisError::from((redis::ErrorKind::IoError, "io"))),
+            FleetingDnsError::RedisError(_)
+        ));
+        // ErrorCategory serde derive
+        let json = serde_json::to_string(&ErrorCategory::RateLimit).unwrap();
+        let back: ErrorCategory = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, ErrorCategory::RateLimit);
+    }
+}

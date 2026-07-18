@@ -2,11 +2,79 @@
 resolver = "2"
 members = [
     "crates/*",
-    "cmd/*"
+    "cmd/*",
+    "tests/integration"
 ]
 exclude = [
     "crates/bin"
 ]
+
+# Workspace-wide lint policy (every member opts in via `[lints] workspace = true`).
+# clippy::pedantic is ON to enforce modular, intention-revealing code. Lints
+# below are allowed deliberately — either pure style noise or churn that does
+# not improve modularity. Tighten over time; do NOT add per-file allows
+# without a comment saying why.
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Documentation debt — tracked, not enforced yet (would block on ~100s of fns)
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+# Naming style, no modularity value
+module_name_repetitions = "allow"
+similar_names = "allow"
+# High-churn numeric casts (ports, lengths); revisit with typed newtypes
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+cast_lossless = "allow"
+# Style-only formatting churn
+uninlined_format_args = "allow"
+must_use_candidate = "allow"
+return_self_not_must_use = "allow"
+# Long fns are flagged by review, not lint (handlers/tests legitimately long)
+too_many_lines = "allow"
+# async fns that don't await yet (trait-shaped APIs)
+unused_async = "allow"
+# Prose style in doc comments; no code impact
+doc_markdown = "allow"
+# Explicit per-variant arms in error mapping are clearer than merged arms
+match_same_arms = "allow"
+# Exact-constant comparisons in metrics tests
+float_cmp = "allow"
+# Trait-shaped async APIs (russh handlers, sea-orm hooks) without awaits yet
+unused_async_trait_impl = "allow"
+# TODO(modularity backlog): convert `&self` helpers that ignore self into free
+# fns / associated fns, and unwrap Result returns that can't fail. Tracked, not
+# blocking: signature changes ripple across crates.
+unused_self = "allow"
+unnecessary_wraps = "allow"
+needless_pass_by_value = "allow"
+# TODO: ApiError is large; boxing it is a wider refactor (result_large_err)
+result_large_err = "allow"
+# Style preferences with existing readable code
+manual_let_else = "allow"
+needless_continue = "allow"
+single_match_else = "allow"
+map_unwrap_or = "allow"
+items_after_statements = "allow"
+struct_field_names = "allow"
+redundant_closure_for_method_calls = "allow"
+ignore_without_reason = "allow"
+# Test-code patterns: compile-check bindings (`let _x = Type;`) and literals
+no_effect_underscore_binding = "allow"
+used_underscore_binding = "allow"
+unreadable_literal = "allow"
+needless_update = "allow"
+unnecessary_literal_unwrap = "allow"
+# Config/health structs legitimately carry several flags
+struct_excessive_bools = "allow"
+# Test ergonomics: mutate-after-default in test setup
+field_reassign_with_default = "allow"
+# Wildcard Err arms in health-check helpers are intentional
+match_wild_err_arm = "allow"
+# Doc list formatting nits
+doc_lazy_continuation = "allow"
 
 [workspace.dependencies]
 tracing = "0.1"

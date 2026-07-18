@@ -2,6 +2,14 @@
 
 **Instant, Secure, and Temporary DNS Endpoints for Development & Testing**
 
+> **Project status (2026-07):** working prototype. The core data plane — DNS, SNI-routed edge,
+> SSH reverse tunnels (`tcpip-forward`/`forwarded-tcpip`), Redis slot allocation, TTL teardown —
+> is implemented and covered by an integration suite. Items marked *(planned)* below are not
+> yet shipped. Authoritative story status:
+> `docs/engineering/stories_detailed/E2_E3_tunnel_data_plane_user_stories_v0.3.md`.
+> Naming note: older diagrams use the legacy `edf.run` domain; the public domain is
+> `fleetingdns.run`.
+
 ---
 
 ## 🚀 What is FleetingDNS?
@@ -70,7 +78,7 @@ flowchart TD
 ### Flow summary
 
 1. **CI runner** calls the EDF API to create an endpoint; API signs a 30-minute client certificate and returns the generated FQDN.
-2. **Developer laptop** (inside hotel NAT) opens an **outbound mutual-TLS tunnel** to the nearest EDF Edge + Hub node.
+2. **Developer laptop** (inside hotel NAT) opens an **outbound SSH reverse tunnel** to the nearest EDF Edge + Hub node *(mTLS wrapping of this transport is planned)*.
 3. The hub stores the new *slot → TCP stream* mapping in **Redis**; the API has already made the stateless DNS label live.
 4. **Stripe** resolves the FQDN, gets the hub anycast IP, and sends the webhook.
 5. The hub validates the label, looks up the slot, and pipes the HTTP request through the encrypted tunnel to the developer’s localhost.
@@ -83,11 +91,11 @@ flowchart TD
 
 * **Instant DNS Creation**: Generate temporary endpoints instantly from the command line.
 * **Automatic Cleanup**: Endpoints self-destruct after their set TTL (time-to-live).
-* **TLS Security**: Traffic is encrypted and secured using ephemeral SSL certificates.
-* **Auth Support**: Supports Basic Authentication, HMAC verification, and OIDC token validation.
-* **Easy Integration**: SDKs available for Python, JavaScript, and Go.
-* **CI/CD Ready**: GitHub Actions integration for seamless automated testing.
-* **Customizable Plans**: Stripe-powered payment tiers, including free, supporter, team, and organizational options.
+* **TLS at the Edge**: Public HTTPS terminated at the edge with SNI-based routing; per-session ephemeral certificates on the tunnel transport *(planned — tunnel is currently plain SSH)*.
+* **Protected Tunnels**: Session-grant cookie gating on protected endpoints; API auth via Basic/HMAC/OIDC.
+* **Easy Integration**: SDKs for Python, JavaScript, and Go *(planned)*.
+* **CI/CD Ready**: GitHub Actions integration *(planned)*.
+* **Customizable Plans**: Stripe-powered payment tiers *(planned — service-plan and billing models exist; Stripe not yet wired)*.
 
 ---
 
@@ -116,6 +124,10 @@ This command instantly creates a public DNS endpoint (e.g., `https://abc123.flee
 ---
 
 
+
+> The use-case diagrams below show the **target architecture**. Divergences today: the tunnel
+> transport is plain SSH (TLS wrapping planned), OAuth/cert-based client auth is not yet
+> enforced, and wildcard multi-tenant subdomains are planned.
 
 ### ✅ Use Case: Developer Using FDF to Test a Webhook
 
@@ -258,36 +270,32 @@ This diagram represents the normal “happy path” flow for a developer:
 
 ## 📚 Documentation and SDKs
 
-SDKs available for easy integration:
-
-* [Python SDK](https://pypi.org/project/fleetingdns-client)
-* [JavaScript SDK](https://npmjs.com/package/@fleetingdns/client)
-* [Go SDK](https://github.com/fleetingdns/sdk-go)
-* Java
-* Kotlin
-* C\#
-* TypeScript
-* Ruby
-* Swift
-* Rust
-
-Detailed documentation and API references available [here](https://docs.fleetingdns.run).
+*(planned)* SDKs for Python, JavaScript/TypeScript, Go, Java, Kotlin, C#, Ruby, Swift, and
+Rust are on the roadmap; none are published yet. This repository contains the Rust backend
+and the `fleetingdns` CLI. Engineering documentation lives in `docs/engineering/`.
 
 ---
 
 ## 🔒 Security First
 
-* Ephemeral TLS certificates for each session.
-* Secure tunnels with TLS-wrapped SSH.
-* Rate limiting, brute-force prevention, and comprehensive audit logs.
-* Authentication support (Basic, HMAC, OAuth/OIDC).
-* Zero-trust, ephemeral infrastructure ensuring no persistent exposure.
+**Shipped today:**
+
+* Slot-allocation gate: only API-allocated tunnel slots can be bound on the hub (fail-closed against Redis).
+* Session-grant cookie gating for protected tunnels, verified at the edge before any bytes are forwarded.
+* TTL-based teardown of tunnels, slots, and DNS records; viewer-idle reaping for portal sessions.
+* API authentication (Basic, HMAC, OIDC) and rate limiting on the control plane.
+
+**Planned (not yet enforced — see stories TDP-12/TDP-13):**
+
+* TLS-wrapped SSH tunnel transport with ephemeral per-session client certificates.
+* SSH key validation against API-issued keypairs (current dev builds accept any key).
+* Per-peer brute-force lockout on the SSH path.
 
 ---
 
-## 🚧 GitHub Actions Integration
+## 🚧 GitHub Actions Integration *(planned)*
 
-Easily integrate with your automated workflows:
+Intended usage once the action ships:
 
 ```yaml
 - uses: fleetingdns/fleetingdns-action@v1
@@ -301,13 +309,11 @@ Easily integrate with your automated workflows:
 
 ## 🌟 Get Started Today
 
-Visit our [GitHub repository](https://github.com/fleetingdns) or install directly:
+Hosted install script *(planned)*. Today, build from source:
 
 ```bash
-curl -sSfL https://fleetingdns.sh/install | sh
+cargo build --release -p edf-cli
 ```
-
-Transform your development and testing workflow today!
 
 ## Prototype DNS Daemon
 
@@ -349,13 +355,14 @@ This stores the IP `1.2.3.4` under the key `demo` with a 10 minute expiry.
 
 ### EdgeHub
 
-Run the TLS-wrapped SSH listener:
+Run the tunnel hub (plain-SSH reverse-tunnel listener + SNI-routed HTTPS router):
 
 ```bash
 cargo run -p edgehub-bin
 ```
 
-The service binds to `0.0.0.0:2222` by default and logs `edgehub listening` on startup.
+The SSH listener binds to `0.0.0.0:2222` by default and logs `edgehub listening` on startup.
+TLS wrapping of the SSH transport is planned (see E2 design status banner).
 
 
 ---

@@ -153,13 +153,11 @@ mod tests {
     fn test_app_result_type_alias() {
         // Test successful result
         let success: AppResult<String> = Ok("test".to_string());
-        assert!(success.is_ok());
-        assert_eq!(success.unwrap(), "test");
+        assert!(matches!(success.as_deref(), Ok("test")));
 
         // Test error result
         let error: AppResult<String> = Err(AppError::Message("error".to_string()));
-        assert!(error.is_err());
-        assert!(matches!(error.unwrap_err(), AppError::Message(_)));
+        assert!(matches!(error, Err(AppError::Message(_))));
     }
 
     #[test]
@@ -202,17 +200,13 @@ mod tests {
     fn test_error_send_sync() {
         // Test that AppError is Send and Sync
         fn assert_send_sync<T: Send + Sync>() {}
-        unsafe {
-            assert_send_sync::<AppError>();
-        }
+        assert_send_sync::<AppError>();
     }
 
     #[test]
     fn test_app_result_send_sync() {
         // Test that AppResult is Send and Sync
         fn assert_send_sync<T: Send + Sync>() {}
-        unsafe {
-            assert_send_sync::<AppResult<String>>();
-        }
+        assert_send_sync::<AppResult<String>>();
     }
 }

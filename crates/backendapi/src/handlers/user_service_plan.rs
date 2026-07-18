@@ -1,11 +1,9 @@
-use crate::{
-    ApiResult, ApiState,
-};
+use crate::{ApiResult, ApiState};
 use auth::{extract_bearer_token, validate_jwt_token};
 use axum::{Json, extract::State, http::HeaderMap};
 use models::{
-    service_plan::{Entity as ServicePlanEntity, Column as ServicePlanColumn},
-    user_service_plan::{Entity as UserServicePlanEntity, Column as UserServicePlanColumn},
+    service_plan::Entity as ServicePlanEntity,
+    user_service_plan::{Column as UserServicePlanColumn, Entity as UserServicePlanEntity},
 };
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde::{Deserialize, Serialize};
@@ -19,7 +17,7 @@ pub async fn get_my_service_plan(
     // Extract and validate JWT token
     let token = extract_bearer_token(&headers)?;
     let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
-    let user_id = user.id.to_string();
+    let user_id = user.id.clone();
 
     // Get user's current ServicePlan assignment
     let user_service_plan = UserServicePlanEntity::find()
@@ -37,9 +35,11 @@ pub async fn get_my_service_plan(
 
     // Parse features JSON
     let features: serde_json::Value = serde_json::from_str(
-        &service_plan.features_json.unwrap_or_else(|| "{}".to_string())
+        &service_plan
+            .features_json
+            .unwrap_or_else(|| "{}".to_string()),
     )
-        .map_err(|_| crate::ApiError::InternalError("Invalid features JSON".to_string()))?;
+    .map_err(|_| crate::ApiError::InternalError("Invalid features JSON".to_string()))?;
 
     // Create quotas from the actual fields
     let quotas = serde_json::json!({
@@ -73,7 +73,7 @@ pub async fn get_my_service_plan_usage(
     // Extract and validate JWT token
     let token = extract_bearer_token(&headers)?;
     let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
-    let user_id = user.id.to_string();
+    let user_id = user.id.clone();
 
     // Get user's current ServicePlan assignment
     let user_service_plan = UserServicePlanEntity::find()
@@ -124,7 +124,7 @@ pub async fn get_available_service_plans(
     // Extract and validate JWT token
     let token = extract_bearer_token(&headers)?;
     let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
-    let user_id = user.id.to_string();
+    let user_id = user.id.clone();
 
     // Get user's current ServicePlan
     let current_assignment = UserServicePlanEntity::find()
@@ -140,10 +140,9 @@ pub async fn get_available_service_plans(
 
     for plan in service_plans {
         // Parse features JSON
-        let features: serde_json::Value = serde_json::from_str(
-            &plan.features_json.unwrap_or_else(|| "{}".to_string())
-        )
-            .map_err(|_| crate::ApiError::InternalError("Invalid features JSON".to_string()))?;
+        let features: serde_json::Value =
+            serde_json::from_str(&plan.features_json.unwrap_or_else(|| "{}".to_string()))
+                .map_err(|_| crate::ApiError::InternalError("Invalid features JSON".to_string()))?;
 
         // Create quotas from the actual fields
         let quotas = serde_json::json!({
@@ -156,8 +155,7 @@ pub async fn get_available_service_plans(
         // Determine if this plan is available for upgrade/downgrade
         let is_current_plan = current_assignment
             .as_ref()
-            .map(|assignment| assignment.service_plan_id == plan.id)
-            .unwrap_or(false);
+            .is_some_and(|assignment| assignment.service_plan_id == plan.id);
 
         let can_upgrade = !is_current_plan;
         let can_downgrade = !is_current_plan;
@@ -190,7 +188,7 @@ pub async fn request_service_plan_change(
     // Extract and validate JWT token
     let token = extract_bearer_token(&headers)?;
     let user = validate_jwt_token(&token, &state.config.jwt_secret)?;
-    let user_id = user.id.to_string();
+    let user_id = user.id.clone();
 
     // Validate the target ServicePlan exists
     let service_plan_id = request.service_plan_id.clone();
@@ -294,11 +292,11 @@ mod tests {
         // Test that we can use the models crate entities
         let _service_plan_entity = ServicePlanEntity;
         let _user_service_plan_entity = UserServicePlanEntity;
-        
+
         // Test that we can use the column types
-        let _service_plan_column = ServicePlanColumn::Id;
+        let _service_plan_column = models::service_plan::Column::Id;
         let _user_service_plan_column = UserServicePlanColumn::UserId;
-        
-        assert!(true);
+
+        // compile-only test
     }
 }

@@ -9,7 +9,7 @@ use crate::metrics_manager::{PerformanceMetrics, get_metrics, update_metrics};
 use common::redis::RedisPool;
 
 use common::{AppError, AppResult};
-use hickory_proto::op::{Message, MessageType, ResponseCode};
+use hickory_proto::op::{Message, MessageType, OpCode, ResponseCode};
 use hickory_proto::rr::rdata::A;
 use hickory_proto::rr::{Name, Record};
 use std::net::Ipv4Addr;
@@ -193,21 +193,20 @@ impl DnsHandler {
             }
         };
 
-        if message.header().message_type() == MessageType::Response {
+        if message.message_type == MessageType::Response {
             tracing::warn!("Received response packet, ignoring");
             return self
                 .build_error_response(packet, ResponseCode::FormErr)
                 .await;
         }
 
-        let query = match message.queries().first() {
-            Some(q) => q,
-            None => {
-                tracing::error!("No query found in DNS message");
-                return self
-                    .build_error_response(packet, ResponseCode::FormErr)
-                    .await;
-            }
+        let query = if let Some(q) = message.queries.first() {
+            q
+        } else {
+            tracing::error!("No query found in DNS message");
+            return self
+                .build_error_response(packet, ResponseCode::FormErr)
+                .await;
         };
 
         let qname = query.name().clone();
@@ -308,25 +307,21 @@ impl DnsHandler {
         response_code: ResponseCode,
     ) -> AppResult<Vec<u8>> {
         // Try to parse the original packet to extract the query
-        let message = match Message::from_vec(packet) {
-            Ok(msg) => msg,
-            Err(_) => {
-                // If we can't parse the packet, create a minimal error response
-                let mut response = Message::new();
-                response.set_message_type(MessageType::Response);
-                response.set_response_code(ResponseCode::FormErr);
-                return Ok(response.to_vec().unwrap_or_else(|_| vec![]));
-            }
+        let message = if let Ok(msg) = Message::from_vec(packet) {
+            msg
+        } else {
+            // If we can't parse the packet, create a minimal error response.
+            // hickory 0.26: Message::error_msg builds a Response with the
+            // response code set (no more Message::new()/set_* builders).
+            let response = Message::error_msg(0, OpCode::Query, ResponseCode::FormErr);
+            return Ok(response.to_vec().unwrap_or_else(|_| vec![]));
         };
 
-        // Create error response with the same ID as the query
-        let mut response = Message::new();
-        response.set_id(message.header().id());
-        response.set_message_type(MessageType::Response);
-        response.set_response_code(response_code);
+        // Create error response echoing the query's id and op code.
+        let mut response = Message::error_msg(message.id, message.op_code, response_code);
 
         // Add the original query to the response
-        if let Some(query) = message.queries().first() {
+        if let Some(query) = message.queries.first() {
             response.add_query(query.clone());
         }
 
@@ -353,7 +348,10 @@ impl DnsHandler {
         let key = format!("slot:{clean_qname}");
 
         let result: Result<Option<String>, bb8_redis::redis::RedisError> =
-            bb8_redis::redis::cmd("GET").arg(&key).query_async(&mut *conn).await;
+            bb8_redis::redis::cmd("GET")
+                .arg(&key)
+                .query_async(&mut *conn)
+                .await;
 
         match result {
             Ok(slot) => Ok(slot),
@@ -372,10 +370,9 @@ impl DnsHandler {
         qname: &Name,
         slot: Option<String>,
     ) -> AppResult<Vec<u8>> {
-        let mut response = Message::new();
-        response.set_id(message.header().id());
-        response.set_message_type(MessageType::Response);
-        response.set_response_code(ResponseCode::NoError);
+        // hickory 0.26: Message::response builds a Response message with the
+        // query's id/op_code; response_code defaults to NoError.
+        let mut response = Message::response(message.id, message.op_code);
 
         // Add the query
         response.add_query(query.clone());
@@ -385,9 +382,9 @@ impl DnsHandler {
             match query.query_type() {
                 hickory_proto::rr::RecordType::A => {
                     // Handle IPv4 addresses
-                    let ip: Ipv4Addr = slot_ip
-                        .parse()
-                        .map_err(|_| AppError::Message(format!("Invalid IPv4 address: {slot_ip}")))?;
+                    let ip: Ipv4Addr = slot_ip.parse().map_err(|_| {
+                        AppError::Message(format!("Invalid IPv4 address: {slot_ip}"))
+                    })?;
 
                     let record = Record::from_rdata(
                         qname.clone(),
@@ -398,9 +395,9 @@ impl DnsHandler {
                 }
                 hickory_proto::rr::RecordType::AAAA => {
                     // Handle IPv6 addresses
-                    let ip: std::net::Ipv6Addr = slot_ip
-                        .parse()
-                        .map_err(|_| AppError::Message(format!("Invalid IPv6 address: {slot_ip}")))?;
+                    let ip: std::net::Ipv6Addr = slot_ip.parse().map_err(|_| {
+                        AppError::Message(format!("Invalid IPv6 address: {slot_ip}"))
+                    })?;
 
                     let record = Record::from_rdata(
                         qname.clone(),
@@ -410,13 +407,14 @@ impl DnsHandler {
                     response.add_answer(record);
                 }
                 _ => {
-                    // For other record types, return NXDOMAIN
-                    response.set_response_code(ResponseCode::NXDomain);
+                    // For other record types, return NXDOMAIN. hickory 0.26:
+                    // set the code via the public metadata field (no setter).
+                    response.metadata.response_code = ResponseCode::NXDomain;
                 }
             }
         } else {
             // No slot found, return NXDOMAIN
-            response.set_response_code(ResponseCode::NXDomain);
+            response.metadata.response_code = ResponseCode::NXDomain;
         }
 
         response
@@ -485,12 +483,12 @@ mod tests {
     #[test]
     fn test_performance_config_default() {
         let config = PerformanceConfig::default();
-        assert_eq!(config.enable_compression, false);
+        assert!(!config.enable_compression);
         assert_eq!(config.cache_ttl, 300);
-        assert_eq!(config.enable_metrics, true);
+        assert!(config.enable_metrics);
         assert_eq!(config.max_response_time_ms, 50);
         assert_eq!(config.max_cache_size, 5_000);
-        assert_eq!(config.enable_cache_warming, true);
+        assert!(config.enable_cache_warming);
         assert_eq!(config.cache_hit_ratio_target, 80);
     }
 
@@ -499,11 +497,11 @@ mod tests {
         let config = PerformanceConfig::default();
         let handler = DnsHandler::new(config);
 
-        assert_eq!(handler.config.enable_compression, false);
+        assert!(!handler.config.enable_compression);
         assert_eq!(handler.config.cache_ttl, 300);
-        assert_eq!(handler.config.enable_metrics, true);
+        assert!(handler.config.enable_metrics);
         assert_eq!(handler.config.max_cache_size, 5_000);
-        assert_eq!(handler.config.enable_cache_warming, true);
+        assert!(handler.config.enable_cache_warming);
         assert_eq!(handler.config.cache_hit_ratio_target, 80);
     }
 
@@ -588,7 +586,7 @@ mod tests {
 
         let key = handler.generate_cache_key(packet);
         assert!(!key.is_empty());
-        assert!(key.len() > 0);
+        assert!(!key.is_empty());
     }
 
     #[tokio::test]
@@ -708,11 +706,13 @@ mod tests {
     }
 
     // Helper functions for tests
+    #[allow(dead_code)] // test-support constructor
     fn create_test_query() -> hickory_proto::op::Query {
         hickory_proto::op::Query::new()
     }
 
+    #[allow(dead_code)] // test-support constructor
     fn create_test_message() -> Message {
-        Message::new()
+        Message::query()
     }
 }

@@ -103,6 +103,15 @@ pub fn extract_bearer_token_with_dev_bypass(
         ));
     }
 
+    // SECURITY: `validate_jwt_token` accepts the literal dev-bypass token,
+    // so a client presenting it as a Bearer credential would authenticate
+    // as dev-user in production. Only development mode may mint it.
+    if !development_mode && auth_str[7..].trim() == "dev-bypass-token" {
+        return Err(ApiError::AuthenticationFailed(
+            "Development bypass token is not accepted".to_string(),
+        ));
+    }
+
     Ok(auth_str[7..].to_string())
 }
 

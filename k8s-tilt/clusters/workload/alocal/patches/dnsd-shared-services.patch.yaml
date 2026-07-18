@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dnsd
+  namespace: fleetingdns
+spec:
+  template:
+    spec:
+      containers:
+        - name: dnsd
+          env:
+            - name: REDIS_URL
+              value: "redis://redis.data.svc.cluster.local:6379"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector.observability.svc.cluster.local:4317"

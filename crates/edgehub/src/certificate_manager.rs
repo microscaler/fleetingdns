@@ -62,11 +62,11 @@ impl CertificateManager {
     /// Generate an ephemeral certificate for a subdomain
     pub async fn generate_certificate(&self, subdomain: &str) -> Result<CertificateInfo> {
         // Check cache first
-        if let Some(cached) = self.get_cached_certificate(subdomain).await? {
-            if cached.expires_at > Utc::now() {
-                debug!(subdomain = %subdomain, "Using cached certificate");
-                return Ok(cached);
-            }
+        if let Some(cached) = self.get_cached_certificate(subdomain).await?
+            && cached.expires_at > Utc::now()
+        {
+            debug!(subdomain = %subdomain, "Using cached certificate");
+            return Ok(cached);
         }
 
         info!(subdomain = %subdomain, "Generating new ephemeral certificate");
@@ -96,7 +96,7 @@ impl CertificateManager {
     /// Generate a wildcard certificate for a subdomain pattern
     pub async fn generate_wildcard_certificate(&self, pattern: &str) -> Result<CertificateInfo> {
         let wildcard_domain = format!("*.{}.{}", pattern, self.config.root_domain);
-        
+
         info!(pattern = %pattern, wildcard = %wildcard_domain, "Generating wildcard certificate");
 
         let certificate_info = CertificateInfo {
@@ -141,8 +141,11 @@ impl CertificateManager {
 
     /// Generate placeholder certificate (for testing)
     fn generate_placeholder_certificate(&self, domain: &str) -> Vec<u8> {
-        format!("-----BEGIN CERTIFICATE-----\nPLACEHOLDER CERT FOR {}\n-----END CERTIFICATE-----", domain)
-            .into_bytes()
+        format!(
+            "-----BEGIN CERTIFICATE-----\nPLACEHOLDER CERT FOR {}\n-----END CERTIFICATE-----",
+            domain
+        )
+        .into_bytes()
     }
 
     /// Generate placeholder private key (for testing)
@@ -154,14 +157,14 @@ impl CertificateManager {
     pub async fn cleanup_expired_certificates(&self) -> Result<usize> {
         let mut cache = self.cache.lock().await;
         let initial_size = cache.len();
-        
+
         cache.retain(|_, cert| cert.expires_at > Utc::now());
-        
+
         let removed = initial_size - cache.len();
         if removed > 0 {
             info!(removed = %removed, "Cleaned up expired certificates");
         }
-        
+
         Ok(removed)
     }
 
@@ -169,10 +172,11 @@ impl CertificateManager {
     pub async fn get_stats(&self) -> CertificateStats {
         let cache = self.cache.lock().await;
         let total_certificates = cache.len();
-        let expired_certificates = cache.values()
+        let expired_certificates = cache
+            .values()
             .filter(|cert| cert.expires_at <= Utc::now())
             .count();
-        
+
         CertificateStats {
             total_certificates,
             expired_certificates,
@@ -206,9 +210,9 @@ mod tests {
     async fn test_certificate_generation() {
         let config = CertificateConfig::default();
         let manager = CertificateManager::new(config).unwrap();
-        
+
         let cert_info = manager.generate_certificate("test").await.unwrap();
-        
+
         assert_eq!(cert_info.subdomain, "test");
         assert!(cert_info.expires_at > Utc::now());
         assert!(!cert_info.certificate.is_empty());
@@ -220,9 +224,9 @@ mod tests {
     async fn test_wildcard_certificate_generation() {
         let config = CertificateConfig::default();
         let manager = CertificateManager::new(config).unwrap();
-        
+
         let cert_info = manager.generate_wildcard_certificate("test").await.unwrap();
-        
+
         assert_eq!(cert_info.subdomain, "test");
         assert!(cert_info.expires_at > Utc::now());
         assert!(!cert_info.certificate.is_empty());
@@ -233,10 +237,10 @@ mod tests {
     async fn test_certificate_caching() {
         let config = CertificateConfig::default();
         let manager = CertificateManager::new(config).unwrap();
-        
+
         // Generate certificate
-        let cert_info = manager.generate_certificate("test-cache").await.unwrap();
-        
+        let _cert_info = manager.generate_certificate("test-cache").await.unwrap();
+
         // Check that it's cached
         let cached = manager.get_cached_certificate("test-cache").await.unwrap();
         assert!(cached.is_some());
@@ -247,10 +251,10 @@ mod tests {
     async fn test_certificate_stats() {
         let config = CertificateConfig::default();
         let manager = CertificateManager::new(config).unwrap();
-        
+
         let stats = manager.get_stats().await;
         assert_eq!(stats.total_certificates, 0);
         assert_eq!(stats.expired_certificates, 0);
         assert_eq!(stats.cache_size, 1000);
     }
-} 
+}

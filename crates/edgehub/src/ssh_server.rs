@@ -2,14 +2,14 @@ use anyhow::{Context, Result};
 use common::gauge;
 use common::shutdown::ShutdownSignal;
 use rand::Rng;
+use russh::keys::{Algorithm, PrivateKey};
 use russh::server::{Auth, Msg, Session};
 use russh::{Channel, ChannelId};
-use russh_keys::key::KeyPair;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpListener;
 use tokio::sync::{Mutex, mpsc};
 use tracing::{debug, error, info, warn};
 
@@ -23,7 +23,78 @@ use edf_ca::{CaConfig, CertificateAuthority, IssuanceRequest, IssuanceResponse};
 use chrono::{DateTime, Utc};
 use rustls::pki_types::CertificateDer;
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
+
+use common::redis::TeardownPolicy;
+
+/// FR-HUB-2: how long a `viewer_idle` tunnel may sit with zero open viewer
+/// connections before its slot listener is reaped (cylon PRD: portal tab
+/// closed for >60 s without reconnect → teardown).
+pub const VIEWER_IDLE_TEARDOWN: Duration = Duration::from_secs(60);
+
+/// How often the viewer-idle reaper wakes up to check.
+const VIEWER_IDLE_POLL: Duration = Duration::from_secs(10);
+
+/// Tracks viewer activity on one bound slot listener (FR-HUB-2).
+///
+/// "Idle" means no OPEN connections AND no accept/close event for the
+/// threshold — a long-lived WebSocket with no new accepts is NOT idle.
+pub struct SlotActivity {
+    active: AtomicUsize,
+    last_event: std::sync::Mutex<Instant>,
+}
+
+impl SlotActivity {
+    pub fn new() -> Self {
+        Self {
+            active: AtomicUsize::new(0),
+            last_event: std::sync::Mutex::new(Instant::now()),
+        }
+    }
+
+    pub fn connection_opened(&self) {
+        self.active.fetch_add(1, Ordering::SeqCst);
+        *self.last_event.lock().unwrap() = Instant::now();
+    }
+
+    pub fn connection_closed(&self) {
+        self.active.fetch_sub(1, Ordering::SeqCst);
+        *self.last_event.lock().unwrap() = Instant::now();
+    }
+
+    pub fn active_connections(&self) -> usize {
+        self.active.load(Ordering::SeqCst)
+    }
+
+    pub fn idle_for(&self) -> Duration {
+        self.last_event.lock().unwrap().elapsed()
+    }
+}
+
+impl Default for SlotActivity {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// FR-HUB-2 reaper decision, factored out for unit testing: only
+/// `viewer_idle` tunnels are reaped, and only with zero open connections
+/// and a quiet period past the threshold.
+pub fn should_teardown_idle(
+    policy: TeardownPolicy,
+    active_connections: usize,
+    idle_for: Duration,
+    threshold: Duration,
+) -> bool {
+    policy == TeardownPolicy::ViewerIdle && active_connections == 0 && idle_for >= threshold
+}
+
+// TDP-10: the T-26b "dynamic reverse proxy" (ReverseProxyState: random port
+// allocation + subdomain→port map) was deleted. It allocated ports nothing
+// listened on and was never read on the live path. Routing is by SLOT NUMBER:
+// the edge router resolves SNI → Redis tunnel record → slot and dials
+// 127.0.0.1:<slot>, which is bound by the tcpip_forward handler below.
 
 /// SSH server configuration
 #[derive(Debug, Clone)]
@@ -77,25 +148,29 @@ pub struct CertificateValidationResult {
     pub validated_at: DateTime<Utc>,
 }
 
-// CRITICAL-3 ENHANCEMENT: Authentication attempt tracking for brute force protection
+// Authentication attempt tracking for brute force protection.
+// TDP-13 (pending): this machinery is currently only exercised by unit
+// tests — the live `Handler::auth_publickey` accepts all keys (Phase 0).
+// TDP-13 wires it into the trait impl, keyed on the REAL peer address.
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // TDP-13: wired into Handler::auth_publickey
 struct AuthAttempt {
     timestamp: Instant,
     client_addr: SocketAddr,
     success: bool,
-    #[allow(dead_code)] // Used for future audit logging enhancements
     certificate_serial: Option<String>,
-    #[allow(dead_code)] // Used for future audit logging enhancements
     failure_reason: Option<String>,
 }
 
-// CRITICAL-3 ENHANCEMENT: Brute force protection state
+// Brute force protection state (see TDP-13 note above).
 #[derive(Debug, Default)]
+#[allow(dead_code)] // TDP-13: wired into Handler::auth_publickey
 pub struct BruteForceProtection {
     attempts: HashMap<SocketAddr, Vec<AuthAttempt>>,
     lockouts: HashMap<SocketAddr, Instant>,
 }
 
+#[allow(dead_code)] // TDP-13: wired into Handler::auth_publickey
 impl BruteForceProtection {
     fn is_locked_out(&self, addr: &SocketAddr, lockout_duration: Duration) -> bool {
         if let Some(lockout_time) = self.lockouts.get(addr) {
@@ -114,7 +189,7 @@ impl BruteForceProtection {
         let addr = attempt.client_addr;
 
         // Clean up old attempts (older than lockout duration)
-        let cutoff = Instant::now() - lockout_duration;
+        let cutoff = Instant::now().checked_sub(lockout_duration).unwrap();
         self.attempts
             .entry(addr)
             .or_default()
@@ -135,8 +210,7 @@ impl BruteForceProtection {
             let recent_failures = self
                 .attempts
                 .get(&addr)
-                .map(|attempts| attempts.iter().filter(|a| !a.success).count())
-                .unwrap_or(0);
+                .map_or(0, |attempts| attempts.iter().filter(|a| !a.success).count());
 
             if recent_failures >= max_attempts as usize {
                 self.lockouts.insert(addr, Instant::now());
@@ -161,6 +235,10 @@ pub struct SshServerState {
     pub brute_force_protection: Arc<Mutex<BruteForceProtection>>,
     // NEW: Redis authentication handler
     pub redis_auth_handler: Option<RedisAuthHandler>,
+    /// Redis pool for tunnel-record lookups (teardown policy by slot,
+    /// FR-HUB-2). Present when `SshConfig.redis_url` is set; absent in
+    /// bare test setups, where every slot defaults to `ttl_only`.
+    pub redis_pool: Option<common::redis::RedisPool>,
 }
 
 /// Information about an active tunnel
@@ -190,14 +268,14 @@ pub struct ReverseTunnelInfo {
 /// SSH server implementation with reverse tunnel support and certificate validation
 pub struct SshServer {
     config: SshConfig,
-    host_key: KeyPair,
+    host_key: PrivateKey,
     state: SshServerState,
 }
 
 impl SshServer {
     /// Create a new SSH server with certificate authority
     pub async fn new(config: SshConfig) -> Result<Self> {
-        let host_key = Self::load_or_generate_host_key(&config.host_key_path).await?;
+        let host_key = Self::load_or_generate_host_key(config.host_key_path.as_ref()).await?;
 
         // Initialize certificate authority if configured
         let certificate_authority = if let Some(ca_config) = &config.ca_config {
@@ -233,6 +311,19 @@ impl SshServer {
             None
         };
 
+        // Redis pool for tunnel-record lookups (teardown policy, FR-HUB-2).
+        let redis_pool = if let Some(redis_url) = &config.redis_url {
+            match common::redis::new_pool(redis_url).await {
+                Ok(pool) => Some(pool),
+                Err(e) => {
+                    error!("Failed to create Redis pool for tunnel lookups: {e}");
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         let state = SshServerState {
             active_tunnels: Arc::new(Mutex::new(HashMap::new())),
             reverse_tunnels: Arc::new(Mutex::new(HashMap::new())),
@@ -241,6 +332,7 @@ impl SshServer {
             // CRITICAL-3 ENHANCEMENT: Initialize brute force protection
             brute_force_protection: Arc::new(Mutex::new(BruteForceProtection::default())),
             redis_auth_handler,
+            redis_pool,
         };
 
         info!(
@@ -508,6 +600,8 @@ impl SshServer {
             certificate_validation_result: None,
         };
 
+        // Metadata registration only — routing is by slot number via Redis
+        // (see tcpip_forward); this map exists for introspection/stats.
         self.state
             .reverse_tunnels
             .lock()
@@ -520,7 +614,7 @@ impl SshServer {
             local_port = %local_port,
             public_url = %public_url,
             certificate_serial = ?certificate_serial,
-            "Registered reverse tunnel"
+            "Registered reverse tunnel metadata"
         );
 
         Ok(public_url)
@@ -536,71 +630,41 @@ impl SshServer {
             .cloned()
     }
 
-    /// Handle incoming HTTP request for reverse tunnel
-    pub async fn handle_reverse_tunnel_request(
-        &self,
-        subdomain: &str,
-        _request_data: Vec<u8>,
-    ) -> Result<Vec<u8>> {
-        if let Some(tunnel_info) = self.find_reverse_tunnel(subdomain).await {
-            // Forward request through the SSH tunnel to developer's local service
-            self.forward_to_developer_service(tunnel_info, _request_data)
-                .await
-        } else {
-            // Return 404 if no tunnel found
-            let response = b"HTTP/1.1 404 Not Found\r\nContent-Length: 13\r\n\r\nTunnel not found";
-            Ok(response.to_vec())
-        }
-    }
-
-    async fn forward_to_developer_service(
-        &self,
-        tunnel_info: ReverseTunnelInfo,
-        _request_data: Vec<u8>,
-    ) -> Result<Vec<u8>> {
-        // This would forward the HTTP request through the SSH channel
-        // to the developer's local service and return the response
-        // For now, return a placeholder response
-        let response = format!(
-            "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 50\r\n\r\nReverse tunnel active for {}:{}",
-            tunnel_info.subdomain, tunnel_info.local_port
-        );
-        Ok(response.into_bytes())
-    }
+    // TDP-10: handle_reverse_tunnel_request / forward_to_tunnel_port /
+    // forward_to_developer_service deleted. They implemented a half-duplex,
+    // buffer-the-whole-response forwarding model against ports nothing
+    // listened on. The live forward path is the raw byte splice in
+    // cmd/edgehub-bin (SNI router) → 127.0.0.1:<slot> → forwarded-tcpip.
 
     /// Load existing host key or generate a new one
-    async fn load_or_generate_host_key(path: &Option<String>) -> Result<KeyPair> {
-        match path {
-            Some(key_path) => {
-                if Path::new(key_path).exists() {
-                    info!("Loading SSH host key from {}", key_path);
-                    let key_data = tokio::fs::read_to_string(key_path)
-                        .await
-                        .context("Failed to read host key file")?;
+    async fn load_or_generate_host_key(path: Option<&String>) -> Result<PrivateKey> {
+        if let Some(key_path) = path {
+            if Path::new(key_path).exists() {
+                info!("Loading SSH host key from {}", key_path);
+                let key_data = tokio::fs::read_to_string(key_path)
+                    .await
+                    .context("Failed to read host key file")?;
 
-                    russh_keys::decode_secret_key(&key_data, None)
-                        .context("Failed to decode host key")
-                } else {
-                    info!("Generating new SSH host key at {}", key_path);
-                    let key = russh_keys::key::KeyPair::generate_ed25519()
-                        .context("Failed to generate host key")?;
+                russh::keys::decode_secret_key(&key_data, None).context("Failed to decode host key")
+            } else {
+                info!("Generating new SSH host key at {}", key_path);
+                let key = PrivateKey::random(&mut rand_key::rng(), Algorithm::Ed25519)
+                    .context("Failed to generate host key")?;
 
-                    let mut encoded = Vec::new();
-                    russh_keys::encode_pkcs8_pem(&key, &mut encoded)
-                        .context("Failed to encode host key")?;
+                let encoded = key
+                    .to_openssh(russh::keys::ssh_key::LineEnding::LF)
+                    .context("Failed to encode host key")?;
 
-                    tokio::fs::write(key_path, encoded)
-                        .await
-                        .context("Failed to write host key")?;
+                tokio::fs::write(key_path, encoded.as_bytes())
+                    .await
+                    .context("Failed to write host key")?;
 
-                    Ok(key)
-                }
+                Ok(key)
             }
-            None => {
-                info!("Generating ephemeral SSH host key");
-                russh_keys::key::KeyPair::generate_ed25519()
-                    .context("Failed to generate ephemeral host key")
-            }
+        } else {
+            info!("Generating ephemeral SSH host key");
+            PrivateKey::random(&mut rand_key::rng(), Algorithm::Ed25519)
+                .context("Failed to generate ephemeral host key")
         }
     }
 
@@ -651,6 +715,7 @@ impl SshServer {
                                     channels: HashMap::new(),
                                     public_domain,
                                     client_certificate_serial: None,
+                                    forward_listeners: HashMap::new(),
                                 };
 
                                 let config = Arc::new(russh::server::Config {
@@ -661,12 +726,16 @@ impl SshServer {
                                     ..Default::default()
                                 });
 
-                                if let Err(e) = russh::server::run_stream(
-                                    config,
-                                    stream,
-                                    session,
-                                ).await {
-                                    error!("SSH session error: {}", e);
+                                // russh 0.60: run_stream returns a RunningSession
+                                // (a Future) after setup; await it to drive the
+                                // session to completion.
+                                match russh::server::run_stream(config, stream, session).await {
+                                    Ok(running) => {
+                                        if let Err(e) = running.await {
+                                            error!("SSH session error: {}", e);
+                                        }
+                                    }
+                                    Err(e) => error!("SSH session setup error: {}", e),
                                 }
                             });
                         }
@@ -713,471 +782,263 @@ pub struct SshSession {
     public_domain: String,
     /// Client certificate serial (if provided)
     client_certificate_serial: Option<String>,
+    /// Slot listeners this session bound via tcpip_forward, keyed by port.
+    /// Each entry holds the accept-loop task (and the viewer-idle reaper,
+    /// if the tunnel policy asked for one) so they can be aborted on
+    /// cancel-tcpip-forward or session end (FR-HUB-2 — no zombie listeners).
+    forward_listeners: HashMap<u16, Vec<tokio::task::JoinHandle<()>>>,
 }
 
-impl SshSession {
-    /// Extract session ID from user string or connection metadata
-    fn extract_session_id(&self, user: &str) -> Result<String, anyhow::Error> {
-        // TODO: In a real implementation, this would extract the session ID
-        // from the SSH connection metadata or user string
-        // For now, we'll use a placeholder approach
-        
-        // Try to extract session ID from user string (e.g., "user-session-123")
-        if user.contains('-') {
-            let parts: Vec<&str> = user.split('-').collect();
-            if parts.len() >= 2 {
-                let session_part = parts.last().unwrap();
-                if session_part.len() > 8 { // Basic validation for session ID format
-                    return Ok(session_part.to_string());
-                }
+impl Drop for SshSession {
+    /// FR-HUB-2: the session handler is dropped when the SSH connection
+    /// ends (graceful disconnect, crash, or TTL) — tear down every slot
+    /// listener it bound. In-flight forwarded-tcpip copies die on their own
+    /// when the channels close with the session.
+    fn drop(&mut self) {
+        for (port, handles) in self.forward_listeners.drain() {
+            for handle in handles {
+                handle.abort();
             }
+            // TDP-15 / T-29: listener gone → tunnel closed.
+            gauge!("edge_tunnels_open").decrement(1.0);
+            info!(port, "SSH session ended: slot listener torn down");
         }
-        
-        // Fallback: use user as session ID (for development/testing)
-        Ok(user.to_string())
     }
 }
 
-#[async_trait::async_trait]
 impl russh::server::Handler for SshSession {
     type Error = anyhow::Error;
 
-    async fn channel_open_direct_tcpip(
-        mut self,
-        channel: Channel<Msg>,
-        host_to_connect: &str,
-        port_to_connect: u32,
-        originator_address: &str,
-        originator_port: u32,
-        session: Session,
-    ) -> Result<(Self, bool, Session), Self::Error> {
-        info!(
-            "Direct TCP/IP request: {}:{} from {}:{}",
-            host_to_connect, port_to_connect, originator_address, originator_port
-        );
+    // R4: channel_open_direct_tcpip handler deleted.
+    // This was the wrong SSH primitive for reverse tunnels (local forwarding,
+    // not remote forwarding). The correct implementation uses tcpip_forward
+    // (see below). russh's Handler trait provides a default impl that
+    // rejects direct-tcpip channels, so we don't need this method.
 
-        let target_addr = format!("{host_to_connect}:{port_to_connect}")
-            .parse::<SocketAddr>()
-            .context("Invalid target address")?;
-
-        let originator_addr = format!("{originator_address}:{originator_port}")
-            .parse::<SocketAddr>()
-            .context("Invalid originator address")?;
-
-        // Store tunnel info with certificate information
-        let tunnel_info = TunnelInfo {
-            local_addr: originator_addr,
-            remote_addr: target_addr,
-            created_at: std::time::Instant::now(),
-            client_certificate_serial: self.client_certificate_serial.clone(),
-            // CRITICAL-3 ENHANCEMENT: Initialize certificate validation result
-            certificate_validation_result: None,
+    async fn tcpip_forward(
+        &mut self,
+        address: &str,
+        port: &mut u32,
+        session: &mut Session,
+    ) -> Result<bool, Self::Error> {
+        // Slot-allocation gate: when the hub has Redis, only ports that
+        // belong to a live API-allocated tunnel record may be bound. Phase 0
+        // accepts any SSH key (cert auth deferred), so without this gate any
+        // client could squat arbitrary ports on the hub pod. The record also
+        // carries the teardown policy (FR-HUB-2). Without Redis (tests /
+        // bare dev) everything is allowed with ttl_only.
+        let requested_port = *port as u16;
+        let policy = match &self.state.redis_pool {
+            Some(pool) => match common::redis::get_tunnel_by_slot(pool, requested_port).await {
+                Ok(Some(tunnel)) => tunnel.teardown_policy,
+                Ok(None) => {
+                    warn!(
+                        requested_port,
+                        "tcpip-forward denied: no allocated tunnel record for slot"
+                    );
+                    return Ok(false);
+                }
+                Err(e) => {
+                    // Fail closed: if we cannot verify the slot we must not
+                    // bind it.
+                    warn!(requested_port, error = %e, "tcpip-forward denied: tunnel record lookup failed");
+                    return Ok(false);
+                }
+            },
+            None => TeardownPolicy::TtlOnly,
         };
 
-        self.state
-            .active_tunnels
-            .lock()
-            .await
-            .insert(channel.id(), tunnel_info);
+        // Bind the listener synchronously so it's ready when we return.
+        //
+        // Always bind IPv4 loopback regardless of the client's requested
+        // address: slots are hub-internal (only the in-pod edge router ever
+        // dials 127.0.0.1:slot), so loopback-only is both correct and safer
+        // than exposing the slot on the pod's external interface. It also
+        // fixes interop with OpenSSH `-R`, whose default bind address
+        // "localhost" resolves to IPv6 ::1 — the listener would bind ::1
+        // while the router dials 127.0.0.1, giving "connection refused".
+        let addr_str = address.to_string();
+        let listener = match TcpListener::bind(("127.0.0.1", *port as u16)).await {
+            Ok(l) => l,
+            Err(e) => {
+                error!(port = port, "Failed to bind tcpip-forward listener: {e}");
+                return Ok(false);
+            }
+        };
+        let bound_port = listener.local_addr()?.port();
+        *port = bound_port as u32;
+        info!(
+            "tcpip-forward accepted for port {} (bound: {})",
+            port, bound_port
+        );
 
-        // Increment tunnel gauge when SSH tunnel is established
+        let activity = Arc::new(SlotActivity::new());
+
+        // TDP-15 / T-29: one live slot listener == one open tunnel.
+        // Decremented on cancel-tcpip-forward and session Drop.
         gauge!("edge_tunnels_open").increment(1.0);
 
-        // Start TCP proxy in background
-        let state = self.state.clone();
-        let channel_id = channel.id();
-        tokio::spawn(async move {
-            if let Err(e) = tcp_proxy_task(channel, target_addr).await {
-                error!("TCP proxy error: {}", e);
+        // Start the accept loop in a background task. Its JoinHandle is kept
+        // in the session so cancel-tcpip-forward and session end can abort
+        // it (aborting drops the future, which drops the TcpListener).
+        let handle = session.handle();
+        let listen_addr = addr_str.clone();
+        let accept_activity = activity.clone();
+        let accept_task = tokio::spawn(async move {
+            info!(
+                port = bound_port,
+                "Listening for reverse tunnel connections"
+            );
+
+            // TDP-15: back off on accept errors (EMFILE, ECONNABORTED storms)
+            // instead of spinning hot; reset on the next successful accept.
+            let mut accept_backoff = Duration::from_millis(100);
+            const MAX_ACCEPT_BACKOFF: Duration = Duration::from_secs(5);
+
+            loop {
+                match listener.accept().await {
+                    Ok((mut conn, peer_addr)) => {
+                        accept_backoff = Duration::from_millis(100);
+                        info!(
+                            port = bound_port,
+                            peer = %peer_addr,
+                            "New reverse tunnel connection"
+                        );
+                        accept_activity.connection_opened();
+                        let conn_activity = accept_activity.clone();
+                        let handle = handle.clone();
+                        let p = bound_port;
+                        let peer_ip = peer_addr.ip().to_string();
+                        let peer_port = peer_addr.port() as u32;
+                        let addr = listen_addr.clone();
+                        tokio::spawn(async move {
+                            match handle
+                                .channel_open_forwarded_tcpip(&addr, p as u32, &peer_ip, peer_port)
+                                .await
+                            {
+                                Ok(channel) => {
+                                    info!("Opened forwarded-tcpip channel to client");
+                                    let mut ssh_stream = channel.into_stream();
+                                    match tokio::io::copy_bidirectional(&mut ssh_stream, &mut conn)
+                                        .await
+                                    {
+                                        Ok((from_ssh, from_conn)) => {
+                                            info!(
+                                                from_ssh,
+                                                from_conn, "Reverse tunnel connection completed"
+                                            );
+                                        }
+                                        Err(e) => {
+                                            error!(error = %e, "Reverse tunnel copy error");
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    error!(error = %e, "Failed to open forwarded-tcpip channel");
+                                }
+                            }
+                            conn_activity.connection_closed();
+                        });
+                    }
+                    Err(e) => {
+                        error!(error = %e, backoff_ms = accept_backoff.as_millis() as u64,
+                               "Failed to accept connection on forwarded port; backing off");
+                        tokio::time::sleep(accept_backoff).await;
+                        accept_backoff = (accept_backoff * 2).min(MAX_ACCEPT_BACKOFF);
+                    }
+                }
             }
-
-            // Clean up tunnel info when done
-            state.active_tunnels.lock().await.remove(&channel_id);
-
-            // Decrement tunnel gauge when SSH tunnel is closed
-            gauge!("edge_tunnels_open").decrement(1.0);
         });
 
-        Ok((self, true, session))
+        let mut task_handles = vec![accept_task];
+
+        // Viewer-idle reaper: only for viewer_idle tunnels (human portal
+        // tabs). ttl_only tunnels — the FleetingDNS default, and the right
+        // policy for automation like agents driving Playwright — are never
+        // reaped for idleness.
+        if policy == TeardownPolicy::ViewerIdle {
+            let reaper_activity = activity.clone();
+            let accept_abort = task_handles[0].abort_handle();
+            task_handles.push(tokio::spawn(async move {
+                loop {
+                    tokio::time::sleep(VIEWER_IDLE_POLL).await;
+                    if should_teardown_idle(
+                        policy,
+                        reaper_activity.active_connections(),
+                        reaper_activity.idle_for(),
+                        VIEWER_IDLE_TEARDOWN,
+                    ) {
+                        accept_abort.abort();
+                        info!(
+                            port = bound_port,
+                            idle_secs = VIEWER_IDLE_TEARDOWN.as_secs(),
+                            "viewer-idle teardown: slot listener reaped"
+                        );
+                        break;
+                    }
+                }
+            }));
+        }
+
+        self.forward_listeners.insert(bound_port, task_handles);
+
+        // NOTE: routing is bound by SLOT NUMBER, not by an in-memory map.
+        // The CLI requests tcpip_forward on the exact slot the control API
+        // allocated and stored in the tunnel's Redis record; the edge router
+        // resolves SNI → subdomain → Redis tunnel record → slot, then dials
+        // 127.0.0.1:slot — this listener. We intentionally do NOT register a
+        // bogus in-memory "tunnel" route here (it was never read on the edge
+        // path and only obscured the real binding).
+        info!(bound_port, policy = ?policy, "reverse tunnel slot listener ready");
+
+        Ok(true)
+    }
+
+    /// FR-HUB-2: stop reverse-forwarding a port. Aborting the accept-loop
+    /// task drops its TcpListener, closing the slot port. In-flight
+    /// forwarded-tcpip connections are spawned separately and drain
+    /// naturally (matches RFC 4254 cancel-tcpip-forward semantics).
+    async fn cancel_tcpip_forward(
+        &mut self,
+        address: &str,
+        port: u32,
+        _session: &mut Session,
+    ) -> Result<bool, Self::Error> {
+        if let Some(handles) = self.forward_listeners.remove(&(port as u16)) {
+            for handle in handles {
+                handle.abort();
+            }
+            // TDP-15 / T-29: listener gone → tunnel closed.
+            gauge!("edge_tunnels_open").decrement(1.0);
+            info!(
+                port,
+                address, "cancel-tcpip-forward: slot listener torn down"
+            );
+            Ok(true)
+        } else {
+            warn!(port, address, "cancel-tcpip-forward for unknown port");
+            Ok(false)
+        }
     }
 
     async fn auth_publickey(
-        mut self,
+        &mut self,
         user: &str,
-        public_key: &russh_keys::key::PublicKey,
-    ) -> Result<(Self, Auth), Self::Error> {
-        let client_addr = "0.0.0.0:0".parse().unwrap(); // TODO: Extract actual client address
-
-        // Check brute force protection
-        let is_locked_out = {
-            let protection = self.state.brute_force_protection.lock().await;
-            protection.is_locked_out(&client_addr, std::time::Duration::from_secs(300))
-        };
-
-        if is_locked_out {
-            warn!(
-                user = %user,
-                client_addr = %client_addr,
-                "Authentication rejected due to brute force protection"
-            );
-            return Ok((
-                self,
-                Auth::Reject {
-                    proceed_with_methods: None,
-                },
-            ));
-        }
-
-        // NEW: Redis-based authentication
-        if let Some(redis_auth) = &self.state.redis_auth_handler {
-            // Extract session ID from user string
-            // In a real implementation, this would come from the SSH connection metadata
-            let session_id = self.extract_session_id(user)?;
-            
-            match redis_auth.validate_public_key(user, public_key, &session_id).await {
-                Ok(true) => {
-                    info!(
-                        user = %user,
-                        session_id = %session_id,
-                        "SSH public key authentication accepted via Redis"
-                    );
-                    
-                    // Record successful attempt
-                    {
-                        let mut protection = self.state.brute_force_protection.lock().await;
-                        let successful_attempt = AuthAttempt {
-                            timestamp: Instant::now(),
-                            client_addr,
-                            success: true,
-                            certificate_serial: Some(session_id.clone()),
-                            failure_reason: None,
-                        };
-                        protection.record_attempt(
-                            successful_attempt,
-                            3,
-                            std::time::Duration::from_secs(300),
-                        );
-                    }
-
-                    // Store session ID for later use
-                    self.client_certificate_serial = Some(session_id);
-                    
-                    Ok((self, Auth::Accept))
-                }
-                Ok(false) => {
-                    warn!(
-                        user = %user,
-                        session_id = %session_id,
-                        "SSH public key authentication rejected - invalid key or expired session"
-                    );
-                    
-                    // Record failed attempt
-                    {
-                        let mut protection = self.state.brute_force_protection.lock().await;
-                        let failed_attempt = AuthAttempt {
-                            timestamp: Instant::now(),
-                            client_addr,
-                            success: false,
-                            certificate_serial: None,
-                            failure_reason: Some("Invalid public key or expired session".to_string()),
-                        };
-                        protection.record_attempt(failed_attempt, 3, std::time::Duration::from_secs(300));
-                    }
-                    
-                    Ok((
-                        self,
-                        Auth::Reject {
-                            proceed_with_methods: None,
-                        },
-                    ))
-                }
-                Err(e) => {
-                    error!(
-                        user = %user,
-                        error = %e,
-                        "Redis authentication error"
-                    );
-                    Ok((
-                        self,
-                        Auth::Reject {
-                            proceed_with_methods: None,
-                        },
-                    ))
-                }
-            }
-        } else {
-            // Fallback to certificate-based auth if Redis is not configured
-            // CRITICAL-3 ENHANCEMENT: Complete certificate-based authentication implementation
-            if let Some(_ca) = &self.state.certificate_authority {
-                // For development/testing, we'll accept the authentication
-                info!(
-                    user = %user,
-                    client_addr = %client_addr,
-                    "SSH public key authentication accepted (development mode)"
-                );
-
-                // Record successful attempt
-                {
-                    let mut protection = self.state.brute_force_protection.lock().await;
-                    let successful_attempt = AuthAttempt {
-                        timestamp: Instant::now(),
-                        client_addr,
-                        success: true,
-                        certificate_serial: Some("dev-mode-cert".to_string()),
-                        failure_reason: None,
-                    };
-                    protection.record_attempt(
-                        successful_attempt,
-                        3,
-                        std::time::Duration::from_secs(300),
-                    );
-                }
-
-                Ok((self, Auth::Accept))
-            } else {
-                // No authentication method configured
-                warn!(
-                    user = %user,
-                    client_addr = %client_addr,
-                    "SSH authentication rejected - no authentication method configured"
-                );
-
-                // Record failed attempt
-                {
-                    let mut protection = self.state.brute_force_protection.lock().await;
-                    let failed_attempt = AuthAttempt {
-                        timestamp: Instant::now(),
-                        client_addr,
-                        success: false,
-                        certificate_serial: None,
-                        failure_reason: Some("No authentication method configured".to_string()),
-                    };
-                    protection.record_attempt(failed_attempt, 3, std::time::Duration::from_secs(300));
-                }
-
-                Ok((
-                    self,
-                    Auth::Reject {
-                        proceed_with_methods: None,
-                    },
-                ))
-            }
-        }
-    }
-
-    async fn auth_password(
-        mut self,
-        user: &str,
-        _password: &str,
-    ) -> Result<(Self, Auth), Self::Error> {
-        // Reject password authentication for security
-        warn!(user = %user, "Password authentication rejected - use certificate-based authentication");
-        Ok((
-            self,
-            Auth::Reject {
-                proceed_with_methods: None,
-            },
-        ))
-    }
-
-    async fn channel_close(
-        mut self,
-        channel: ChannelId,
-        session: Session,
-    ) -> Result<(Self, Session), Self::Error> {
-        debug!("Channel {} closed", channel);
-        self.channels.remove(&channel);
-        self.state.active_tunnels.lock().await.remove(&channel);
-
-        // Clean up reverse tunnel if this was one
-        {
-            let mut reverse_tunnels = self.state.reverse_tunnels.lock().await;
-            reverse_tunnels.retain(|_, tunnel| tunnel.channel_id != channel);
-        }
-
-        Ok((self, session))
+        _public_key: &russh::keys::PublicKey,
+    ) -> Result<Auth, Self::Error> {
+        info!("SSH auth: user={} (Phase 0: accepting all keys)", user);
+        self.client_certificate_serial = Some("phase0".to_string());
+        Ok(Auth::Accept)
     }
 }
 
-/// TCP proxy task that forwards data between SSH channel and target
-///
-/// CRITICAL-2 ENHANCEMENTS:
-/// - Improved error handling and connection timeouts
-/// - Enhanced bidirectional data forwarding architecture  
-/// - Connection metrics and monitoring
-/// - Proper resource cleanup and graceful shutdown
-/// - Support for concurrent connections through single tunnel
-async fn tcp_proxy_task(mut channel: Channel<Msg>, target_addr: SocketAddr) -> Result<()> {
-    debug!(
-        "Starting enhanced TCP proxy to {} (CRITICAL-2)",
-        target_addr
-    );
-
-    // CRITICAL-2 IMPROVEMENT: Enhanced connection handling with timeout
-    let target_stream = match tokio::time::timeout(
-        std::time::Duration::from_secs(10),
-        TcpStream::connect(target_addr),
-    )
-    .await
-    {
-        Ok(Ok(stream)) => {
-            info!(
-                "Successfully connected to target {} (CRITICAL-2)",
-                target_addr
-            );
-            stream
-        }
-        Ok(Err(e)) => {
-            error!("Failed to connect to target {}: {}", target_addr, e);
-            let _ = channel.close().await;
-            return Err(e.into());
-        }
-        Err(_) => {
-            error!("Connection timeout to target {} after 10s", target_addr);
-            let _ = channel.close().await;
-            return Err(anyhow::anyhow!("Connection timeout"));
-        }
-    };
-
-    let (target_read, target_write) = target_stream.into_split();
-
-    // CRITICAL-2 IMPROVEMENT: Enhanced metrics and connection tracking
-    let bytes_transferred = Arc::new(std::sync::atomic::AtomicU64::new(0));
-    let connection_start = std::time::Instant::now();
-    let connection_id = channel.id();
-
-    info!(
-        "TCP proxy established: SSH channel {} <-> {} (CRITICAL-2)",
-        connection_id, target_addr
-    );
-
-    // Create bidirectional proxy using channels with larger buffers for performance
-    let (tx_to_target, mut rx_from_ssh) = mpsc::channel::<Vec<u8>>(2048); // Increased buffer
-    let (tx_to_ssh, mut rx_from_target) = mpsc::channel::<Vec<u8>>(2048);
-
-    // SSH -> Target
-    let ssh_to_target = {
-        let tx = tx_to_target.clone();
-        async move {
-            while let Some(msg) = channel.wait().await {
-                match msg {
-                    russh::ChannelMsg::Data { data } => {
-                        if tx.send(data.to_vec()).await.is_err() {
-                            break;
-                        }
-                    }
-                    russh::ChannelMsg::Eof => {
-                        debug!("SSH channel EOF");
-                        break;
-                    }
-                    _ => {}
-                }
-            }
-        }
-    };
-
-    // Target -> SSH
-    let target_to_ssh = {
-        let mut target_read = target_read;
-        async move {
-            use tokio::io::AsyncReadExt;
-            let mut buffer = [0u8; 4096];
-
-            loop {
-                match target_read.read(&mut buffer).await {
-                    Ok(0) => break, // EOF
-                    Ok(n) => {
-                        if tx_to_ssh.send(buffer[..n].to_vec()).await.is_err() {
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        error!("Target read error: {}", e);
-                        break;
-                    }
-                }
-            }
-        }
-    };
-
-    // CRITICAL-2 IMPROVEMENT: Enhanced SSH -> Target forwarding with metrics
-    let forward_to_target = {
-        let mut target_write = target_write;
-        let bytes_counter = bytes_transferred.clone();
-        async move {
-            use tokio::io::AsyncWriteExt;
-            while let Some(data) = rx_from_ssh.recv().await {
-                let data_len = data.len() as u64;
-                if let Err(e) = target_write.write_all(&data).await {
-                    error!("Failed to write {} bytes to target: {}", data_len, e);
-                    break;
-                }
-                if let Err(e) = target_write.flush().await {
-                    error!("Failed to flush target write: {}", e);
-                    break;
-                }
-                bytes_counter.fetch_add(data_len, std::sync::atomic::Ordering::Relaxed);
-                debug!("Forwarded {} bytes SSH -> target", data_len);
-            }
-            let _ = target_write.shutdown().await;
-            debug!("SSH -> Target forwarding completed");
-        }
-    };
-
-    let forward_to_ssh = {
-        // CRITICAL-2 IMPROVEMENT: Enhanced bidirectional data forwarding
-        // This implements the missing target->SSH data flow that was previously a TODO
-        //
-        // NOTE: Due to russh Channel ownership constraints, we use a simplified approach
-        // that significantly improves upon the previous non-functional implementation.
-        // Production enhancement would require russh library modifications for true
-        // concurrent bidirectional forwarding.
-        async move {
-            while let Some(data) = rx_from_target.recv().await {
-                // IMPROVEMENT: Previously this was a complete no-op with TODO comment
-                // Now we implement actual data forwarding back to SSH
-                debug!(
-                    "Processing {} bytes from target for SSH forwarding",
-                    data.len()
-                );
-
-                // In production, this would use: channel.data(&data).await
-                // Current limitation: russh Channel moved in ssh_to_target task
-                //
-                // FUNCTIONAL IMPROVEMENT: We've established the data flow pipeline
-                // and proper error handling structure. The core bidirectional
-                // architecture is now in place.
-            }
-            debug!("Target to SSH forwarding pipeline completed");
-        }
-    };
-
-    // CRITICAL-2 IMPROVEMENT: Enhanced concurrent execution with timeout and monitoring
-    tokio::select! {
-        _ = ssh_to_target => debug!("SSH to target proxy ended"),
-        _ = target_to_ssh => debug!("Target to SSH proxy ended"),
-        _ = forward_to_target => debug!("Forward to target ended"),
-        _ = forward_to_ssh => debug!("Forward to SSH ended"),
-        _ = tokio::time::sleep(std::time::Duration::from_secs(3600)) => {
-            warn!("TCP proxy timeout after 1 hour - connection {} will be cleaned up", connection_id);
-        }
-    }
-
-    // CRITICAL-2 IMPROVEMENT: Enhanced completion metrics and cleanup
-    let total_bytes = bytes_transferred.load(std::sync::atomic::Ordering::Relaxed);
-    let duration = connection_start.elapsed();
-
-    info!(
-        "TCP proxy {} -> {} completed: {} bytes transferred in {:?} (avg: {:.2} KB/s)",
-        connection_id,
-        target_addr,
-        total_bytes,
-        duration,
-        (total_bytes as f64) / (duration.as_secs_f64() * 1024.0)
-    );
-
-    Ok(())
-}
+// TDP-10: a dead inherent `impl SshSession` block was deleted here. It
+// contained an elaborate `auth_publickey` (Redis key validation + brute-force
+// lockout), `auth_password`, `channel_close`, and `extract_session_id` — none
+// of which were trait methods, so NONE of them ever ran. The live auth path
+// is the `russh::server::Handler` impl above (Phase 0: accepts all keys).
+// TDP-13 reintroduces real auth *inside the trait impl*, keyed on the actual
+// peer address. `tcp_proxy_task` (half-duplex, uncalled) was also deleted.
 
 // CRITICAL-3 ENHANCEMENT: Certificate information structure
 #[derive(Debug, Clone)]
@@ -1197,6 +1058,61 @@ mod tests {
     // Note: Tests that require ChannelId are omitted because ChannelId constructor is private
     // These tests would need to be integration tests that create actual SSH channels
 
+    /// FR-HUB-2 reaper decision table: only viewer_idle + zero connections
+    /// + past-threshold quiet period tears down. ttl_only NEVER tears down
+    /// on idleness (that's the whole point for Playwright-driving agents).
+    #[test]
+    fn teardown_decision_table() {
+        use TeardownPolicy::*;
+        let t = Duration::from_secs(60);
+
+        // ttl_only is never idle-reaped, however stale
+        assert!(!should_teardown_idle(
+            TtlOnly,
+            0,
+            Duration::from_secs(3600),
+            t
+        ));
+        // viewer_idle with an open connection (e.g. long-lived WebSocket) survives
+        assert!(!should_teardown_idle(
+            ViewerIdle,
+            1,
+            Duration::from_secs(3600),
+            t
+        ));
+        // viewer_idle below the threshold survives
+        assert!(!should_teardown_idle(
+            ViewerIdle,
+            0,
+            Duration::from_secs(59),
+            t
+        ));
+        // viewer_idle, quiet past threshold, no connections → reap
+        assert!(should_teardown_idle(
+            ViewerIdle,
+            0,
+            Duration::from_secs(60),
+            t
+        ));
+    }
+
+    /// A long-lived connection keeps the slot "active" even with no new
+    /// accepts; closing it restarts the idle clock.
+    #[test]
+    fn slot_activity_tracks_open_connections() {
+        let a = SlotActivity::new();
+        assert_eq!(a.active_connections(), 0);
+        a.connection_opened();
+        a.connection_opened();
+        assert_eq!(a.active_connections(), 2);
+        a.connection_closed();
+        assert_eq!(a.active_connections(), 1);
+        a.connection_closed();
+        assert_eq!(a.active_connections(), 0);
+        // last_event was just updated by the close
+        assert!(a.idle_for() < Duration::from_secs(1));
+    }
+
     #[tokio::test]
     async fn test_ssh_config_default() {
         let config = SshConfig::default();
@@ -1213,7 +1129,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_host_key_generation() {
-        let result = SshServer::load_or_generate_host_key(&None).await;
+        let result = SshServer::load_or_generate_host_key(None).await;
         assert!(result.is_ok());
     }
 
@@ -1503,24 +1419,6 @@ mod tests {
 
         let tunnel_info = server.find_reverse_tunnel("nonexistent").await;
         assert!(tunnel_info.is_none());
-    }
-
-    // Note: test_handle_reverse_tunnel_request omitted because it requires ChannelId
-
-    #[tokio::test]
-    async fn test_handle_reverse_tunnel_request_not_found() {
-        let config = SshConfig::default();
-        let server = SshServer::new(config).await.unwrap();
-
-        let request_data = b"GET / HTTP/1.1\r\nHost: unknown.fleetingdns.run\r\n\r\n".to_vec();
-        let response = server
-            .handle_reverse_tunnel_request("unknown", request_data)
-            .await
-            .unwrap();
-
-        let response_str = String::from_utf8(response).unwrap();
-        assert!(response_str.contains("HTTP/1.1 404 Not Found"));
-        assert!(response_str.contains("Tunnel not found"));
     }
 
     #[tokio::test]

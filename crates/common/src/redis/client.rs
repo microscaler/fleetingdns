@@ -7,14 +7,13 @@ use std::net::Ipv4Addr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::error::{CommonResult, FleetingDnsError};
 use bb8::Pool;
 use bb8_redis::RedisConnectionManager;
 use bb8_redis::redis::{AsyncCommands, RedisError};
 use serde::{Deserialize, Serialize};
-use crate::error::{FleetingDnsError, CommonResult};
 use tokio::sync::RwLock;
 use tokio::time::timeout;
-use tracing::error;
 
 /// Type alias for performance errors using the common error system
 pub type PerformanceError = FleetingDnsError;
@@ -204,8 +203,9 @@ pub struct RedisPerformanceClient {
 impl RedisPerformanceClient {
     /// Create a new performance client
     pub async fn new(config: PerformanceConfig) -> Result<Self, PerformanceError> {
-        let manager = RedisConnectionManager::new(config.redis_url.as_str())
-            .map_err(|e| PerformanceError::ConfigurationError(format!("Failed to create manager: {e}")))?;
+        let manager = RedisConnectionManager::new(config.redis_url.as_str()).map_err(|e| {
+            PerformanceError::ConfigurationError(format!("Failed to create manager: {e}"))
+        })?;
 
         let pool = Pool::builder()
             .max_size(config.pool_config.max_size)
@@ -213,7 +213,9 @@ impl RedisPerformanceClient {
             .connection_timeout(config.pool_config.connection_timeout)
             .build(manager)
             .await
-            .map_err(|e| PerformanceError::ConfigurationError(format!("Failed to build pool: {e}")))?;
+            .map_err(|e| {
+                PerformanceError::ConfigurationError(format!("Failed to build pool: {e}"))
+            })?;
 
         let stats = Arc::new(RwLock::new(PerformanceStats::default()));
 
@@ -283,7 +285,7 @@ impl RedisPerformanceClient {
                 ))
             })?;
             let mut conn = conn;
-            conn.set_ex(&slot, ip_str, ttl).await.map(|_: ()| ())
+            conn.set_ex(&slot, ip_str, ttl).await.map(|(): ()| ())
         })
         .await
         .map_err(|_| PerformanceError::TimeoutError("Operation timed out".to_string()))??;
@@ -361,7 +363,7 @@ impl RedisPerformanceClient {
         stats.successful_operations += operations as u64;
 
         let latency_ms = latency.as_millis() as f64;
-        stats.avg_latency_ms = (stats.avg_latency_ms + latency_ms) / 2.0;
+        stats.avg_latency_ms = f64::midpoint(stats.avg_latency_ms, latency_ms);
 
         // Update pool stats
         stats.pool_size = self.config.pool_config.max_size;
