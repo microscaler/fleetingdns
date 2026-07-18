@@ -30,9 +30,11 @@ spec:
     namespace: fleetingdns
     image:
       pullPolicy: Always
+    # Injected by the generic Octopilot integration deploy: IMG_<image-basename>
+    # (ghcr.io/.../fleetingdns-api -> IMG_fleetingdns_api).
     api:
-      image: ${API_IMAGE}
+      image: ${IMG_fleetingdns_api}
     dnsd:
-      image: ${DNSD_IMAGE}
+      image: ${IMG_fleetingdns_dnsd}
     edgehub:
-      image: ${EDGEHUB_IMAGE}
+      image: ${IMG_fleetingdns_edgehub}

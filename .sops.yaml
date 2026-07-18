@@ -3,11 +3,12 @@
 # Encrypt only on ms02 with:
 #   SOPS_AGE_KEY_FILE=~/.config/sops/age/flux-shared-gitops sops --encrypt --in-place <file>
 creation_rules:
-  - path_regex: deployment-configuration/profiles/.*/.*\.secrets\.env$
+  # Covers both the flattened profile (profiles/<env>/) and bootstrap/<env>/.
+  - path_regex: deployment-configuration/.*\.secrets\.env$
     key_groups:
       - age:
           - age1lh3s2uyxrqu0u7hqgulnd43q3v0xvktukq3fcxuu6gw97uye59rqgjsd07
-  - path_regex: deployment-configuration/profiles/.*/.*\.secret\.yaml$
+  - path_regex: deployment-configuration/.*\.secret\.yaml$
     encrypted_regex: ^(data|stringData)$
     key_groups:
       - age:

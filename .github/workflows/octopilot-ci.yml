@@ -1,10 +1,11 @@
 name: Octopilot CI
 
-# Octopilot-driven pipeline. The application "shape" is auto-detected from
-# skaffold.yaml (source of truth): 3 container services (api/dnsd/edgehub) via
-# the octopilot/rust buildpack, plus the fleetingdns Helm chart. CLI tools
-# (edf-cli, fleetingdns-ctl, slot-setter) are NOT containers — they ship as
-# GitHub Release binaries via the release-binaries job on tags.
+# The entire build + integration DAG (detect → lint → test → validate →
+# artifacts → deploy) comes from the shared reusable pipeline in
+# octopilot/actions. integration: true opts in to the generic Kind + Flux
+# deploy, which discovers this repo's shape from its chart/, k8s/env/ci overlay,
+# hack/ci-deps and deployment-configuration SOPS profile. This repo only adds
+# its tag-time release jobs.
 
 on:
   push:
@@ -14,258 +15,24 @@ on:
     branches: [main]
   workflow_dispatch:
 
-env:
-  CARGO_TERM_COLOR: always
-  RUST_BACKTRACE: 1
-
 jobs:
-  # ── 1. Auto-detect languages and versions from skaffold.yaml ───────────────
-  detect:
-    name: Detect Contexts
-    runs-on: ubuntu-latest
-    outputs:
-      pipeline-context: ${{ steps.detect.outputs.pipeline-context }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Detect Contexts
-        id: detect
-        uses: octopilot/actions/detect-contexts@main
+  # ── Generic Octopilot pipeline (reusable; nested + branded in the graph) ────
+  build:
+    name: Octopilot
+    uses: octopilot/actions/.github/workflows/pipeline.yml@main
+    with:
+      integration: true
+      profile: dev
+    # Pass explicitly (not `inherit`): inherit does not reliably cross the
+    # org boundary to octopilot/actions. Maps to the workflow's declared secrets.
+    secrets:
+      SOPS_AGE_KEY: ${{ secrets.SOPS_AGE_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
-  # ── 2. Lint (pre-commit, language-aware) ───────────────────────────────────
-  lint:
-    needs: detect
-    if: toJSON(fromJson(needs.detect.outputs.pipeline-context).languages) != '[]'
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: octopilot/actions/lint@main
-        with:
-          pipeline-context: ${{ needs.detect.outputs.pipeline-context }}
-
-  # ── 3. Test (matrix per detected language context) ─────────────────────────
-  test:
-    needs: detect
-    if: toJSON(fromJson(needs.detect.outputs.pipeline-context).matrix) != '[]'
-    name: Test
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJson(needs.detect.outputs.pipeline-context).matrix }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: octopilot/actions/test@main
-        with:
-          pipeline-context: ${{ toJson(matrix) }}
-
-  # ── 4a. Integration validate (release build + UUID for ttl.sh artifacts) ───
-  integration-validate:
-    name: Integration (validate)
-    needs: [detect, lint, test]
-    runs-on: ubuntu-latest
-    outputs:
-      uuid: ${{ steps.validate.outputs.uuid }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate primary build and generate UUID
-        id: validate
-        uses: octopilot/actions/integration-validate@main
-        with:
-          pipeline-context: ${{ needs.detect.outputs.pipeline-context }}
-          # Smoke run omitted: the primary artifacts are long-running servers
-          # (they block waiting on Redis/Postgres), so a no-arg smoke would hang.
-          # The release build itself is the compile gate.
-
-  # ── 4b. Integration artifacts (matrix from skaffold build.artifacts + chart) ─
-  integration-artifacts:
-    name: Integration (${{ matrix.suffix || matrix.output_key }})
-    needs: [detect, integration-validate]
-    if: toJSON(fromJson(needs.detect.outputs.pipeline-context).integration_matrix) != '[]'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJson(needs.detect.outputs.pipeline-context).integration_matrix }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build and push artifact
-        id: build
-        uses: octopilot/actions/integration-build-artifact@main
-        with:
-          artifact: ${{ toJson(matrix) }}
-          ttl-uuid: ${{ needs.integration-validate.outputs.uuid }}
-          op_version: v1.0.17
-
-      - name: Upload artifact outputs
-        run: |
-          mkdir -p artifact-out
-          mv outputs.txt "artifact-out/${{ matrix.output_key }}.txt" 2>/dev/null || true
-          [ -f build_result.json ] && cp build_result.json artifact-out/ || true
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: integration-${{ matrix.output_key }}
-          path: artifact-out
-          retention-days: 1
-
-  # ── 4c. Integration deploy (Kind + SOPS secret + ci-deps + Flux HelmRelease) ─
-  integration-deploy:
-    name: Integration (deploy)
-    needs: integration-artifacts
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download artifact outputs
-        uses: actions/download-artifact@v4
-        with:
-          pattern: integration-*
-          path: artifact-outputs
-
-      - name: Merge build_result.json from all integration jobs
-        uses: octopilot/actions/merge-build-results@main
-        with:
-          directory: artifact-outputs
-          output-path: build_result.json
-
-      - name: Resolve deploy image refs
-        id: artifacts
-        run: |
-          set -e
-          IMAGE_API="$(jq -r '.builds[] | select(.imageName | test("fleetingdns-api$")) | .tag' build_result.json 2>/dev/null | head -1)"
-          IMAGE_DNSD="$(jq -r '.builds[] | select(.imageName | test("fleetingdns-dnsd$")) | .tag' build_result.json 2>/dev/null | head -1)"
-          IMAGE_EDGEHUB="$(jq -r '.builds[] | select(.imageName | test("fleetingdns-edgehub$")) | .tag' build_result.json 2>/dev/null | head -1)"
-          IMAGE_CHART="$(jq -r '.builds[] | select(.imageName | test("-chart$")) | .tag' build_result.json 2>/dev/null | head -1)"
-
-          # Chart ref must be Helm OCI shape: registry/repo/chartname:version[@digest].
-          CHART_NAME="$(grep -E '^name:' chart/fleetingdns/Chart.yaml 2>/dev/null | sed 's/^name:[[:space:]]*//;s/[[:space:]]*$//' || echo fleetingdns)"
-          if ! echo "$IMAGE_CHART" | grep -qE "/${CHART_NAME}:"; then
-            if echo "$IMAGE_CHART" | grep -qE -- '-chart:[^@]+'; then
-              IMAGE_CHART="$(echo "$IMAGE_CHART" | sed "s|-chart:|-chart/${CHART_NAME}:|")"
-              echo "Normalized chart ref to Helm OCI form: ${IMAGE_CHART}"
-            else
-              echo "::error::Chart ref missing chart name segment: expected .../${CHART_NAME}:version[@digest], got: ${IMAGE_CHART}"
-              exit 1
-            fi
-          fi
-          if echo "$IMAGE_CHART" | grep -q '@sha256:'; then
-            CHART_REF="oci://$(echo "$IMAGE_CHART" | sed 's/:[^@]*@/@/')"
-          else
-            CHART_REF="oci://${IMAGE_CHART}"
-          fi
-
-          echo "api_image=${IMAGE_API}" >> "$GITHUB_OUTPUT"
-          echo "dnsd_image=${IMAGE_DNSD}" >> "$GITHUB_OUTPUT"
-          echo "edgehub_image=${IMAGE_EDGEHUB}" >> "$GITHUB_OUTPUT"
-          echo "chart_ref=${CHART_REF}" >> "$GITHUB_OUTPUT"
-
-          echo "=== build_result.json (merged) ==="
-          jq . build_result.json
-          echo "=== Resolved deploy outputs ==="
-          echo "api=${IMAGE_API}"
-          echo "dnsd=${IMAGE_DNSD}"
-          echo "edgehub=${IMAGE_EDGEHUB}"
-          echo "chart_ref=${CHART_REF}"
-          if [ -z "$IMAGE_API" ] || [ -z "$IMAGE_DNSD" ] || [ -z "$IMAGE_EDGEHUB" ] || [ -z "$IMAGE_CHART" ]; then
-            echo "::error::Missing builds: api=${IMAGE_API:+set} dnsd=${IMAGE_DNSD:+set} edgehub=${IMAGE_EDGEHUB:+set} chart=${IMAGE_CHART:+set}"
-            jq -r '.builds[]? | "\(.imageName): \(.tag)"' build_result.json 2>/dev/null || true
-            exit 1
-          fi
-
-      - name: Decrypt runtime DB secret (SOPS + age)
-        id: sops
-        uses: octopilot/actions/sops-decrypt@main
-        with:
-          file: deployment-configuration/profiles/dev/fleetingdns/core/runtime/application.secrets.env
-          age_key: ${{ secrets.SOPS_AGE_KEY }}
-          output_type: dotenv
-
-      - name: Create Kind cluster (Kubernetes 1.34.3)
-        uses: helm/kind-action@v1
-        with:
-          version: v0.31.0
-          node_image: kindest/node:v1.34.3
-          cluster_name: fleetingdns
-          wait: 120s
-
-      - name: Setup kubectl
-        uses: octopilot/actions/setup-tools@main
-        with:
-          kubectl_version: "1.34.3"
-
-      - name: Create namespace, DB secret and ephemeral deps (redis + postgres)
-        env:
-          SECRET_DOTENV: ${{ steps.sops.outputs.data }}
-        run: |
-          set -e
-          kubectl create namespace fleetingdns --dry-run=client -o yaml | kubectl apply -f -
-          # DB credentials Secret consumed by the api (keys: FDNS_DB_PASSWORD, DATABASE_URL)
-          printf '%s\n' "$SECRET_DOTENV" > /tmp/db.env
-          kubectl create secret generic fleetingdns-db-credentials \
-            -n fleetingdns --from-env-file=/tmp/db.env \
-            --dry-run=client -o yaml | kubectl apply -f -
-          rm -f /tmp/db.env
-          kubectl apply -n fleetingdns -f hack/ci-deps/
-          kubectl rollout status deploy/postgres -n fleetingdns --timeout=180s
-          kubectl rollout status deploy/redis -n fleetingdns --timeout=120s
-
-      - name: Setup Flux in Kind
-        uses: octopilot/actions/setup-flux@main
-        with:
-          export_path: k8s/deployment/flux-system/gotk-components.yaml
-
-      - name: Deploy fleetingdns via Flux (OCI chart + HelmRelease)
-        env:
-          CHART_REF: ${{ steps.artifacts.outputs.chart_ref }}
-          API_IMAGE: ${{ steps.artifacts.outputs.api_image }}
-          DNSD_IMAGE: ${{ steps.artifacts.outputs.dnsd_image }}
-          EDGEHUB_IMAGE: ${{ steps.artifacts.outputs.edgehub_image }}
-        run: |
-          set -e
-          RECONCILE_FAILED=0
-          CHART_OCI_URL="$(echo "$CHART_REF" | sed 's|^oci://||' | cut -d'@' -f1)"
-          CHART_DIGEST="$(echo "$CHART_REF" | sed 's|^oci://||' | cut -d'@' -f2)"
-          export CHART_OCI_URL API_IMAGE DNSD_IMAGE EDGEHUB_IMAGE
-          export CHART_REF_TYPE=digest
-          export CHART_REF_VALUE="$CHART_DIGEST"
-          kubectl kustomize k8s/env/ci | envsubst | kubectl apply -f -
-          flux reconcile source oci fleetingdns-chart -n fleetingdns --timeout=2m || RECONCILE_FAILED=1
-          # 8m covers the pre-install migration hook, the three Deployments
-          # becoming ready, and the Helm test hook (spec.test.enable: true).
-          flux reconcile helmrelease fleetingdns -n fleetingdns --timeout=8m || RECONCILE_FAILED=1
-          kubectl get all -n fleetingdns
-          flux get helmrelease -n fleetingdns
-          if [ "$RECONCILE_FAILED" -ne 0 ]; then
-            echo "::group::Flux controller logs and events (reconcile failed)"
-            kubectl logs -n flux-system -l app=source-controller --tail=300 --all-containers=true 2>/dev/null || true
-            kubectl logs -n flux-system -l app=helm-controller --tail=300 --all-containers=true 2>/dev/null || true
-            kubectl get events -n fleetingdns --sort-by='.lastTimestamp' 2>/dev/null | tail -80 || true
-            kubectl describe pods -n fleetingdns 2>/dev/null | tail -160 || true
-            echo "=== migration hook Job logs ==="
-            kubectl logs -n fleetingdns job/fleetingdns-migrate --tail=100 2>/dev/null || true
-            echo "=== Helm test Pod logs ==="
-            kubectl logs -n fleetingdns fleetingdns-api-smoke --tail=100 2>/dev/null || true
-            echo "=== api/dnsd/edgehub pod logs ==="
-            for app in api dnsd edgehub; do
-              echo "--- $app ---"
-              kubectl logs -n fleetingdns -l app=$app --tail=60 --all-containers=true 2>/dev/null || true
-            done
-            flux get source oci -n fleetingdns 2>/dev/null || true
-            flux get helmrelease -n fleetingdns 2>/dev/null || true
-            echo "::endgroup::"
-            exit 1
-          fi
-
-  # ── 5. Release binaries (CLI tools → GitHub Release; tags only) ─────────────
-  # Octopilot has no first-class "release binary" concept — it treats every
-  # skaffold artifact as a container. The CLIs (edf-cli, fleetingdns-ctl,
-  # slot-setter) are deliberately excluded from skaffold.yaml and shipped here
-  # as attached release assets alongside the container images.
+  # ── Release binaries (CLI tools → GitHub Release; tags only) ────────────────
   release-binaries:
     name: Release CLI Binaries
-    needs: [integration-deploy]
+    needs: [build]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -294,10 +61,10 @@ jobs:
             dist/*.tar.gz
             dist/SHA256SUMS.txt
 
-  # ── 6. Release notes (on tag: generate and publish to GitHub Release) ──────
+  # ── Release notes (on tag: generate and publish to GitHub Release) ──────────
   release-notes:
     name: Release Notes
-    needs: [integration-deploy]
+    needs: [build]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
