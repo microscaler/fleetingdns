@@ -22,6 +22,7 @@ jobs:
     uses: octopilot/actions/.github/workflows/pipeline.yml@main
     with:
       integration: true
+      profile: dev
     secrets: inherit
 
   # ── Release binaries (CLI tools → GitHub Release; tags only) ────────────────
