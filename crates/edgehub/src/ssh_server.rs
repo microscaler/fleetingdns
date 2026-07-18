@@ -90,6 +90,18 @@ pub fn should_teardown_idle(
     policy == TeardownPolicy::ViewerIdle && active_connections == 0 && idle_for >= threshold
 }
 
+/// TDP-13: validate a session id extracted from the (attacker-controlled) SSH
+/// username before using it as a Redis key. Session ids are tunnel UUIDs, so a
+/// short, unambiguous charset is expected; anything else is rejected up front
+/// to avoid oversized lookups or key-injection via crafted usernames.
+fn is_valid_session_id(session_id: &str) -> bool {
+    !session_id.is_empty()
+        && session_id.len() <= 64
+        && session_id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+}
+
 // TDP-10: the T-26b "dynamic reverse proxy" (ReverseProxyState: random port
 // allocation + subdomain→port map) was deleted. It allocated ports nothing
 // listened on and was never read on the live path. Routing is by SLOT NUMBER:
@@ -249,6 +261,10 @@ pub struct SshServerState {
     pub redis_pool: Option<common::redis::RedisPool>,
     /// TDP-13: dev/test escape hatch — accept any SSH key without validation.
     pub insecure_accept_all_keys: bool,
+    /// TDP-13: failed auth attempts (per peer) before a lockout kicks in.
+    pub max_auth_attempts: u32,
+    /// TDP-13: how long a peer stays locked out after too many failures.
+    pub auth_lockout_duration: Duration,
 }
 
 /// Information about an active tunnel
@@ -344,6 +360,8 @@ impl SshServer {
             redis_auth_handler,
             redis_pool,
             insecure_accept_all_keys: config.insecure_accept_all_keys,
+            max_auth_attempts: config.max_auth_attempts,
+            auth_lockout_duration: config.auth_lockout_duration,
         };
 
         info!(
@@ -1048,7 +1066,7 @@ impl russh::server::Handler for SshSession {
         public_key: &russh::keys::PublicKey,
     ) -> Result<Auth, Self::Error> {
         let peer = self.peer_addr;
-        let lockout = Duration::from_secs(300);
+        let lockout = self.state.auth_lockout_duration;
 
         // Brute-force lockout, keyed on the real peer address.
         {
@@ -1060,7 +1078,15 @@ impl russh::server::Handler for SshSession {
         }
 
         // Session id is carried in the username as `tunnel-{session_id}` (TDP-12).
+        // Validate it before using it as a Redis key: the username is fully
+        // attacker-controlled, and session ids are tunnel UUIDs, so bound the
+        // length and restrict to an unambiguous charset to avoid oversized
+        // lookups or key-injection via crafted usernames.
         let session_id = user.strip_prefix("tunnel-").unwrap_or(user);
+        if !is_valid_session_id(session_id) {
+            warn!(user, peer = %peer, "SSH auth rejected: malformed session id in username");
+            return Ok(Auth::reject());
+        }
 
         let accepted = if let Some(redis_auth) = &self.state.redis_auth_handler {
             match redis_auth
@@ -1101,7 +1127,7 @@ impl russh::server::Handler for SshSession {
                     certificate_serial: Some(session_id.to_string()),
                     failure_reason: (!accepted).then(|| "key validation failed".to_string()),
                 },
-                3,
+                self.state.max_auth_attempts,
                 lockout,
             );
         }
@@ -1141,6 +1167,23 @@ mod tests {
 
     // Note: Tests that require ChannelId are omitted because ChannelId constructor is private
     // These tests would need to be integration tests that create actual SSH channels
+
+    /// TDP-13: the session id lifted from the SSH username is validated before
+    /// it reaches Redis. UUIDs and the test's ids pass; empty, over-long, and
+    /// injection-shaped values are rejected.
+    #[test]
+    fn session_id_validation() {
+        assert!(is_valid_session_id("550e8400-e29b-41d4-a716-446655440000"));
+        assert!(is_valid_session_id("auth-test-1"));
+        assert!(is_valid_session_id("abc_123"));
+
+        assert!(!is_valid_session_id(""));
+        assert!(!is_valid_session_id(&"a".repeat(65)));
+        assert!(!is_valid_session_id("has space"));
+        assert!(!is_valid_session_id("bad/slash"));
+        assert!(!is_valid_session_id("colon:inject"));
+        assert!(!is_valid_session_id("newline\n"));
+    }
 
     /// FR-HUB-2 reaper decision table: only viewer_idle + zero connections
     /// + past-threshold quiet period tears down. ttl_only NEVER tears down
