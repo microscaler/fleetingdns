@@ -26,6 +26,9 @@ bb8-redis = "0.20"
 reqwest = { version = "0.12", features = ["json"] }
 anyhow = "1.0"
 russh = "0.60"
+# rand 0.10 alias for russh/ssh-key PrivateKey::random (rand_core 0.10 CryptoRng);
+# workspace rand stays 0.8 for everything else. Used by ssh_keys::generate_*.
+rand_key = { package = "rand", version = "0.10", features = ["thread_rng"] }
 # Certificate management dependencies.
 # NOTE: acme2 removed 2026-07 — it was never imported (only referenced in a
 # cert_manager.rs comment) yet pinned ancient reqwest 0.11 / hyper 0.14 /
@@ -41,7 +44,6 @@ hex = "0.4"
 dashmap = "5.5"
 
 [dev-dependencies]
-rand_key = { package = "rand", version = "0.10", features = ["thread_rng"] }
 tracing-test = "0.2"
 tokio = { workspace = true, features = ["full"] }
 tonic = { version = "0.13", features = ["transport"] }

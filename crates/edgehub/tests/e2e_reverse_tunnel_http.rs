@@ -141,6 +141,7 @@ async fn test_e2e_reverse_tunnel_http_forwarding() {
         redis_url: None,
         redis_auth_enabled: false,
         redis_key_prefix: "session".into(),
+        insecure_accept_all_keys: true,
     };
 
     let ssh_server = SshServer::new(ssh_config).await.expect("SshServer::new");

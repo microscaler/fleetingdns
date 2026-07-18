@@ -251,8 +251,20 @@ pub async fn create_tunnel(
 
     info!("Created tunnel {} -> {}", tunnel.fqdn, tunnel.local_port);
 
-    // Generate SSH key pair
+    // Generate SSH key pair and store the session so the hub can authenticate
+    // the SSH connection against this issued key (TDP-13). The session id is
+    // the tunnel id; the hub reads `session:{id}` and compares fingerprints.
     let ssh_key = generate_ssh_key_pair()?;
+    state
+        .storage
+        .store_ssh_session(
+            &tunnel.id.to_string(),
+            &user.id,
+            &ssh_key.public_key,
+            &ssh_key.fingerprint,
+            tunnel.expires_at,
+        )
+        .await?;
 
     // Generate basic auth credentials if requested
     let auth_credentials = if request.auth.unwrap_or(false) {
@@ -917,15 +929,16 @@ async fn generate_random_subdomain() -> String {
 //     Ok(rng.gen_range(10000..20000))
 // }
 
-/// Generate SSH key pair
+/// Generate a real ephemeral Ed25519 SSH key pair for the tunnel session
+/// (TDP-13). The public key's fingerprint is stored in Redis so the hub can
+/// authenticate the SSH connection against this issued key.
 fn generate_ssh_key_pair() -> ApiResult<SshKeyPair> {
-    // For now, return placeholder keys
-    // In production, generate actual Ed25519 key pairs
+    let kp = common::ssh_keys::generate_ed25519_keypair()
+        .map_err(|e| ApiError::InternalError(format!("SSH key generation failed: {e}")))?;
     Ok(SshKeyPair {
-        private_key: "-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----"
-            .to_string(),
-        public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5... tunnel-key".to_string(),
-        fingerprint: "SHA256:abcd1234...".to_string(),
+        private_key: kp.private_key_openssh,
+        public_key: kp.public_key_openssh,
+        fingerprint: kp.fingerprint,
     })
 }
 

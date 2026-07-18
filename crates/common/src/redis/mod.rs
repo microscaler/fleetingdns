@@ -12,7 +12,7 @@ pub mod client;
 pub mod tunnel;
 
 // Re-export commonly used types and functions for convenience
-pub use auth::RedisAuthHandler;
+pub use auth::{RedisAuthHandler, SessionData};
 pub use cache::{CacheError, CacheResult, RedisPool, del_slot, get_slot, new_pool, set_slot};
 pub use client::{
     MonitoringConfig, PerformanceConfig, PerformanceError, PerformanceStats, PipelineConfig,

@@ -610,6 +610,7 @@ async fn test_certificate_authentication() {
         redis_url: None,
         redis_auth_enabled: false,
         redis_key_prefix: "session".to_string(),
+        insecure_accept_all_keys: true,
     };
 
     // Create SSH server

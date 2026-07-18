@@ -112,6 +112,12 @@ pub struct SshConfig {
     pub redis_url: Option<String>,
     pub redis_auth_enabled: bool,
     pub redis_key_prefix: String,
+    /// TDP-13: DEV/TEST ONLY. When true, `auth_publickey` accepts any key
+    /// without Redis validation (the former "Phase 0" behaviour). Must be set
+    /// explicitly (edgehub-bin maps `FDNS_INSECURE_ACCEPT_ALL_KEYS=1`); the
+    /// default is fail-closed so a misconfigured hub rejects rather than
+    /// authenticates everyone.
+    pub insecure_accept_all_keys: bool,
 }
 
 impl Default for SshConfig {
@@ -130,6 +136,8 @@ impl Default for SshConfig {
             redis_url: None,
             redis_auth_enabled: false,
             redis_key_prefix: "session".to_string(),
+            // Fail-closed by default (TDP-13).
+            insecure_accept_all_keys: false,
         }
     }
 }
@@ -148,29 +156,29 @@ pub struct CertificateValidationResult {
     pub validated_at: DateTime<Utc>,
 }
 
-// Authentication attempt tracking for brute force protection.
-// TDP-13 (pending): this machinery is currently only exercised by unit
-// tests — the live `Handler::auth_publickey` accepts all keys (Phase 0).
-// TDP-13 wires it into the trait impl, keyed on the REAL peer address.
+// Authentication attempt tracking for brute-force protection (TDP-13).
+// Wired into the live `Handler::auth_publickey`, keyed on the real peer
+// address. `certificate_serial`/`failure_reason` are retained for audit
+// logging even though the lockout decision only reads `success`.
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // TDP-13: wired into Handler::auth_publickey
 struct AuthAttempt {
     timestamp: Instant,
     client_addr: SocketAddr,
     success: bool,
+    #[allow(dead_code)] // audit context; lockout keys on success only
     certificate_serial: Option<String>,
+    #[allow(dead_code)] // audit context; lockout keys on success only
     failure_reason: Option<String>,
 }
 
-// Brute force protection state (see TDP-13 note above).
+/// Brute-force protection state: recent auth attempts and active lockouts,
+/// keyed by client address (TDP-13).
 #[derive(Debug, Default)]
-#[allow(dead_code)] // TDP-13: wired into Handler::auth_publickey
 pub struct BruteForceProtection {
     attempts: HashMap<SocketAddr, Vec<AuthAttempt>>,
     lockouts: HashMap<SocketAddr, Instant>,
 }
 
-#[allow(dead_code)] // TDP-13: wired into Handler::auth_publickey
 impl BruteForceProtection {
     fn is_locked_out(&self, addr: &SocketAddr, lockout_duration: Duration) -> bool {
         if let Some(lockout_time) = self.lockouts.get(addr) {
@@ -239,6 +247,8 @@ pub struct SshServerState {
     /// FR-HUB-2). Present when `SshConfig.redis_url` is set; absent in
     /// bare test setups, where every slot defaults to `ttl_only`.
     pub redis_pool: Option<common::redis::RedisPool>,
+    /// TDP-13: dev/test escape hatch — accept any SSH key without validation.
+    pub insecure_accept_all_keys: bool,
 }
 
 /// Information about an active tunnel
@@ -333,6 +343,7 @@ impl SshServer {
             brute_force_protection: Arc::new(Mutex::new(BruteForceProtection::default())),
             redis_auth_handler,
             redis_pool,
+            insecure_accept_all_keys: config.insecure_accept_all_keys,
         };
 
         info!(
@@ -715,6 +726,7 @@ impl SshServer {
                                     channels: HashMap::new(),
                                     public_domain,
                                     client_certificate_serial: None,
+                                    peer_addr: addr,
                                     forward_listeners: HashMap::new(),
                                 };
 
@@ -782,6 +794,9 @@ pub struct SshSession {
     public_domain: String,
     /// Client certificate serial (if provided)
     client_certificate_serial: Option<String>,
+    /// Peer address of this SSH connection (TDP-13: brute-force lockout keys
+    /// on the real client address, not a hard-coded 0.0.0.0).
+    peer_addr: SocketAddr,
     /// Slot listeners this session bound via tcpip_forward, keyed by port.
     /// Each entry holds the accept-loop task (and the viewer-idle reaper,
     /// if the tunnel policy asked for one) so they can be aborted on
@@ -1021,14 +1036,83 @@ impl russh::server::Handler for SshSession {
         }
     }
 
+    /// TDP-13: authenticate the SSH connection against the key the control
+    /// plane issued for this session. The CLI carries the session id in the
+    /// username as `tunnel-{session_id}`; the hub looks up `session:{id}` in
+    /// Redis and compares the presented key's SHA-256 fingerprint. Failures
+    /// are counted per real peer address and trigger a lockout. Accept-all is
+    /// only reachable behind the explicit insecure dev flag.
     async fn auth_publickey(
         &mut self,
         user: &str,
-        _public_key: &russh::keys::PublicKey,
+        public_key: &russh::keys::PublicKey,
     ) -> Result<Auth, Self::Error> {
-        info!("SSH auth: user={} (Phase 0: accepting all keys)", user);
-        self.client_certificate_serial = Some("phase0".to_string());
-        Ok(Auth::Accept)
+        let peer = self.peer_addr;
+        let lockout = Duration::from_secs(300);
+
+        // Brute-force lockout, keyed on the real peer address.
+        {
+            let bfp = self.state.brute_force_protection.lock().await;
+            if bfp.is_locked_out(&peer, lockout) {
+                warn!(user, peer = %peer, "SSH auth rejected: peer temporarily locked out");
+                return Ok(Auth::reject());
+            }
+        }
+
+        // Session id is carried in the username as `tunnel-{session_id}` (TDP-12).
+        let session_id = user.strip_prefix("tunnel-").unwrap_or(user);
+
+        let accepted = if let Some(redis_auth) = &self.state.redis_auth_handler {
+            match redis_auth
+                .validate_public_key(user, public_key, session_id)
+                .await
+            {
+                Ok(valid) => valid,
+                Err(e) => {
+                    error!(user, error = %e, "SSH auth: Redis validation error (rejecting)");
+                    false
+                }
+            }
+        } else if self.state.insecure_accept_all_keys {
+            warn!(
+                user,
+                peer = %peer,
+                "⚠️  INSECURE: accepting SSH key without validation \
+                 (FDNS_INSECURE_ACCEPT_ALL_KEYS is set — dev/test only)"
+            );
+            true
+        } else {
+            warn!(
+                user,
+                "SSH auth rejected: no Redis auth backend configured and \
+                 accept-all is not enabled (fail-closed)"
+            );
+            false
+        };
+
+        // Record the attempt for brute-force accounting.
+        {
+            let mut bfp = self.state.brute_force_protection.lock().await;
+            bfp.record_attempt(
+                AuthAttempt {
+                    timestamp: Instant::now(),
+                    client_addr: peer,
+                    success: accepted,
+                    certificate_serial: Some(session_id.to_string()),
+                    failure_reason: (!accepted).then(|| "key validation failed".to_string()),
+                },
+                3,
+                lockout,
+            );
+        }
+
+        if accepted {
+            info!(user, session_id, peer = %peer, "SSH public key authentication accepted");
+            self.client_certificate_serial = Some(session_id.to_string());
+            Ok(Auth::Accept)
+        } else {
+            Ok(Auth::reject())
+        }
     }
 }
 

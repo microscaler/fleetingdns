@@ -166,6 +166,7 @@ async fn e2e_reverse_tunnel_data_plane() -> Result<()> {
         redis_url: None,
         redis_auth_enabled: false,
         redis_key_prefix: "session".to_string(),
+        insecure_accept_all_keys: true,
     };
 
     let ssh_server = SshServer::new(ssh_config)

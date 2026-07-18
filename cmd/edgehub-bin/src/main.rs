@@ -491,17 +491,31 @@ async fn run(args: Args) -> AppResult<()> {
         .await
         .map_err(|e| common::AppError::Message(e.to_string()))?;
 
-    // Create SSH server with development-friendly defaults
+    // TDP-13: authenticate SSH connections against the API-issued key stored
+    // in Redis. Accept-all is only enabled behind an explicit, loudly-logged
+    // dev flag — the hub is fail-closed otherwise.
+    let insecure_accept_all_keys = std::env::var("FDNS_INSECURE_ACCEPT_ALL_KEYS")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    if insecure_accept_all_keys {
+        warn!(
+            "⚠️  FDNS_INSECURE_ACCEPT_ALL_KEYS is set — the hub will accept ANY \
+             SSH key without validation. Dev/test only; never in production."
+        );
+    }
+
     let ssh_config = SshConfig {
         bind_addr: args.ssh_addr,
         host_key_path: args.ssh_host_key,
         public_domain: args.public_domain,
         ca_config: None, // No CA configuration for development mode
-        // CRITICAL-3 ENHANCEMENT: Disable strict certificate validation for development
         require_client_certificates: false,
         certificate_pinning_enabled: false,
         // Lets the hub resolve per-tunnel teardown policy by slot (FR-HUB-2).
         redis_url: Some(args.redis.clone()),
+        // TDP-13: validate SSH keys against the session records the API writes.
+        redis_auth_enabled: true,
+        insecure_accept_all_keys,
         ..Default::default()
     };
     let ssh_server = SshServer::new(ssh_config)
