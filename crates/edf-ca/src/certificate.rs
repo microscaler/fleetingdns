@@ -1,7 +1,7 @@
 //! Certificate management for FleetingDNS CA
 
 use chrono::{DateTime, Duration, Utc};
-use rcgen::{Certificate, CertificateParams, DnType, SanType};
+use rcgen::{Certificate, CertificateParams, DnType, KeyPair, SanType};
 use ring::digest;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -74,6 +74,24 @@ impl CertificateRequest {
             attributes: HashMap::from([
                 ("client_id".to_string(), client_id.to_string()),
                 ("purpose".to_string(), "ssh-tunnel".to_string()),
+            ]),
+        }
+    }
+
+    /// Create a certificate request for a TLS server (edge subdomain
+    /// termination). Carries `serverAuth` extended key usage and a DNS SAN for
+    /// `fqdn`, so the resulting certificate is valid for terminating TLS on
+    /// that hostname.
+    pub fn for_server(fqdn: &str, validity_duration: Duration) -> Self {
+        Self {
+            common_name: fqdn.to_string(),
+            subject_alt_names: vec![fqdn.to_string()],
+            key_usage: vec![KeyUsage::DigitalSignature, KeyUsage::KeyEncipherment],
+            extended_key_usage: vec![ExtendedKeyUsage::ServerAuth],
+            validity_duration,
+            attributes: HashMap::from([
+                ("fqdn".to_string(), fqdn.to_string()),
+                ("purpose".to_string(), "tls-server".to_string()),
             ]),
         }
     }
@@ -163,6 +181,23 @@ impl CertificateBuilder {
     /// Set the common name
     pub fn common_name(mut self, cn: String) -> Self {
         self.params.distinguished_name.push(DnType::CommonName, cn);
+        self
+    }
+
+    /// Bind an explicit key pair to the certificate.
+    ///
+    /// Without this, `Certificate::from_params` generates its own internal key
+    /// pair, which would not match a separately generated private key. Binding
+    /// the key here guarantees the certificate's public key corresponds to the
+    /// private key returned to the caller.
+    ///
+    /// The signature algorithm is set to match the bound key pair. The CA
+    /// issues Ed25519 leaf keys; leaving `params.alg` at rcgen's default
+    /// (ECDSA P-256) would make it incompatible with the Ed25519 key and cause
+    /// `Certificate::from_params` to fail.
+    pub fn key_pair(mut self, key_pair: KeyPair) -> Self {
+        self.params.alg = &rcgen::PKCS_ED25519;
+        self.params.key_pair = Some(key_pair);
         self
     }
 

@@ -132,6 +132,77 @@ impl CertificateAuthority {
         })
     }
 
+    /// Issue a server (TLS termination) certificate for an edge subdomain.
+    ///
+    /// The certificate carries `serverAuth` extended key usage and a DNS SAN
+    /// for `fqdn` (plus any `extra_sans`), is signed by the CA, and is returned
+    /// as an [`EphemeralCertificate`] so the caller receives the matching
+    /// private key (unlike [`Self::issue_certificate`], whose response omits
+    /// the private key). Rate limiting is keyed on `fqdn`.
+    pub async fn issue_server_certificate(
+        &self,
+        fqdn: &str,
+        extra_sans: Vec<String>,
+        ttl: Option<Duration>,
+    ) -> CaResult<EphemeralCertificate> {
+        counter!("certificate_operations_total", "operation" => "issue_server", "status" => "requested").increment(1);
+
+        if fqdn.is_empty() {
+            counter!("certificate_operations_total", "operation" => "issue_server", "status" => "validation_failed").increment(1);
+            return Err(CaError::BadRequest("FQDN cannot be empty".to_string()));
+        }
+
+        // Rate limit keyed on the FQDN.
+        if let Err(e) = self.check_rate_limits(fqdn).await {
+            counter!("certificate_operations_total", "operation" => "issue_server", "status" => "rate_limited").increment(1);
+            return Err(e);
+        }
+
+        let ttl = ttl.unwrap_or(self.config.default_ttl);
+        if ttl > self.config.max_ttl {
+            counter!("certificate_operations_total", "operation" => "issue_server", "status" => "ttl_validation_failed").increment(1);
+            return Err(CaError::ValidationError(format!(
+                "TTL validation error: requested {} minutes, max allowed {} minutes",
+                ttl.num_minutes(),
+                self.config.max_ttl.num_minutes()
+            )));
+        }
+
+        let mut cert_request = CertificateRequest::for_server(fqdn, ttl);
+        for san in extra_sans {
+            cert_request = cert_request.with_san(san);
+        }
+
+        let ephemeral_cert = match self.generate_certificate(cert_request).await {
+            Ok(cert) => cert,
+            Err(e) => {
+                counter!("certificate_operations_total", "operation" => "issue_server", "status" => "generation_failed").increment(1);
+                return Err(e);
+            }
+        };
+
+        // Register and account for the issuance.
+        let active_cert = ActiveCertificate {
+            metadata: ephemeral_cert.metadata.clone(),
+            certificate_pem: ephemeral_cert.certificate_pem.clone(),
+            client_id: fqdn.to_string(),
+            issued_at: Utc::now(),
+        };
+        self.registry.register_certificate(active_cert).await;
+        self.rate_limiter.lock().await.record_issuance(fqdn);
+
+        counter!("certificate_operations_total", "operation" => "issue_server", "status" => "success").increment(1);
+
+        info!(
+            fqdn = %fqdn,
+            serial_number = %ephemeral_cert.metadata.serial_number,
+            expires_at = %ephemeral_cert.metadata.expires_at,
+            "Server certificate issued successfully"
+        );
+
+        Ok(ephemeral_cert)
+    }
+
     /// Validate a certificate by serial number
     pub async fn validate_certificate(&self, serial_number: &str) -> CaResult<bool> {
         counter!("certificate_operations_total", "operation" => "validate", "status" => "requested").increment(1);
@@ -221,18 +292,24 @@ impl CertificateAuthority {
         &self,
         request: CertificateRequest,
     ) -> CaResult<EphemeralCertificate> {
-        // Generate key pair for the certificate
+        // Generate the certificate key pair (Ed25519) and bind it to the
+        // certificate so the returned private key matches the certificate's
+        // public key. Previously a separate key pair was generated and
+        // serialized while `Certificate::from_params` created its own internal
+        // key — the returned key did not correspond to the issued certificate,
+        // so any TLS handshake using the pair would have failed.
         let key_pair = KeyPair::generate(&rcgen::PKCS_ED25519).map_err(|e| {
             CaError::CertificateError(format!("Certificate generation failed: {}", e))
         })?;
 
-        // Build certificate
+        // Build certificate with the explicit key pair bound.
         let cert = CertificateBuilder::new()
             .common_name(request.common_name.clone())
             .subject_alt_names(request.subject_alt_names)
             .validity_duration(request.validity_duration)
             .key_usage(request.key_usage)
             .extended_key_usage(request.extended_key_usage)
+            .key_pair(key_pair)
             .generate()?;
 
         // Sign with CA
@@ -242,7 +319,9 @@ impl CertificateAuthority {
                 CaError::CertificateError(format!("Certificate generation failed: {}", e))
             })?;
 
-        let private_key_pem = key_pair.serialize_pem();
+        // Serialize the certificate's own key pair — guaranteed to match the
+        // issued certificate.
+        let private_key_pem = cert.get_key_pair().serialize_pem();
 
         // Calculate fingerprint
         let fingerprint = calculate_fingerprint(&cert_pem)?;
@@ -478,6 +557,38 @@ mod tests {
             .await
             .unwrap();
         assert!(is_valid);
+    }
+
+    #[tokio::test]
+    async fn test_server_certificate_issuance() {
+        let config = CaConfig::default();
+        let ca = CertificateAuthority::new(config).await.unwrap();
+
+        let cert = ca
+            .issue_server_certificate("app.fleetingdns.run", Vec::new(), None)
+            .await
+            .unwrap();
+
+        // Real, CA-signed certificate with a matching private key returned.
+        assert!(cert.certificate_pem.contains("BEGIN CERTIFICATE"));
+        assert!(cert.private_key_pem.contains("PRIVATE KEY"));
+        assert!(!cert.ca_chain_pem.is_empty());
+        assert!(cert.metadata.expires_at > Utc::now());
+
+        // Registered and validatable by serial.
+        assert!(ca
+            .validate_certificate(&cert.metadata.serial_number)
+            .await
+            .unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_server_certificate_rejects_empty_fqdn() {
+        let config = CaConfig::default();
+        let ca = CertificateAuthority::new(config).await.unwrap();
+
+        let result = ca.issue_server_certificate("", Vec::new(), None).await;
+        assert!(matches!(result, Err(CaError::BadRequest(_))));
     }
 
     #[tokio::test]
