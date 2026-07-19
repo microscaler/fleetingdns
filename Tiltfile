@@ -1,10 +1,11 @@
 # FleetingDNS Tiltfile
 # ---------------------
 # Runs on ms02 against shared-k8s (default) or legacy Kind (TILT_K8S_CLUSTER=kind).
-# systemd: tilt-fleetingdns.service (port 10654) — installed from shared-k8s-cluster.
+# systemd: tilt-fleetingdns.service (port 10654) — installed from shared-gitops-k8s-cluster.
 #
-# Shared platform (postgres, redis, otel, observability) lives in shared-k8s-cluster
-# namespace `data` / `observability`. FleetingDNS deploys only its core services.
+# Shared platform (postgres, redis, otel, observability) lives in
+# shared-gitops-k8s-cluster namespace `data` / `observability`. FleetingDNS
+# deploys only its core services.
 
 # Load Tilt extensions
 load('ext://helm_resource', 'helm_resource', 'helm_repo')
@@ -17,7 +18,7 @@ config.define_bool("debug", args=False, usage="Enable debug mode")
 cfg = config.parse()
 
 # Shared platform cluster: shared-k8s (default) or legacy Kind.
-_SHARED_K8S_KCFG = os.path.abspath('../shared-k8s-cluster/kubeconfig/shared-k8s.yaml')
+_SHARED_K8S_KCFG = os.path.abspath('../shared-gitops-k8s-cluster/kubeconfig/shared-k8s.yaml')
 _SHARED_K8S_REGISTRY = '10.177.76.220:5000'
 _k8s_mode = os.environ.get('TILT_K8S_CLUSTER', '').strip().lower()
 if _k8s_mode in ('kind', 'kind-kind'):
@@ -47,7 +48,7 @@ print("📦 Deploying with Kustomize overlays...")
 # Use local cluster overlay for Kind development
 k8s_yaml(kustomize('k8s-tilt/clusters/workload/alocal'))
 
-# Shared infrastructure comes from shared-k8s-cluster (or legacy shared-kind-cluster):
+# Shared infrastructure comes from shared-gitops-k8s-cluster:
 #   • redis           → redis.data.svc.cluster.local:6379
 #   • postgres        → postgres.data.svc.cluster.local:5432
 #   • otel-collector  → otel-collector.observability.svc.cluster.local:4317
