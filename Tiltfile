@@ -56,12 +56,22 @@ k8s_yaml(kustomize('k8s-tilt/clusters/workload/alocal'))
 #
 # One-shot job: create the `fdns` database in the shared postgres if it
 # doesn't exist yet (CREATE DATABASE has no IF NOT EXISTS, hence \\gexec).
+# The Job runs in the `data` namespace, alongside postgres and its credentials.
+# secretKeyRef is namespace-local, so a Job in `fleetingdns` can NOT read a
+# Secret in `data` — this matches the platform convention already used by
+# hauliage-db-init / sesame-idam-db-init / rerp-accounting-db-init.
+#
+# The admin password is read on the fly from the shared `postgres-credentials`
+# Secret (key `postgres-password`) — never hardcoded, and deliberately NOT
+# optional: if the Secret or key is missing the pod must fail loudly rather
+# than start with an empty password and report a confusing auth failure.
+# See docs/engineering/SECURITY-DEPENDENCIES-AND-SECRETS.md
 k8s_yaml(blob("""
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: fdns-db-init
-  namespace: fleetingdns
+  namespace: data
 spec:
   backoffLimit: 6
   template:
@@ -71,17 +81,17 @@ spec:
         - name: createdb
           image: postgres:16-alpine
           env:
+            # Primary endpoint in the `data` namespace. (Note: older jobs in
+            # this cluster reference a `postgres-ha-pgpool` host — that
+            # topology no longer exists; there is no pgpool service.)
             - {name: PGHOST, value: postgres.data.svc.cluster.local}
+            # Superuser that `postgres-password` belongs to.
             - {name: PGUSER, value: postgres}
-            # Do not hardcode the password (GitGuardian). Source it from the
-            # postgres Secret; falls back to the local dev default only if the
-            # secret/key is absent. See docs/engineering/SECURITY-DEPENDENCIES-AND-SECRETS.md
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: postgres
+                  name: postgres-credentials
                   key: postgres-password
-                  optional: true
           command:
             - /bin/sh
             - -c
@@ -155,6 +165,61 @@ k8s_resource('dnsd', labels=['core'])
 k8s_resource('edgehub', port_forwards='2222:2222', resource_deps=['dnsd'], labels=['core'])
 # api serves on 8880 (8080 is chronically contested on shared dev hosts).
 k8s_resource('api', port_forwards='8880:8880', resource_deps=['fdns-db-init'], labels=['core'])
+
+# ---------------------------------------------------------------------------
+# Developer / CI checks (local_resource)
+# ---------------------------------------------------------------------------
+# Host-side cargo tasks (build, lint, test) runnable straight from Tilt and the
+# Tilt MCP — no separate shell needed. All are MANUAL and do NOT run at
+# `tilt up` (auto_init=False); trigger them on demand. A dedicated local target
+# dir keeps host builds on fast local disk (off NFS) and separate from the
+# in-container docker target at /tmp/target.
+_cargo_env = 'CARGO_TERM_COLOR=never CARGO_TARGET_DIR=/tmp/fleetingdns-host-target'
+_rust_deps = ['Cargo.toml', 'Cargo.lock', 'crates', 'cmd', 'tests']
+
+def cargo_check(name, cmd, deps=_rust_deps):
+    local_resource(
+        name,
+        '%s %s' % (_cargo_env, cmd),
+        deps=deps,
+        trigger_mode=TRIGGER_MODE_MANUAL,
+        auto_init=False,
+        # Run independently of the (slow) docker image builds — otherwise a
+        # check sits `pending` behind a multi-minute in-container Rust build.
+        # Concurrent cargo invocations sharing the target dir are safe: cargo
+        # takes its own file lock and simply waits for it.
+        allow_parallel=True,
+        labels=['checks'],
+    )
+
+# Whole-workspace gates (mirror CI).
+cargo_check('cargo-fmt',    'cargo fmt --all -- --check')
+cargo_check('cargo-clippy', 'cargo clippy --workspace --all-targets --all-features -- -D warnings')
+cargo_check('cargo-build',  'cargo build --workspace --all-features')
+cargo_check('cargo-test',   'cargo test --workspace --all-features')
+
+# Focused, fast feedback loop for crates under active work.
+cargo_check('cargo-clippy-cert', 'cargo clippy -p edf-ca -p edgehub --all-targets -- -D warnings')
+cargo_check('cargo-test-cert',   'cargo test -p edf-ca -p edgehub')
+
+# ---------------------------------------------------------------------------
+# Ops: self-management
+# ---------------------------------------------------------------------------
+# Restart this Tilt instance from inside Tilt (e.g. to pick up systemd unit or
+# environment changes; plain Tiltfile edits are hot-reloaded automatically).
+#
+# `--no-block` is essential: systemd is about to SIGTERM the very process
+# running this command, so we must return immediately and let systemd carry out
+# the restart asynchronously. Tilt drops its connection briefly and comes back
+# on the same port (10654). The UI will show this resource's run as interrupted
+# — that is expected, not a failure.
+local_resource(
+    'tilt-restart-self',
+    'systemctl --user restart --no-block tilt-fleetingdns.service',
+    trigger_mode=TRIGGER_MODE_MANUAL,
+    auto_init=False,
+    labels=['ops'],
+)
 
 # Development helpers
 print("🎯 Development environment ready!")
