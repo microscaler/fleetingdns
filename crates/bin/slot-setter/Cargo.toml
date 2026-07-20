@@ -3,10 +3,12 @@ name = "slot-setter"
 version = "0.1.0"
 edition = "2024"
 
+[lints]
+workspace = true
+
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 common = { path = "../../common" }
-dnsd = { path = "../../dnsd" }
 tokio = { workspace = true, features = ["full"] }
 tracing = { workspace = true }
 redis = { workspace = true }

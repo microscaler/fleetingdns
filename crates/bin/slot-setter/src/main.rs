@@ -3,8 +3,8 @@ use std::net::Ipv4Addr;
 use clap::Parser;
 use tracing::info;
 
+use common::redis::cache as redis_cache;
 use common::{AppResult, init_tracing};
-use dnsd::redis_cache;
 
 /// Command line arguments for the slot-setter utility.
 #[derive(Parser, Debug, Clone)]
