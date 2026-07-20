@@ -3,10 +3,16 @@ resolver = "2"
 members = [
     "crates/*",
     "cmd/*",
+    "crates/bin/slot-setter",
     "tests/integration"
 ]
+# crates/bin/dnsd (dnsd-bin-configurable) stays excluded — experimental.
+# slot-setter must NOT be excluded: it ships as a release binary (the
+# release-binaries job and the -bin deliverable both build it with -p), and
+# the previous blanket exclude of crates/bin orphaned it from the workspace,
+# breaking `-p slot-setter` ("did not match any packages").
 exclude = [
-    "crates/bin"
+    "crates/bin/dnsd"
 ]
 
 # Workspace-wide lint policy (every member opts in via `[lints] workspace = true`).
