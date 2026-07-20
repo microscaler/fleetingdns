@@ -15,6 +15,12 @@ metadata:
   name: fleetingdns
 build:
   artifacts:
+    # api image carries api-bin + the migration binary: the chart's helm
+    # pre-install hook runs /cnb/process/migration from this image
+    # (BP_RUST_PACKAGES multi-select, rust buildpack >= 0.1.11 — which also
+    # names a process per binary, so /cnb/process/api-bin etc. resolve).
+    # NOTE: requires a builder containing rust 0.1.11; bump ALL builder pins
+    # in this file to that builder tag before pushing.
     - image: ghcr.io/microscaler/fleetingdns-api
       context: .
       buildpacks:
@@ -22,8 +28,7 @@ build:
         buildpacks:
           - octopilot/rust
         env:
-          - BP_RUST_PACKAGE=api-bin
-          - BP_RUST_BINARY_NAME=api-bin
+          - BP_RUST_PACKAGES=api-bin,migration
     - image: ghcr.io/microscaler/fleetingdns-dnsd
       context: .
       buildpacks:
