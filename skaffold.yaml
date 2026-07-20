@@ -24,7 +24,7 @@ build:
     - image: ghcr.io/microscaler/fleetingdns-api
       context: .
       buildpacks:
-        builder: ghcr.io/octopilot/builder-jammy-base:rust-builder-9f9d796
+        builder: ghcr.io/octopilot/builder-jammy-base:rust-builder-7311be7
         buildpacks:
           - octopilot/rust
         env:
@@ -32,7 +32,7 @@ build:
     - image: ghcr.io/microscaler/fleetingdns-dnsd
       context: .
       buildpacks:
-        builder: ghcr.io/octopilot/builder-jammy-base:rust-builder-9f9d796
+        builder: ghcr.io/octopilot/builder-jammy-base:rust-builder-7311be7
         buildpacks:
           - octopilot/rust
         env:
@@ -41,7 +41,7 @@ build:
     - image: ghcr.io/microscaler/fleetingdns-edgehub
       context: .
       buildpacks:
-        builder: ghcr.io/octopilot/builder-jammy-base:rust-builder-9f9d796
+        builder: ghcr.io/octopilot/builder-jammy-base:rust-builder-7311be7
         buildpacks:
           - octopilot/rust
         env:
@@ -55,10 +55,10 @@ build:
     - image: ghcr.io/microscaler/fleetingdns-cli-bin
       context: .
       buildpacks:
-        builder: ghcr.io/octopilot/builder-jammy-base:rust-builder-9f9d796
+        builder: ghcr.io/octopilot/builder-jammy-base:rust-builder-7311be7
         env:
           - BP_BIN_PACKAGES=edf-cli,fleetingdns-ctl,slot-setter
     - image: ghcr.io/microscaler/fleetingdns-chart
       context: chart/fleetingdns
       buildpacks:
-        builder: ghcr.io/octopilot/builder-jammy-base:rust-builder-9f9d796
+        builder: ghcr.io/octopilot/builder-jammy-base:rust-builder-7311be7
