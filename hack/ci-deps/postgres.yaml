@@ -1,6 +1,32 @@
 # Ephemeral Postgres for the CI Kind smoke deploy only. Not part of the fleetingdns
 # chart (production DB is provisioned externally). Credentials fdns/fdns/fdns match
 # the SOPS-decrypted DATABASE_URL (postgresql://fdns:fdns@postgres:5432/fdns).
+#
+# Two DB host conventions exist in the profile:
+#   - DATABASE_URL (secret):        postgres            (namespace-local)
+#   - FDNS_DB_HOST (properties):    postgres.data.svc.cluster.local
+# Production runs Postgres in a shared `data` namespace; the ephemeral CI
+# cluster has no such namespace. The Namespace + ExternalName shim below
+# aliases postgres.data.svc.cluster.local -> the ci-deps Postgres so BOTH
+# host forms resolve in CI without leaking CI concerns into the profile.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: data
+  labels: { tier: ci-deps }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: data
+  labels: { app: postgres, tier: ci-deps }
+spec:
+  type: ExternalName
+  externalName: postgres.fleetingdns.svc.cluster.local
+  ports:
+    - port: 5432
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
