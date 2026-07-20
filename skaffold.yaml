@@ -42,6 +42,17 @@ build:
         env:
           - BP_RUST_PACKAGE=edgehub-bin
           - BP_RUST_BINARY_NAME=edgehub-bin
+    # binary meta-build function (-bin suffix): the CLI tools shipped as
+    # GitHub Release binaries. The pipeline's deliverables job release-builds
+    # the declared packages every run and assembles dist/ (tarball +
+    # SHA256SUMS); tag-gated GH-release publishing migrates here from the
+    # hand-rolled release-binaries workflow job in a later phase.
+    - image: ghcr.io/microscaler/fleetingdns-cli-bin
+      context: .
+      buildpacks:
+        builder: ghcr.io/octopilot/builder-jammy-base:rust-builder-9f9d796
+        env:
+          - BP_BIN_PACKAGES=edf-cli,fleetingdns-ctl,slot-setter
     - image: ghcr.io/microscaler/fleetingdns-chart
       context: chart/fleetingdns
       buildpacks:
