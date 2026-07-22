@@ -11,6 +11,11 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+    # Flux image automation writes image refs into
+    # deployment-configuration/profiles/ — ignoring it breaks the
+    # build -> image commit -> build-cancelling-build feedback loop.
+    paths-ignore:
+      - 'deployment-configuration/profiles/**'
   pull_request:
     branches: [main]
   workflow_dispatch:
