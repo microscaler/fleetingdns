@@ -16,8 +16,6 @@ pub struct TunnelData {
     pub created_at: String,
     pub expires_at: String,
     pub status: String,
-    pub bytes_transferred: u64,
-    pub request_count: u64,
 }
 
 impl TunnelData {
@@ -46,8 +44,6 @@ impl TunnelData {
             created_at: Utc::now().to_rfc3339(),
             expires_at: expires_at.to_rfc3339(),
             status: "creating".to_string(),
-            bytes_transferred: 0,
-            request_count: 0,
         }
     }
 
@@ -107,8 +103,6 @@ mod tests {
         let t = sample(Utc::now() + chrono::Duration::minutes(30));
         assert_eq!(t.id, Uuid::nil().to_string());
         assert_eq!(t.status, "creating");
-        assert_eq!(t.bytes_transferred, 0);
-        assert_eq!(t.request_count, 0);
         assert_eq!(t.local_port, 3000);
         assert_eq!(t.slot, 41234);
         assert!(!t.created_at.is_empty());

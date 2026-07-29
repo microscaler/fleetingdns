@@ -52,8 +52,6 @@ pub struct TunnelInfo {
     pub created_at: String,
     pub expires_at: String,
     pub status: String,
-    pub bytes_transferred: u64,
-    pub request_count: u64,
     /// When true the edge requires a valid session grant cookie before
     /// forwarding any bytes (FR-EDGE-3). Default false so records written
     /// by older API versions stay public/reachable.

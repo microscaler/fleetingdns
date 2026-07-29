@@ -321,21 +321,6 @@ impl TunnelStorage {
         Ok(())
     }
 
-    /// Update tunnel statistics
-    pub async fn update_tunnel_stats(
-        &self,
-        tunnel_id: &Uuid,
-        bytes_transferred: u64,
-        request_count: u64,
-    ) -> ApiResult<()> {
-        if let Some(mut tunnel) = self.get_tunnel(tunnel_id).await? {
-            tunnel.bytes_transferred += bytes_transferred;
-            tunnel.request_count += request_count;
-            self.store_tunnel(&tunnel).await?;
-        }
-        Ok(())
-    }
-
     /// Delete tunnel
     pub async fn delete_tunnel(&self, tunnel_id: &Uuid) -> ApiResult<bool> {
         let tunnel = match self.get_tunnel(tunnel_id).await? {
@@ -642,7 +627,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_tunnel_metrics_tracking() {
-        let mut tunnel = Tunnel::new(
+        let tunnel = Tunnel::new(
             "user999".to_string(),
             "metrics_user".to_string(),
             "metrics_app".to_string(),
@@ -653,16 +638,11 @@ mod tests {
             7200,
         );
 
-        // Test initial metrics
-        assert_eq!(tunnel.bytes_transferred, 0);
-        assert_eq!(tunnel.request_count, 0);
-
-        // Test metrics updates
-        tunnel.bytes_transferred = 1024000; // 1MB
-        tunnel.request_count = 500;
-
-        assert_eq!(tunnel.bytes_transferred, 1024000);
-        assert_eq!(tunnel.request_count, 500);
+        // Per-tunnel traffic counters were removed: the platform does not meter
+        // what flows through a user's tunnel (see `common::billing`). What
+        // remains observable is the tunnel's own identity and lifetime.
+        assert_eq!(tunnel.slot, 9999);
+        assert!(!tunnel.certificate_serial.is_empty());
     }
 
     #[tokio::test]
@@ -861,8 +841,9 @@ mod tests {
         assert_eq!(json_value["local_port"], 8080);
         assert_eq!(json_value["slot"], 8080);
         assert_eq!(json_value["certificate_serial"], "cert-json");
-        assert_eq!(json_value["bytes_transferred"], 0);
-        assert_eq!(json_value["request_count"], 0);
+        // Traffic counters are deliberately absent from the serialized tunnel.
+        assert!(json_value.get("bytes_transferred").is_none());
+        assert!(json_value.get("request_count").is_none());
 
         // Test that status is serialized correctly
         assert_eq!(json_value["status"], "creating");

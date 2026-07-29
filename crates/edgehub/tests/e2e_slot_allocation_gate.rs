@@ -59,8 +59,6 @@ async fn hub_only_binds_api_allocated_slots() {
         created_at: chrono::Utc::now().to_rfc3339(),
         expires_at: expires,
         status: "active".into(),
-        bytes_transferred: 0,
-        request_count: 0,
         protected: false,
         teardown_policy: common::redis::TeardownPolicy::TtlOnly,
     };

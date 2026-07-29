@@ -87,8 +87,6 @@ pub struct TunnelInfo {
     pub status: TunnelStatus,
     pub created_at: String,
     pub expires_at: String,
-    pub bytes_transferred: u64,
-    pub request_count: u64,
     pub remaining_ttl: i64,
 }
 
@@ -152,8 +150,6 @@ pub struct HealthDetails {
     pub dns_resolvable: bool,
     /// Port forwarding status
     pub port_forwarding_active: bool,
-    /// Successful requests in the last hour
-    pub successful_requests_last_hour: u64,
 }
 
 /// Create a new tunnel
@@ -356,8 +352,6 @@ pub async fn get_tunnel(
         status: tunnel.status,
         created_at: tunnel.created_at.to_rfc3339(),
         expires_at: tunnel.expires_at.to_rfc3339(),
-        bytes_transferred: tunnel.bytes_transferred,
-        request_count: tunnel.request_count,
         remaining_ttl,
     };
 
@@ -725,7 +719,6 @@ async fn perform_tunnel_health_checks(
                 certificate_valid: false,
                 dns_resolvable: false,
                 port_forwarding_active: false,
-                successful_requests_last_hour: 0,
             },
             last_check: now,
             response_time_ms: 0, // Simplified - in production this would be actual response time
@@ -762,42 +755,17 @@ async fn perform_tunnel_health_checks(
     // report liveness rather than an unverified `true`.
     let dns_resolvable = ssh_connected && !tunnel.fqdn.is_empty();
 
-    // Calculate error rate based on request count and failed requests
-    // In a real implementation, this would track actual failed requests
-    let total_requests = tunnel.request_count as f64;
-    let failed_requests = if tunnel.status == TunnelStatus::Error {
-        total_requests
-    } else {
-        0.0
-    };
-    let error_rate_percent = if total_requests > 0.0 {
-        (failed_requests / total_requests) * 100.0
-    } else {
-        0.0
-    };
-
-    // Calculate bandwidth (simplified - in production this would track actual bandwidth)
-    let _bandwidth_bps = if tunnel.bytes_transferred > 0 {
-        // Estimate bandwidth based on total bytes transferred and time since creation
-        let duration = (now - tunnel.created_at).num_seconds() as f64;
-        if duration > 0.0 {
-            (tunnel.bytes_transferred as f64 / duration) as u64
-        } else {
-            0
-        }
-    } else {
-        0
-    };
-
-    // Determine health status
-    let health_status = if error_rate_percent > 50.0 || !ssh_connected {
+    // Health is derived only from what the platform can observe about the
+    // tunnel itself: is it connected, and is its certificate valid. Error rate
+    // and bandwidth used to be reported here, computed from per-tunnel traffic
+    // counters — those counters were never populated, and populating them would
+    // have meant metering a user's private tunnel. See `common::billing`.
+    let health_status = if !ssh_connected {
         TunnelHealthStatus::Unhealthy
-    } else if error_rate_percent > 10.0 || !certificate_valid {
+    } else if !certificate_valid {
         TunnelHealthStatus::Degraded
-    } else if ssh_connected && certificate_valid {
-        TunnelHealthStatus::Healthy
     } else {
-        TunnelHealthStatus::Unknown
+        TunnelHealthStatus::Healthy
     };
 
     // Determine connection status
@@ -811,18 +779,6 @@ async fn perform_tunnel_health_checks(
         ConnectionStatus::Connected
     };
 
-    // Get recent request statistics (simplified - in production this would track actual recent requests)
-    let successful_requests_last_hour = if health_status == TunnelHealthStatus::Healthy {
-        tunnel.request_count
-    } else {
-        0
-    };
-    let _failed_requests_last_hour = if health_status == TunnelHealthStatus::Unhealthy {
-        tunnel.request_count
-    } else {
-        0
-    };
-
     Ok(TunnelHealthInfo {
         status: health_status,
         connection_status,
@@ -831,7 +787,6 @@ async fn perform_tunnel_health_checks(
             certificate_valid,
             dns_resolvable,
             port_forwarding_active,
-            successful_requests_last_hour,
         },
         last_check: now,
         response_time_ms: 50, // Simplified - in production this would be actual response time
@@ -870,8 +825,6 @@ pub async fn list_tunnels(
                 status: tunnel.status,
                 created_at: tunnel.created_at.to_rfc3339(),
                 expires_at: tunnel.expires_at.to_rfc3339(),
-                bytes_transferred: tunnel.bytes_transferred,
-                request_count: tunnel.request_count,
                 remaining_ttl,
             }
         })
@@ -1068,7 +1021,6 @@ mod tests {
             certificate_valid: true,
             dns_resolvable: true,
             port_forwarding_active: true,
-            successful_requests_last_hour: 100,
         };
 
         let serialized = serde_json::to_string(&health_details).unwrap();
@@ -1089,7 +1041,6 @@ mod tests {
                 certificate_valid: true,
                 dns_resolvable: true,
                 port_forwarding_active: true,
-                successful_requests_last_hour: 100,
             },
             last_check: Utc::now(),
             response_time_ms: 50,

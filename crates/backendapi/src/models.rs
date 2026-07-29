@@ -38,12 +38,6 @@ pub struct Tunnel {
     /// Current tunnel status
     pub status: TunnelStatus,
 
-    /// Number of bytes transferred through this tunnel
-    pub bytes_transferred: u64,
-
-    /// Number of requests processed
-    pub request_count: u64,
-
     /// When true the edge requires a valid session grant cookie before
     /// forwarding any bytes (FR-EDGE-3). serde(default) keeps older Redis
     /// records deserializable (and public).
@@ -214,8 +208,6 @@ impl Tunnel {
             created_at: now,
             expires_at,
             status: TunnelStatus::Creating,
-            bytes_transferred: 0,
-            request_count: 0,
             protected: false,
             teardown_policy: common::redis::TeardownPolicy::default(),
         }
@@ -257,8 +249,6 @@ mod tests {
         assert_eq!(tunnel.slot, 12345);
         assert_eq!(tunnel.certificate_serial, "cert-serial-123");
         assert!(matches!(tunnel.status, TunnelStatus::Creating));
-        assert_eq!(tunnel.bytes_transferred, 0);
-        assert_eq!(tunnel.request_count, 0);
     }
 
     #[test]
