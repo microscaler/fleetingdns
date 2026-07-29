@@ -40,6 +40,10 @@ pub struct ApiState {
     pub rate_limiter: Arc<RateLimitState>,
     pub db: DatabaseConnection,
     pub quota_enforcer: Arc<quota_enforcement::ServicePlanRateLimiter>,
+    /// Usage metering sink for future billing. Defaults to
+    /// [`common::billing::NoopMeter`], which records nothing — see
+    /// [`common::billing`] for why metering is off unless deliberately enabled.
+    pub meter: Arc<dyn common::billing::UsageMeter>,
 }
 
 /// Run the API server
@@ -103,6 +107,10 @@ pub async fn run_with_config(config: ApiConfig) -> ApiResult<()> {
         rate_limiter,
         db,
         quota_enforcer,
+        // No usage is recorded unless a deployment deliberately substitutes a
+        // real meter here, which is a product decision requiring disclosure
+        // and user consent. See `common::billing`.
+        meter: Arc::new(common::billing::NoopMeter),
     };
 
     // Build the router

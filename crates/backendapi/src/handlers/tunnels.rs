@@ -254,6 +254,16 @@ pub async fn create_tunnel(
 
     info!("Created tunnel {} -> {}", tunnel.fqdn, tunnel.local_port);
 
+    // Billing call point: the tunnel becomes billable here. Records nothing
+    // under the default NoopMeter — see `common::billing`.
+    state
+        .meter
+        .record(common::billing::UsageEvent::TunnelOpened {
+            tunnel_id: tunnel.id.to_string(),
+            user_id: user.id.clone(),
+            at: chrono::Utc::now(),
+        });
+
     // Generate SSH key pair and store the session so the hub can authenticate
     // the SSH connection against this issued key (TDP-13). The session id is
     // the tunnel id; the hub reads `session:{id}` and compares fingerprints.
@@ -478,6 +488,24 @@ pub async fn delete_tunnel(
 
     if deleted {
         info!("Deleted tunnel {} for user {}", tunnel_id, user.login);
+
+        // Billing call point: paired with the TunnelOpened event recorded at
+        // creation, these bound a billable interval. Records nothing under the
+        // default NoopMeter — see `common::billing`.
+        //
+        // NOTE: this fires only for tunnels the owner deletes explicitly.
+        // Tunnels that lapse are removed by Redis key expiry, so no code runs
+        // and no TunnelClosed event is emitted. Billing on tunnel-hours would
+        // need an expiry observer (or to treat a missing close as "closed at
+        // expires_at") before it could be considered complete.
+        state
+            .meter
+            .record(common::billing::UsageEvent::TunnelClosed {
+                tunnel_id: tunnel.id.to_string(),
+                user_id: user.id.clone(),
+                at: chrono::Utc::now(),
+                reason: common::billing::CloseReason::UserRequested,
+            });
     }
 
     // Record tunnel deletion metrics

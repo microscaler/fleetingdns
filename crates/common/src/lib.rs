@@ -7,6 +7,7 @@ use thiserror::Error;
 use tracing::info;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
+pub mod billing;
 pub mod config;
 pub mod ddos_protection;
 pub mod error;
