@@ -60,7 +60,14 @@ pub async fn run_with_config(config: ApiConfig) -> ApiResult<()> {
         // integration suite after ten tunnels.
         ca_config.certs_per_hour_per_client = 10_000;
     }
-    let ca = Arc::new(edf_ca::CertificateAuthority::new(ca_config).await?);
+    // Back the CA registry with Redis so certificates issued before a restart
+    // still validate afterwards — tunnel health reports certificate_valid from
+    // this registry, and a memory-only CA would mark every live tunnel's
+    // certificate invalid on each deploy.
+    let ca_pool = common::redis::new_pool(&config.redis_url)
+        .await
+        .map_err(|e| ApiError::StorageError(e.to_string()))?;
+    let ca = Arc::new(edf_ca::CertificateAuthority::with_store(ca_config, ca_pool).await?);
 
     // Initialize storage
     let storage = Arc::new(storage::TunnelStorage::new(&config.redis_url).await?);

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 pub mod batch_operations;
@@ -126,7 +126,7 @@ pub struct IssuanceResponse {
 }
 
 /// Active certificate tracking
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActiveCertificate {
     /// Certificate metadata
     pub metadata: CertificateMetadata,
@@ -138,40 +138,146 @@ pub struct ActiveCertificate {
     pub issued_at: DateTime<Utc>,
 }
 
-/// Certificate registry for tracking active certificates
+/// Redis key prefix for persisted certificate records.
+const CERT_KEY_PREFIX: &str = "edf-ca:cert";
+
+fn cert_key(serial_number: &str) -> String {
+    format!("{CERT_KEY_PREFIX}:{serial_number}")
+}
+
+/// Certificate registry for tracking active certificates.
+///
+/// The in-memory map is the fast path. When a Redis pool is supplied via
+/// [`CertificateRegistry::with_store`], issued certificates are also persisted
+/// (with a TTL matching their lifetime) and lookups fall back to Redis on a
+/// local miss — so validation still succeeds for certificates issued before a
+/// process restart. Without a store the registry is memory-only and every
+/// serial becomes unknown when the process exits.
 #[derive(Debug, Default)]
 pub struct CertificateRegistry {
     /// Active certificates by serial number
     active_certs: Arc<Mutex<HashMap<String, ActiveCertificate>>>,
+    /// Optional durable backing store.
+    store: Option<common::redis::RedisPool>,
 }
 
 impl CertificateRegistry {
-    /// Create a new certificate registry
+    /// Create a new, memory-only certificate registry.
     pub fn new() -> Self {
         Self {
             active_certs: Arc::new(Mutex::new(HashMap::new())),
+            store: None,
+        }
+    }
+
+    /// Create a registry that also persists certificates to Redis, so they
+    /// survive a restart of the issuing process.
+    pub fn with_store(pool: common::redis::RedisPool) -> Self {
+        Self {
+            active_certs: Arc::new(Mutex::new(HashMap::new())),
+            store: Some(pool),
         }
     }
 
     /// Register a new certificate
     pub async fn register_certificate(&self, cert: ActiveCertificate) {
         let serial = cert.metadata.serial_number.clone();
+
+        // Persist before caching locally. A store failure is logged but not
+        // fatal: refusing to issue a certificate because Redis blipped would
+        // be a worse outcome than a registry that cannot survive a restart.
+        if let Some(pool) = &self.store {
+            let ttl = (cert.metadata.expires_at - Utc::now()).num_seconds();
+            if ttl > 0 {
+                match serde_json::to_string(&cert) {
+                    Ok(json) => {
+                        if let Err(e) = common::redis::set_string_ex(
+                            pool,
+                            &cert_key(&serial),
+                            &json,
+                            ttl as u64,
+                        )
+                        .await
+                        {
+                            warn!(
+                                serial_number = %serial,
+                                error = %e,
+                                "Failed to persist certificate; it will not validate after a restart"
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        warn!(serial_number = %serial, error = %e, "Failed to serialize certificate for persistence");
+                    }
+                }
+            }
+        }
+
         self.active_certs.lock().await.insert(serial, cert);
     }
 
     /// Check if a certificate is active and valid
     pub async fn is_certificate_valid(&self, serial_number: &str) -> bool {
-        let certs = self.active_certs.lock().await;
-        if let Some(cert) = certs.get(serial_number) {
-            cert.metadata.expires_at > Utc::now()
-        } else {
-            false
+        match self.get_certificate(serial_number).await {
+            Some(cert) => cert.metadata.expires_at > Utc::now(),
+            None => false,
         }
     }
 
-    /// Get certificate by serial number
+    /// Get certificate by serial number, consulting the durable store when the
+    /// in-memory map does not have it (the post-restart path).
     pub async fn get_certificate(&self, serial_number: &str) -> Option<ActiveCertificate> {
-        self.active_certs.lock().await.get(serial_number).cloned()
+        // Scope the guard so it is not held across the await below.
+        let cached = { self.active_certs.lock().await.get(serial_number).cloned() };
+        if cached.is_some() {
+            return cached;
+        }
+
+        let pool = self.store.as_ref()?;
+        match common::redis::get_string(pool, &cert_key(serial_number)).await {
+            Ok(Some(json)) => match serde_json::from_str::<ActiveCertificate>(&json) {
+                Ok(cert) => {
+                    // Re-populate the local cache so repeat lookups stay fast.
+                    self.active_certs
+                        .lock()
+                        .await
+                        .insert(serial_number.to_string(), cert.clone());
+                    Some(cert)
+                }
+                Err(e) => {
+                    warn!(serial_number = %serial_number, error = %e, "Stored certificate record is malformed");
+                    None
+                }
+            },
+            Ok(None) => None,
+            Err(e) => {
+                warn!(serial_number = %serial_number, error = %e, "Certificate store lookup failed");
+                None
+            }
+        }
+    }
+
+    /// Remove a certificate from the registry and the durable store.
+    ///
+    /// Returns true if it was present locally. Removing from the store as well
+    /// is essential for revocation: a record left in Redis would come back on
+    /// the next lookup and the certificate would validate again after a restart.
+    pub async fn remove_certificate(&self, serial_number: &str) -> bool {
+        if let Some(pool) = &self.store {
+            if let Err(e) = common::redis::del_key(pool, &cert_key(serial_number)).await {
+                warn!(
+                    serial_number = %serial_number,
+                    error = %e,
+                    "Failed to remove certificate from store; it may validate again after a restart"
+                );
+            }
+        }
+
+        self.active_certs
+            .lock()
+            .await
+            .remove(serial_number)
+            .is_some()
     }
 
     /// Remove expired certificates

@@ -29,10 +29,24 @@ pub struct CertificateAuthority {
 }
 
 impl CertificateAuthority {
-    /// Create a new Certificate Authority
+    /// Create a new Certificate Authority with a memory-only registry.
+    ///
+    /// Issued certificates are forgotten when the process exits, so
+    /// [`Self::validate_certificate`] reports previously issued serials as
+    /// invalid after a restart. Use [`Self::with_store`] where validation must
+    /// outlive the process.
     pub async fn new(config: CaConfig) -> CaResult<Self> {
+        Self::build(config, CertificateRegistry::new()).await
+    }
+
+    /// Create a Certificate Authority whose registry is persisted to Redis, so
+    /// certificates issued before a restart still validate afterwards.
+    pub async fn with_store(config: CaConfig, pool: common::redis::RedisPool) -> CaResult<Self> {
+        Self::build(config, CertificateRegistry::with_store(pool)).await
+    }
+
+    async fn build(config: CaConfig, registry: CertificateRegistry) -> CaResult<Self> {
         let ca_certificate = Self::load_or_generate_ca_certificate(&config).await?;
-        let registry = CertificateRegistry::new();
         let rate_limiter = Arc::new(Mutex::new(RateLimiter::new(
             config.certs_per_hour_per_client,
         )));
@@ -264,10 +278,19 @@ impl CertificateAuthority {
         counter!("certificate_operations_total", "operation" => "revoke", "status" => "requested")
             .increment(1);
 
-        // For ephemeral certificates, we just remove from registry
-        // In production, this might involve CRL or OCSP
-        let mut certs = self.registry.active_certs.lock().await;
-        if certs.remove(serial_number).is_some() {
+        // For ephemeral certificates, we just remove from the registry.
+        // In production, this might involve CRL or OCSP.
+        //
+        // Go through the registry rather than its internal map: revocation must
+        // also delete the persisted record, or the certificate would reappear
+        // on the next lookup and validate again after a restart.
+        //
+        // `remove_certificate` reports only whether the entry was cached
+        // locally, so consult the registry first — a certificate issued before
+        // a restart lives in the store but not yet in memory.
+        let known = self.registry.get_certificate(serial_number).await.is_some();
+        let removed = self.registry.remove_certificate(serial_number).await;
+        if known || removed {
             counter!("certificate_operations_total", "operation" => "revoke", "status" => "success").increment(1);
             info!(serial_number = %serial_number, "Certificate revoked");
             Ok(())
@@ -648,6 +671,43 @@ mod tests {
             .validate_certificate(&cert.metadata.serial_number)
             .await
             .unwrap());
+    }
+
+    /// A memory-only CA cannot validate a certificate it issued before the
+    /// process restarted. This documents the limitation that motivates
+    /// [`CertificateAuthority::with_store`]: the API uses the persistent
+    /// variant so tunnel health does not mark every live certificate invalid
+    /// on each deploy.
+    #[tokio::test]
+    async fn test_memory_only_registry_forgets_across_restart() {
+        let issued = {
+            let ca = CertificateAuthority::new(CaConfig::default())
+                .await
+                .unwrap();
+            let response = ca
+                .issue_certificate(IssuanceRequest::new(
+                    "restart.fleetingdns.run".to_string(),
+                    "client-restart".to_string(),
+                ))
+                .await
+                .unwrap();
+            assert!(
+                ca.validate_certificate(&response.metadata.serial_number)
+                    .await
+                    .unwrap(),
+                "certificate must validate while the issuing CA is alive"
+            );
+            response.metadata.serial_number
+        };
+
+        // A fresh CA stands in for the restarted process.
+        let restarted = CertificateAuthority::new(CaConfig::default())
+            .await
+            .unwrap();
+        assert!(
+            !restarted.validate_certificate(&issued).await.unwrap(),
+            "a memory-only registry cannot know a certificate issued before restart"
+        );
     }
 
     #[tokio::test]

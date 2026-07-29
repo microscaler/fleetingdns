@@ -83,6 +83,37 @@ pub const SESSION_COOKIE_NAME: &str = "fdns_session";
 /// this key with a short TTL; the edge router checks it before forwarding
 /// any bytes on a `protected` tunnel. The key format is the contract
 /// between the two services — change it in one place only.
+/// Redis key marking a tunnel as having a live, bound slot listener on the hub.
+pub fn tunnel_live_key(tunnel_id: &str) -> String {
+    format!("tunnel:live:{tunnel_id}")
+}
+
+/// Mark a tunnel as live for `ttl` seconds.
+///
+/// Only the hub writes this, and only while it actually holds a bound slot
+/// listener for the tunnel. It is deliberately short-lived and refreshed: if
+/// the hub dies without running its teardown path, the key expires on its own
+/// rather than reporting a dead tunnel as connected forever.
+pub async fn mark_tunnel_live(
+    pool: &RedisPool,
+    tunnel_id: &str,
+    ttl: u64,
+) -> Result<(), CacheError> {
+    dnsd_cache::set_string_ex(pool, &tunnel_live_key(tunnel_id), "1", ttl).await
+}
+
+/// Clear a tunnel's liveness marker (hub teardown path).
+pub async fn clear_tunnel_live(pool: &RedisPool, tunnel_id: &str) -> Result<(), CacheError> {
+    dnsd_cache::del_key(pool, &tunnel_live_key(tunnel_id)).await
+}
+
+/// True while the hub is publishing liveness for this tunnel.
+pub async fn is_tunnel_live(pool: &RedisPool, tunnel_id: &str) -> Result<bool, CacheError> {
+    Ok(dnsd_cache::get_string(pool, &tunnel_live_key(tunnel_id))
+        .await?
+        .is_some())
+}
+
 pub fn session_grant_key(subdomain: &str, token: &str) -> String {
     format!("session_grant:{subdomain}:{token}")
 }

@@ -77,6 +77,55 @@ pub async fn del_slot(pool: &RedisPool, slot: &str) -> Result<(), CacheError> {
     Ok(())
 }
 
+/// Store a string value under `key` with a TTL in seconds.
+///
+/// Generic counterpart to [`set_slot`], for callers that persist their own
+/// serialized records (for example the certificate registry) and should not
+/// need to depend on the Redis client directly.
+pub async fn set_string_ex(
+    pool: &RedisPool,
+    key: &str,
+    value: &str,
+    ttl: u64,
+) -> Result<(), CacheError> {
+    let mut conn = pool
+        .get()
+        .await
+        .map_err(|e| FleetingDnsError::ConnectionError(e.to_string()))?;
+    let _: () = bb8_redis::redis::cmd("SET")
+        .arg(key)
+        .arg(value)
+        .arg("EX")
+        .arg(ttl)
+        .query_async(&mut *conn)
+        .await?;
+    Ok(())
+}
+
+/// Fetch a string value by key. Returns `Ok(None)` when the key is absent or
+/// has expired, so callers can distinguish "missing" from "backend failed".
+pub async fn get_string(pool: &RedisPool, key: &str) -> Result<Option<String>, CacheError> {
+    let mut conn = pool
+        .get()
+        .await
+        .map_err(|e| FleetingDnsError::ConnectionError(e.to_string()))?;
+    let val: Option<String> = conn.get(key).await?;
+    Ok(val)
+}
+
+/// Delete a key, ignoring whether it existed.
+pub async fn del_key(pool: &RedisPool, key: &str) -> Result<(), CacheError> {
+    let mut conn = pool
+        .get()
+        .await
+        .map_err(|e| FleetingDnsError::ConnectionError(e.to_string()))?;
+    let _: () = bb8_redis::redis::cmd("DEL")
+        .arg(key)
+        .query_async(&mut *conn)
+        .await?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

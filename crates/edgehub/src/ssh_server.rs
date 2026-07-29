@@ -36,6 +36,14 @@ pub const VIEWER_IDLE_TEARDOWN: Duration = Duration::from_secs(60);
 /// How often the viewer-idle reaper wakes up to check.
 const VIEWER_IDLE_POLL: Duration = Duration::from_secs(10);
 
+/// How long a published tunnel-liveness marker survives without a refresh.
+/// Bounds how long a disconnected tunnel can still report as connected.
+pub const TUNNEL_LIVE_TTL: Duration = Duration::from_secs(45);
+
+/// How often the hub refreshes the liveness marker. Comfortably shorter than
+/// [`TUNNEL_LIVE_TTL`] so a slow refresh never lets a live tunnel flap.
+const TUNNEL_LIVE_REFRESH: Duration = Duration::from_secs(15);
+
 /// Tracks viewer activity on one bound slot listener (FR-HUB-2).
 ///
 /// "Idle" means no OPEN connections AND no accept/close event for the
@@ -861,9 +869,15 @@ impl russh::server::Handler for SshSession {
         // carries the teardown policy (FR-HUB-2). Without Redis (tests /
         // bare dev) everything is allowed with ttl_only.
         let requested_port = *port as u16;
+        // The tunnel id is carried out of the lookup so the liveness heartbeat
+        // below can publish under it.
+        let mut live_tunnel_id: Option<String> = None;
         let policy = match &self.state.redis_pool {
             Some(pool) => match common::redis::get_tunnel_by_slot(pool, requested_port).await {
-                Ok(Some(tunnel)) => tunnel.teardown_policy,
+                Ok(Some(tunnel)) => {
+                    live_tunnel_id = Some(tunnel.id.clone());
+                    tunnel.teardown_policy
+                }
                 Ok(None) => {
                     warn!(
                         requested_port,
@@ -984,6 +998,30 @@ impl russh::server::Handler for SshSession {
         });
 
         let mut task_handles = vec![accept_task];
+
+        // Publish tunnel liveness while this slot listener is bound.
+        //
+        // The API previously inferred "ssh_connected" from a stored status
+        // field, which a client that vanishes never updates — so a dead tunnel
+        // reported healthy. This heartbeat is the only authority on whether a
+        // tunnel is actually connected: it exists exactly as long as the
+        // listener does. Aborted with the other tasks on teardown, after which
+        // the key expires (so liveness can lag a disconnect by up to
+        // TUNNEL_LIVE_TTL); if the hub dies outright it expires the same way.
+        if let (Some(pool), Some(tunnel_id)) = (&self.state.redis_pool, live_tunnel_id) {
+            let pool = pool.clone();
+            task_handles.push(tokio::spawn(async move {
+                loop {
+                    if let Err(e) =
+                        common::redis::mark_tunnel_live(&pool, &tunnel_id, TUNNEL_LIVE_TTL.as_secs())
+                            .await
+                    {
+                        warn!(tunnel_id = %tunnel_id, error = %e, "failed to publish tunnel liveness");
+                    }
+                    tokio::time::sleep(TUNNEL_LIVE_REFRESH).await;
+                }
+            }));
+        }
 
         // Viewer-idle reaper: only for viewer_idle tunnels (human portal
         // tabs). ttl_only tunnels — the FleetingDNS default, and the right

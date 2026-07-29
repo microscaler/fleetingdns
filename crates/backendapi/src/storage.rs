@@ -222,6 +222,22 @@ impl TunnelStorage {
         Ok(())
     }
 
+    /// Whether the hub is currently publishing liveness for this tunnel.
+    ///
+    /// The hub writes (and refreshes) this key only while it holds a bound slot
+    /// listener, so it is the authoritative answer to "is this tunnel actually
+    /// connected?" — unlike the stored status field, which a client that
+    /// disappears never updates.
+    pub async fn is_tunnel_live(&self, tunnel_id: &str) -> ApiResult<bool> {
+        let mut conn = self.get_connection().await?;
+        let key = common::redis::tunnel_live_key(tunnel_id);
+        let value: Option<String> = conn
+            .get(&key)
+            .await
+            .map_err(|e| ApiError::StorageError(format!("Failed to read tunnel liveness: {e}")))?;
+        Ok(value.is_some())
+    }
+
     /// Retrieve tunnel by ID
     pub async fn get_tunnel(&self, tunnel_id: &Uuid) -> ApiResult<Option<Tunnel>> {
         let mut conn = self.get_connection().await?;

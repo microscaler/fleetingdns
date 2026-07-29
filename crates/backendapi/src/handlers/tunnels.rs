@@ -683,7 +683,7 @@ pub struct HealthError {
 /// Perform comprehensive health checks for a tunnel
 async fn perform_tunnel_health_checks(
     tunnel: &Tunnel,
-    _state: &ApiState,
+    state: &ApiState,
 ) -> ApiResult<TunnelHealthInfo> {
     let now = Utc::now();
 
@@ -704,29 +704,35 @@ async fn perform_tunnel_health_checks(
         });
     }
 
-    // Check certificate validity
+    // Validate the certificate against the CA registry (Redis-backed, so this
+    // survives an API restart) rather than assuming a non-empty serial is good.
     let certificate_valid = if tunnel.certificate_serial.is_empty() {
         false
     } else {
-        // In a real implementation, this would validate the certificate with edf-ca
-        // For now, we'll assume it's valid if it exists and tunnel is not expired
-        true
+        state
+            .ca
+            .validate_certificate(&tunnel.certificate_serial)
+            .await
+            .unwrap_or(false)
     };
 
-    // Check DNS resolution (simplified - in production this would do actual DNS lookup)
-    let dns_resolvable = true; // Simplified for now
+    // The hub publishes (and refreshes) a liveness marker only while it holds a
+    // bound slot listener for this tunnel, so this reflects an actual
+    // connection. The stored status field does not: a client that vanishes
+    // never updates it, which is why a dead tunnel used to report healthy.
+    let ssh_connected = state
+        .storage
+        .is_tunnel_live(&tunnel.id.to_string())
+        .await
+        .unwrap_or(false);
 
-    // Check SSH connection status (simplified - in production this would check actual SSH connections)
-    let ssh_connected = match tunnel.status {
-        TunnelStatus::Active => true,
-        TunnelStatus::Creating => false,
-        TunnelStatus::Destroying => false,
-        TunnelStatus::Expired => false,
-        TunnelStatus::Error => false,
-    };
+    // Forwarding requires a live listener and an allocated slot to forward to.
+    let port_forwarding_active = ssh_connected && tunnel.slot != 0;
 
-    // Check port forwarding (simplified - in production this would check actual port forwarding)
-    let port_forwarding_active = ssh_connected && certificate_valid;
+    // DNS is not probed from here (the API has no resolver on the data path).
+    // A tunnel's record is only resolvable while the hub is serving it, so
+    // report liveness rather than an unverified `true`.
+    let dns_resolvable = ssh_connected && !tunnel.fqdn.is_empty();
 
     // Calculate error rate based on request count and failed requests
     // In a real implementation, this would track actual failed requests
