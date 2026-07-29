@@ -51,8 +51,36 @@ impl CertificateAuthority {
         })
     }
 
-    /// Issue an ephemeral certificate
+    /// Issue an ephemeral certificate.
+    ///
+    /// The returned [`IssuanceResponse`] deliberately omits the private key.
+    /// Callers that must hand the key to the certificate's owner (for example
+    /// the API's create-tunnel path, where the client cannot use a certificate
+    /// it has no key for) should call [`Self::issue_client_certificate`]
+    /// instead, which returns the key alongside the certificate.
     pub async fn issue_certificate(&self, request: IssuanceRequest) -> CaResult<IssuanceResponse> {
+        let request_id = request.request_id.clone();
+        let ephemeral_cert = self.issue_client_certificate(request).await?;
+
+        Ok(IssuanceResponse {
+            request_id,
+            certificate_pem: ephemeral_cert.certificate_pem,
+            metadata: ephemeral_cert.metadata,
+            ca_chain_pem: ephemeral_cert.ca_chain_pem,
+        })
+    }
+
+    /// Issue an ephemeral tunnel-client certificate together with its matching
+    /// private key.
+    ///
+    /// Identical to [`Self::issue_certificate`] except that the private key is
+    /// returned rather than discarded — [`Self::issue_certificate`] is a thin
+    /// wrapper over this method, so validation, rate limiting, registration and
+    /// metrics cannot drift between the two.
+    pub async fn issue_client_certificate(
+        &self,
+        request: IssuanceRequest,
+    ) -> CaResult<EphemeralCertificate> {
         counter!("certificate_operations_total", "operation" => "issue", "status" => "requested")
             .increment(1);
 
@@ -124,12 +152,7 @@ impl CertificateAuthority {
             "Certificate issued successfully"
         );
 
-        Ok(IssuanceResponse {
-            request_id: request.request_id,
-            certificate_pem: ephemeral_cert.certificate_pem,
-            metadata: ephemeral_cert.metadata,
-            ca_chain_pem: ephemeral_cert.ca_chain_pem,
-        })
+        Ok(ephemeral_cert)
     }
 
     /// Issue a server (TLS termination) certificate for an edge subdomain.
@@ -557,6 +580,51 @@ mod tests {
             .await
             .unwrap();
         assert!(is_valid);
+    }
+
+    /// The private key handed back with a client certificate must be
+    /// cryptographically bound to that certificate: compare the SubjectPublicKeyInfo
+    /// embedded in the certificate with the public key derived from the returned
+    /// private key. This rejects both historical faults — the CA returning a key
+    /// generated independently of the certificate, and the API substituting a
+    /// literal placeholder string for the key.
+    #[tokio::test]
+    async fn test_client_certificate_key_matches_certificate() {
+        let ca = CertificateAuthority::new(CaConfig::default())
+            .await
+            .unwrap();
+
+        let cert = ca
+            .issue_client_certificate(IssuanceRequest::new(
+                "tunnel.fleetingdns.run".to_string(),
+                "client-123".to_string(),
+            ))
+            .await
+            .unwrap();
+
+        assert!(cert.private_key_pem.contains("PRIVATE KEY"));
+        assert!(
+            !cert.private_key_pem.contains("..."),
+            "private key must not be a placeholder"
+        );
+
+        // Public key derived from the returned private key.
+        let key_spki = rcgen::KeyPair::from_pem(&cert.private_key_pem)
+            .expect("returned private key must parse")
+            .public_key_der();
+
+        // Public key embedded in the issued certificate.
+        let (_, pem) = x509_parser::pem::parse_x509_pem(cert.certificate_pem.as_bytes())
+            .expect("issued certificate must parse as PEM");
+        let x509 = pem
+            .parse_x509()
+            .expect("issued certificate must parse as X.509");
+        let cert_spki = x509.public_key().raw.to_vec();
+
+        assert_eq!(
+            cert_spki, key_spki,
+            "returned private key does not correspond to the issued certificate"
+        );
     }
 
     #[tokio::test]

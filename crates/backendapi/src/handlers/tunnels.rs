@@ -56,7 +56,8 @@ pub struct CreateTunnelResponse {
     /// TLS certificate for client authentication
     pub tls_cert: String,
 
-    /// Private key for TLS certificate - NOTE: This should be in the response from edf-ca
+    /// Private key (PEM) matching `tls_cert`, issued by edf-ca. Returned only
+    /// to the authenticated tunnel owner at creation time and never stored.
     pub private_key: String,
 
     /// SSH key pair for tunnel authentication
@@ -215,10 +216,12 @@ pub async fn create_tunnel(
     let cert_request =
         edf_ca::IssuanceRequest::new(format!("tunnel-client-{}", user.id), user.id.clone());
 
-    // Issue certificate first
+    // Issue certificate first. Use issue_client_certificate (not
+    // issue_certificate) so the response carries the private key: the tunnel
+    // owner cannot use a certificate it has no matching key for.
     let cert_response = state
         .ca
-        .issue_certificate(cert_request)
+        .issue_client_certificate(cert_request)
         .await
         .map_err(|e| ApiError::CertificateError(e.to_string()))?;
 
@@ -292,7 +295,7 @@ pub async fn create_tunnel(
         fqdn: tunnel.fqdn,
         slot: allocated_port, // Return the allocated port for the client
         tls_cert: cert_response.certificate_pem,
-        private_key: "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----".to_string(), // TODO: Get from edf-ca
+        private_key: cert_response.private_key_pem,
         ssh_key,
         expires_at: tunnel.expires_at.to_rfc3339(),
         auth: auth_credentials,
