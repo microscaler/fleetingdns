@@ -29,6 +29,14 @@ impl Handler for NoopClientHandler {
 
 const ALLOCATED_SLOT: u16 = 43555;
 const UNALLOCATED_SLOT: u16 = 43556;
+/// Allocated to a *different* developer — used to prove cross-tenant isolation.
+const OTHER_TENANT_SLOT: u16 = 43557;
+
+/// The CLI authenticates as `tunnel-{tunnel_id}`, so the authenticated session
+/// id equals the tunnel id. Tests must do the same or they do not exercise the
+/// ownership check the hub performs.
+const OWN_TUNNEL_ID: &str = "gate-test-1";
+const OTHER_TUNNEL_ID: &str = "gate-test-2";
 
 #[tokio::test]
 async fn hub_only_binds_api_allocated_slots() {
@@ -48,7 +56,7 @@ async fn hub_only_binds_api_allocated_slots() {
     let pool = common::redis::new_pool(&redis_url).await.expect("pool");
     let expires = (chrono::Utc::now() + chrono::Duration::seconds(600)).to_rfc3339();
     let record = common::redis::tunnel::TunnelInfo {
-        id: "gate-test-1".into(),
+        id: OWN_TUNNEL_ID.into(),
         github_user_id: "u1".into(),
         github_username: "user1".into(),
         subdomain: "gate-test".into(),
@@ -57,7 +65,7 @@ async fn hub_only_binds_api_allocated_slots() {
         slot: ALLOCATED_SLOT,
         certificate_serial: "none".into(),
         created_at: chrono::Utc::now().to_rfc3339(),
-        expires_at: expires,
+        expires_at: expires.clone(),
         status: "active".into(),
         protected: false,
         teardown_policy: common::redis::TeardownPolicy::TtlOnly,
@@ -65,9 +73,32 @@ async fn hub_only_binds_api_allocated_slots() {
     common::redis::store_tunnel_data(&pool, &record)
         .await
         .expect("store record");
-    common::redis::store_user_tunnel_lookup(&pool, "u1", "user1", "gate-test-1")
+    common::redis::store_user_tunnel_lookup(&pool, "u1", "user1", OWN_TUNNEL_ID)
         .await
         .expect("store lookup");
+
+    // A second developer's tunnel, allocated and live, on its own slot.
+    let other_tenant = common::redis::tunnel::TunnelInfo {
+        id: OTHER_TUNNEL_ID.into(),
+        github_user_id: "u2".into(),
+        github_username: "user2".into(),
+        subdomain: "other-tenant".into(),
+        fqdn: "other-tenant.fleetingdns.run".into(),
+        local_port: 3000,
+        slot: OTHER_TENANT_SLOT,
+        certificate_serial: "none".into(),
+        created_at: chrono::Utc::now().to_rfc3339(),
+        expires_at: expires,
+        status: "active".into(),
+        protected: false,
+        teardown_policy: common::redis::TeardownPolicy::TtlOnly,
+    };
+    common::redis::store_tunnel_data(&pool, &other_tenant)
+        .await
+        .expect("store other tenant record");
+    common::redis::store_user_tunnel_lookup(&pool, "u2", "user2", OTHER_TUNNEL_ID)
+        .await
+        .expect("store other tenant lookup");
 
     // Hub wired to that Redis.
     let probe = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -104,9 +135,14 @@ async fn hub_only_binds_api_allocated_slots() {
     .await
     .expect("connect");
     let kp = PrivateKey::random(&mut rand_key::rng(), Algorithm::Ed25519).unwrap();
+    // Authenticate the way the CLI does: the username carries the tunnel id, so
+    // the hub can tell which tunnel this session owns.
     assert!(
         handle
-            .authenticate_publickey("gate", PrivateKeyWithHashAlg::new(Arc::new(kp), None))
+            .authenticate_publickey(
+                format!("tunnel-{OWN_TUNNEL_ID}"),
+                PrivateKeyWithHashAlg::new(Arc::new(kp), None)
+            )
             .await
             .expect("auth")
             .success()
@@ -149,5 +185,25 @@ async fn hub_only_binds_api_allocated_slots() {
             .await
             .is_err(),
         "denied slot must NOT be bindable"
+    );
+
+    // Cross-tenant isolation: OTHER_TENANT_SLOT *is* API-allocated, so the
+    // "does a tunnel record exist for this slot?" gate passes — but it belongs
+    // to a different developer. Binding it would let this session receive the
+    // other tenant's inbound traffic, so the hub must refuse on ownership.
+    let hijack = handle
+        .tcpip_forward("127.0.0.1", OTHER_TENANT_SLOT as u32)
+        .await;
+    assert!(
+        hijack.is_err(),
+        "another tenant's allocated slot must be denied (traffic interception); got {hijack:?}"
+    );
+
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    assert!(
+        TcpStream::connect(("127.0.0.1", OTHER_TENANT_SLOT))
+            .await
+            .is_err(),
+        "another tenant's slot must NOT be bindable by this session"
     );
 }

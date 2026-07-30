@@ -186,10 +186,11 @@ subdomains, and the TDP-11 idle-then-request case.
 | **D-4** | T-26b "TCP proxy to developer channel" via `edgehub::proxy` — and its "✅ COMPLETE — dynamic reverse proxy with port allocation, route registration, instant traffic routing" claim | The claim was false: allocated ports had no listeners; routing map was never read on the live path. The *goal* shipped via TDP-1/TDP-2; the *implementation* it describes is dead code deleted by TDP-10. |
 | **D-5** | E3-S3 Basic Auth / redirect mode | Superseded by session-grant cookie gating (TDP-5, FR-EDGE-3). Basic-auth/redirect modes are unimplemented; write fresh stories if product wants them. |
 | **D-6** | E2 keep-alive design "CLI sends `SSH_MSG_GLOBAL_REQUEST keepalive@edf`" | Never implemented; current code does the opposite (self-disconnect at 30 s). Replaced by TDP-11. |
+| **D-8** | E3-S4 "byte accounting" (per-tunnel bytes/requests) | Superseded on privacy grounds (2026-07-29). Counting traffic per tunnel builds a durable, attributable record of when a named developer worked and how much they moved — even without inspecting content — which cuts against the same reasoning FR-EDGE-1 uses to keep tunnel FQDNs out of CT logs. The `bytes_transferred`/`request_count` fields were never populated and have been removed, along with the `error_rate`/bandwidth health fields derived from them. Sanctioned alternatives: **aggregate, unattributed** hub metrics (no tunnel identity) for operations, and the lifecycle-based metering seam in `common::billing` (tunnel-hours, default `NoopMeter`) if billing is ever enabled — which is a product decision requiring disclosure and consent. Do not resurrect per-tunnel traffic counters; if traffic-based billing is genuinely required, write a fresh story with the consent model in it. |
 | **D-7** | E2 "GitHub OAuth gating, ephemeral cert used for TLS handshake, compression `zlib@openssh.com`" | None wired into the live tunnel path. Auth reality: accept-all (fixed by TDP-12/13). OAuth, mTLS-wrapped transport, and compression are **backlog**, not shipped — the E2 doc's checked-off security guarantees do not hold today. |
 
-Still-valid but **not started** (kept, unmodified): E3-S4 byte accounting, E3-S5 zstd
-compression, E3-S6 autoscaling/health probes.
+Still-valid but **not started** (kept, unmodified): E3-S5 zstd compression, E3-S6
+autoscaling/health probes.
 
 ---
 

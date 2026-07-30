@@ -116,6 +116,18 @@ async fn start_hub() -> std::net::SocketAddr {
     server_addr
 }
 
+/// Pick a currently-free localhost port for use as a tunnel slot.
+///
+/// Binds port 0, reads what the kernel assigned, then releases it. There is an
+/// inherent probe-then-bind race, but it is far safer than fixed ports, which
+/// collide with unrelated processes on shared hosts.
+async fn free_port() -> u16 {
+    let probe = TcpListener::bind("127.0.0.1:0").await.expect("probe bind");
+    let port = probe.local_addr().expect("probe addr").port();
+    drop(probe);
+    port
+}
+
 /// Open one tunnel: SSH client + tcpip_forward of `slot` → local `port`.
 async fn open_tunnel(
     server_addr: std::net::SocketAddr,
@@ -186,21 +198,26 @@ async fn concurrent_tunnels_are_isolated() {
 
     let server_addr = start_hub().await;
 
-    const SLOTS: [u16; 3] = [43541, 43542, 43543];
+    // Slots must be chosen at run time, not hardcoded. Fixed ports in the
+    // ephemeral range are silently owned by whatever else happens to be running
+    // on the host — this test used to fail with "Address already in use" purely
+    // because an unrelated process held one of them, which looks exactly like a
+    // tunnelling bug.
+    let slots: [u16; 3] = [free_port().await, free_port().await, free_port().await];
     const PAYLOADS: [&str; 3] = ["payload-alpha", "payload-bravo", "payload-charlie"];
 
     // Stand up three tunnels, each to its own payload server.
     let mut handles = Vec::new();
     for i in 0..3 {
         let local_port = spawn_payload_server(PAYLOADS[i]).await;
-        handles.push(open_tunnel(server_addr, SLOTS[i], local_port).await);
+        handles.push(open_tunnel(server_addr, slots[i], local_port).await);
     }
 
     // Fire 10 requests per tunnel, all 30 in parallel, interleaved.
     let mut tasks = Vec::new();
     for i in 0..3 {
         for _ in 0..10 {
-            let slot = SLOTS[i];
+            let slot = slots[i];
             let expected = PAYLOADS[i];
             tasks.push(tokio::spawn(async move {
                 let body = fetch_via_slot(slot).await.expect("fetch via slot");
@@ -226,7 +243,7 @@ async fn concurrent_tunnels_are_isolated() {
     // bravo's slot must close...
     let mut gone = false;
     for _ in 0..50 {
-        if TcpStream::connect(("127.0.0.1", SLOTS[1])).await.is_err() {
+        if TcpStream::connect(("127.0.0.1", slots[1])).await.is_err() {
             gone = true;
             break;
         }
@@ -235,6 +252,6 @@ async fn concurrent_tunnels_are_isolated() {
     assert!(gone, "disconnected tunnel's slot listener must close");
 
     // ...while the others still answer correctly.
-    assert_eq!(fetch_via_slot(SLOTS[0]).await.unwrap(), PAYLOADS[0]);
-    assert_eq!(fetch_via_slot(SLOTS[2]).await.unwrap(), PAYLOADS[2]);
+    assert_eq!(fetch_via_slot(slots[0]).await.unwrap(), PAYLOADS[0]);
+    assert_eq!(fetch_via_slot(slots[2]).await.unwrap(), PAYLOADS[2]);
 }

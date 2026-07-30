@@ -875,8 +875,46 @@ impl russh::server::Handler for SshSession {
         let policy = match &self.state.redis_pool {
             Some(pool) => match common::redis::get_tunnel_by_slot(pool, requested_port).await {
                 Ok(Some(tunnel)) => {
-                    live_tunnel_id = Some(tunnel.id.clone());
-                    tunnel.teardown_policy
+                    // Cross-tenant isolation: the slot must belong to the very
+                    // tunnel this session authenticated for.
+                    //
+                    // Checking only that *some* tunnel record owns the slot was
+                    // sufficient in Phase 0, when any SSH key was accepted and
+                    // the gate existed purely to stop port squatting. Now that
+                    // TDP-13 authenticates the session against an API-issued
+                    // key, "a record exists" is far too weak: an authenticated
+                    // developer could scan for allocated slots and bind another
+                    // developer's, after which the router would splice that
+                    // subdomain's inbound traffic into the attacker's SSH
+                    // channel — interception and impersonation in one step.
+                    //
+                    // The authenticated session id is the tunnel id (the API
+                    // stores the SSH session under it), so ownership is an
+                    // equality check.
+                    match self.client_certificate_serial.as_deref() {
+                        Some(session_id) if session_id == tunnel.id => {
+                            live_tunnel_id = Some(tunnel.id.clone());
+                            tunnel.teardown_policy
+                        }
+                        Some(session_id) => {
+                            warn!(
+                                requested_port,
+                                session_id,
+                                slot_owner = %tunnel.id,
+                                "tcpip-forward denied: session does not own this slot"
+                            );
+                            return Ok(false);
+                        }
+                        None => {
+                            // Reachable only if a session bound a slot without
+                            // completing public-key auth. Fail closed.
+                            warn!(
+                                requested_port,
+                                "tcpip-forward denied: no authenticated session for this connection"
+                            );
+                            return Ok(false);
+                        }
+                    }
                 }
                 Ok(None) => {
                     warn!(
