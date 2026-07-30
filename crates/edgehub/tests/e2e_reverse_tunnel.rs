@@ -13,7 +13,6 @@
 #![cfg(all(feature = "e2e", test))]
 
 use anyhow::{Context, Result};
-use common::shutdown::ShutdownSignal;
 use edgehub::ssh_server::SshConfig;
 use edgehub::ssh_server::SshServer;
 use russh::client::{self, Config as ClientConfig};
@@ -133,8 +132,12 @@ impl client::Handler for TunnelClient {
 ///
 /// It would have caught the original bug where `channel_open_direct_tcpip`
 /// was used instead of the correct `tcpip_forward` / `server_channel_open_forwarded_tcpip` flow.
+/// Not `#[ignore]`d: this asserts the product's core promise and runs in-process
+/// in ~5s with no Docker, so it must run whenever the `e2e` feature is on.
+/// It was previously feature-gated AND ignored AND broken — three layers of
+/// "this never runs", which is precisely how the original data-plane outage
+/// survived ~15 PRs.
 #[tokio::test]
-#[ignore = "E2E test - requires `cargo test --features e2e -- e2e_reverse_tunnel --ignored`"]
 async fn e2e_reverse_tunnel_data_plane() -> Result<()> {
     let _ = tracing_subscriber::fmt::try_init();
 
@@ -177,90 +180,97 @@ async fn e2e_reverse_tunnel_data_plane() -> Result<()> {
         server_port
     );
 
-    // Start server in background
-    let server_shutdown_tx = {
-        let (tx, _rx) = tokio::sync::mpsc::channel::<ShutdownSignal>(1);
-        tx
-    };
-    let _ = server_shutdown_tx;
+    // Start server in background.
+    //
+    // This block previously did `broadcast_tx.send(ShutdownSignal::Graceful)`
+    // before calling `run()`, with the comment "trigger shutdown immediately for
+    // testing" — so the server shut down before it ever accepted a connection
+    // and the client got ECONNREFUSED. The sender must also stay alive for the
+    // duration: dropping it closes the channel, and `recv()` on a closed
+    // channel resolves immediately, which the server also treats as shutdown.
+    let (shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel(1);
+    Box::leak(Box::new(shutdown_tx));
 
-    let server_handle = tokio::spawn(async move {
-        let (shutdown_tx, _) = tokio::sync::mpsc::channel::<ShutdownSignal>(1);
-        let (broadcast_tx, mut broadcast_rx) = tokio::sync::broadcast::channel(1);
+    let server_handle = tokio::spawn(async move { ssh_server.run(shutdown_rx).await });
 
-        // Trigger shutdown immediately for testing
-        let _ = broadcast_tx.send(ShutdownSignal::Graceful);
-
-        ssh_server.run(broadcast_rx).await
-    });
-    info!("Step 3: SshServer running on port {}", server_port);
+    // Wait until the listener actually accepts, rather than assuming it is up.
+    let mut ready = false;
+    for _ in 0..50 {
+        if TcpStream::connect(("127.0.0.1", server_port)).await.is_ok() {
+            ready = true;
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    assert!(ready, "SshServer did not start listening on {server_port}");
+    info!("Step 3: SshServer listening on port {}", server_port);
 
     // Step 4: russh client connects and requests tcpip_forward
     let allocated_port = Arc::new(tokio::sync::Mutex::new(None));
-    let client_handler = TunnelClient {
-        local_service,
-        allocated_port: Arc::clone(&allocated_port),
-    };
 
     let client_config = Arc::new(ClientConfig {
         inactivity_timeout: Some(Duration::from_secs(3600)),
         ..Default::default()
     });
 
-    // Start client connection
-    let client_allocated_port = Arc::clone(&allocated_port);
-    let client_handle = tokio::spawn(async move {
-        let handler = TunnelClient {
-            local_service,
-            allocated_port: client_allocated_port,
-        };
-
-        let mut session =
-            match client::connect(client_config, format!("127.0.0.1:{}", server_port), handler)
-                .await
-            {
-                Ok(s) => s,
-                Err(e) => {
-                    error!("Failed to connect SSH client: {}", e);
-                    return Err(e);
-                }
-            };
-
-        info!("SSH client connected");
-
-        // Request tcpip_forward (port 0 = auto-allocate)
-        // russh 0.60: tcpip_forward returns the allocated port (u32) on success;
-        // a rejected request now surfaces as Err, not Ok(false).
-        match timeout(Duration::from_secs(10), session.tcpip_forward("0.0.0.0", 0)).await {
-            Ok(Ok(allocated)) => {
-                info!("tcpip_forward requested successfully (allocated port {allocated})");
-            }
-            Ok(Err(e)) => {
-                error!("tcpip_forward request failed: {}", e);
-                return Err(e.into());
-            }
-            Err(_) => {
-                error!("tcpip_forward request timed out");
-                return Err(anyhow::anyhow!("tcpip_forward timeout"));
-            }
-        }
-
-        // Wait for forwarded channel to arrive
-        tokio::time::sleep(Duration::from_secs(2)).await;
-
-        Ok(())
-    });
-
-    // Wait for client to connect and request forward
-    tokio::time::sleep(Duration::from_secs(1)).await;
-
-    // Step 5: Get allocated port
-    let port = {
-        let guard = allocated_port.lock().await;
-        *guard
+    // Connect the tunnel client INLINE and keep the session alive for the whole
+    // test.
+    //
+    // This used to run in a spawned task that slept 2 s and returned, which
+    // dropped the SSH session — and with it the hub's slot listener — long
+    // before the response could travel back. The symptom was a bare "early eof"
+    // plus zero bytes read, which reads like a data-plane bug rather than a
+    // test that hung up on itself. russh drives the session on its own internal
+    // task, so the handler's forwarded-channel callback still fires while this
+    // handle is merely held in scope.
+    let handler = TunnelClient {
+        local_service,
+        allocated_port: Arc::clone(&allocated_port),
     };
 
-    let tunnel_port = port.expect("Reverse tunnel port was not allocated");
+    let mut session = client::connect(client_config, format!("127.0.0.1:{}", server_port), handler)
+        .await
+        .context("Failed to connect SSH client")?;
+
+    info!("SSH client connected");
+
+    // Authenticate before issuing global requests. SSH permits none until
+    // the user-auth phase completes, so skipping this made the server drop
+    // the session ("SSH session setup error: Disconnected") and the forward
+    // never happened. The hub is configured with
+    // `insecure_accept_all_keys`, so any key is accepted here; the username
+    // still carries the tunnel id the way the CLI sends it.
+    // Authenticate before issuing global requests. SSH permits none until the
+    // user-auth phase completes, so skipping this made the server drop the
+    // session ("SSH session setup error: Disconnected") and the forward never
+    // happened. The hub runs with `insecure_accept_all_keys` here, so any key is
+    // accepted; the username still carries a tunnel id the way the CLI sends it.
+    let client_key =
+        PrivateKey::random(&mut rand_key::rng(), Algorithm::Ed25519).context("generate key")?;
+    let authenticated = session
+        .authenticate_publickey(
+            "tunnel-e2e-reverse",
+            PrivateKeyWithHashAlg::new(Arc::new(client_key), None),
+        )
+        .await
+        .context("authenticate_publickey")?;
+    assert!(
+        authenticated.success(),
+        "SSH public-key authentication must succeed"
+    );
+    info!("SSH client authenticated");
+
+    // Request tcpip_forward (port 0 = auto-allocate).
+    //
+    // russh 0.60 returns the bound port here, and it is the ONLY usable source:
+    // the handler's forwarded-channel callback cannot supply it, because that
+    // callback fires only once an external client has connected to this very
+    // port — which the test cannot do until it knows the number. Relying on the
+    // callback was why this test failed with "port was not allocated".
+    let tunnel_port = timeout(Duration::from_secs(10), session.tcpip_forward("0.0.0.0", 0))
+        .await
+        .context("tcpip_forward timed out")?
+        .context("tcpip_forward was rejected")? as u16;
     info!("Step 4: Reverse tunnel allocated port {}", tunnel_port);
 
     // Step 6: External client connects to tunnel port
@@ -308,8 +318,9 @@ async fn e2e_reverse_tunnel_data_plane() -> Result<()> {
         }
     }
 
-    // Cleanup
-    drop(client_handle);
+    // Cleanup. The SSH session is dropped here, at the END of the test, which is
+    // what keeps the tunnel alive throughout it.
+    drop(session);
     drop(server_handle);
 
     info!("Step 8: Test completed");
