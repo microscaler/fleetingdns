@@ -30,6 +30,13 @@ jobs:
   # ── Generic Octopilot pipeline (reusable; nested + branded in the graph) ────
   build:
     name: Octopilot
+    # The pipeline's jobs request these; a caller that grants less fails at startup. id-token: write lets the
+    # integration and release jobs log in to a private registry through Workload Identity Federation.
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      pull-requests: write
     uses: octopilot/actions/.github/workflows/pipeline.yml@main
     with:
       integration: true
