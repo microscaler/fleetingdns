@@ -9,7 +9,7 @@
 MS02_HOST        := env_var_or_default("MS02_HOST", "ms02")
 MS02_SSH_USER    := env_var_or_default("MS02_SSH_USER", "casibbald")
 MS02_REPO_PATH   := env_var_or_default("MS02_REPO_PATH", "/home/casibbald/Workspace/microscaler/fleetingdns")
-shared_k8s_root  := "../shared-k8s-cluster"
+shared_k8s_root  := "../shared-gitops-k8s-cluster"
 shared_k8s_kubeconfig := shared_k8s_root + "/kubeconfig/shared-k8s.yaml"
 KIND_CONTEXT     := env_var_or_default("KIND_CONTEXT", "kind-kind")
 TILT_K8S_CLUSTER := env_var_or_default("TILT_K8S_CLUSTER", "shared-k8s")
@@ -66,7 +66,7 @@ up:
             tilt up --context {{KIND_CONTEXT}} --host 0.0.0.0 --port {{TILT_UI_PORT}}
         else
             echo "🚀 shared-k8s via systemd (tilt-fleetingdns.service :{{TILT_UI_PORT}})"
-            export KUBECONFIG="$(realpath {{shared_k8s_kubeconfig}} 2>/dev/null || echo "${HOME}/Workspace/microscaler/shared-k8s-cluster/kubeconfig/shared-k8s.yaml")"
+            export KUBECONFIG="$(realpath {{shared_k8s_kubeconfig}} 2>/dev/null || echo "${HOME}/Workspace/microscaler/shared-gitops-k8s-cluster/kubeconfig/shared-k8s.yaml")"
             (cd "{{shared_k8s_root}}" && just check-ready) || exit 1
             if ! kubectl get svc -n data minio >/dev/null 2>&1; then
                 (cd "{{shared_k8s_root}}" && just systemd-tilt-up) || true

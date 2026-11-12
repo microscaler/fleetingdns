@@ -6216,6 +6216,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
+name = "slot-setter"
+version = "0.1.0"
+dependencies = [
+ "clap 4.6.2",
+ "common",
+ "redis 0.29.5",
+ "testcontainers",
+ "testcontainers-modules",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "smallvec"
 version = "1.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8266,3 +8279,35 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
+
+[[patch.unused]]
+name = "microscaler-observability"
+version = "0.1.0"
+
+[[patch.unused]]
+name = "may_postgres"
+version = "0.1.0"
+
+[[patch.unused]]
+name = "brrtrouter"
+version = "0.1.0-alpha.1"
+
+[[patch.unused]]
+name = "brrtrouter_macros"
+version = "0.1.0"
+
+[[patch.unused]]
+name = "sesame-idam-client"
+version = "0.1.0"
+
+[[patch.unused]]
+name = "lifeguard"
+version = "0.1.0"
+
+[[patch.unused]]
+name = "lifeguard-derive"
+version = "0.1.0"
+
+[[patch.unused]]
+name = "lifeguard-migrate"
+version = "0.1.0"
